@@ -5,13 +5,103 @@ import { wallStackSlot, wallTilePlacement } from '../../core/rules/wallLayout'
 import { tileMarkerFor } from '../../../components/table/three/tileMarker'
 import { createGame } from './engine'
 import { fromSharedTile, toSharedTile, useYaotongPort } from './useYaotongPort'
-import { player, table } from './auditFixtures'
+import { meld, player, table } from './auditFixtures'
 import * as audioPresentation from '../../core/presentation/useAudio'
 
 beforeEach(() => vi.stubGlobal('window', globalThis))
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('幺筒复用原版GamePort与3D表现', () => {
+  it('减少动态效果仍提供准确礼金，沿用360ms亮牌窗口并及时清除', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
+    const scope = effectScope()
+    try {
+      const port = scope.run(() => useYaotongPort())!
+      const state = table()
+      state.players[0] = player('234567m 66p 789s', { drawn: 26, melds: [meld(9, { kind: 'turn', chicken: 60 })] })
+      port.local.state.value = state
+      port.userHu()
+      await vi.advanceTimersByTimeAsync(870)
+      expect(port.tableView.value.settlementCue?.gifts).toEqual([{ seat: 0, amount: 300 }])
+      expect(port.announcement.value).toBeNull()
+      await vi.advanceTimersByTimeAsync(359)
+      expect(port.result.value).toBeNull()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(port.result.value).not.toBeNull()
+      expect(port.tableView.value.settlementCue).toBeNull()
+    } finally { scope.stop() }
+  })
+  it.each([false, true])('见面礼在原版亮牌阶段飞分，双倍=%s，积分不提前入账、不延后结算', async (double) => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    try {
+      const port = scope.run(() => useYaotongPort())!
+      const state = table()
+      if (double) state.dice = [4, 4]
+      state.players[0] = player('234567m 66p 789s', { drawn: 26,
+        melds: [meld(9, { kind: 'turn', chicken: 60 })] })
+      port.local.state.value = state
+      port.userHu()
+      await vi.advanceTimersByTimeAsync(4599)
+      expect(port.tableView.value.settlementCue).toBeNull()
+      expect(port.tableView.value.seats[0].gift).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(port.tableView.value.settlementCue?.gifts).toEqual([{ seat: 0, amount: double ? 600 : 300 }])
+      expect(port.tableView.value.settlementCue?.payments.map((t) => [t.from, t.to, t.amount])).toEqual(
+        [1, 2, 3].map((from) => [from, 0, double ? 200 : 100]),
+      )
+      expect(port.players.every((p) => p.score === 0)).toBe(true)
+      expect(port.tableView.value.seats[0].giftAmount).toBe(double ? 600 : 300)
+      await vi.advanceTimersByTimeAsync(1499)
+      expect(port.result.value).toBeNull()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(port.tableView.value.settlementCue).toBeNull()
+      expect(port.result.value).not.toBeNull()
+      expect(port.players[0].score).toBe(state.result!.deltas[0])
+    } finally { scope.stop() }
+  })
+  it('热炮烧鸡绑定放炮人，亮牌前不出现；离桌清除特效与旧回调', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    try {
+      const port = scope.run(() => useYaotongPort())!
+      const state = table()
+      state.current = 1
+      state.players[1] = player('147m 258p 369s 2468s 6p', { afterKong: true, drawn: 14 })
+      state.players[0] = player('234m 456789s 6p 45p 1p')
+      port.local.state.value = state
+      port.local.dispatch({ type: 'discard', index: 13 }, 1)
+      port.userHu()
+      await vi.advanceTimersByTimeAsync(5179)
+      expect(port.tableView.value.settlementCue).toBeNull()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(port.tableView.value.settlementCue).toMatchObject({ burned: [1], payments: [], gifts: [] })
+      expect(port.tableView.value.seats[1].burned).toBe(true)
+      expect(port.tableView.value.seats[0].burned).toBe(false)
+      port.returnToLobby()
+      await vi.runAllTimersAsync()
+      expect(port.tableView.value.settlementCue).toBeNull()
+      expect(port.result.value).toBeNull()
+    } finally { scope.stop() }
+  })
+  it('放炮包见面礼只从放炮者飞出300，另外两家不重复支付', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    try {
+      const port = scope.run(() => useYaotongPort())!
+      const state = table()
+      state.current = 1
+      state.players[1] = player('147m 258p 369s 2468s 1p', { drawn: 9 })
+      state.players[0] = player('234m 567s 22p 45s', { declaration: 'ready',
+        melds: [meld(9, { from: 2, chicken: 45, responsibility: 20 })] })
+      port.local.state.value = state
+      port.local.dispatch({ type: 'discard', index: 13 }, 1)
+      port.userHu()
+      await vi.advanceTimersByTimeAsync(5180)
+      expect(port.tableView.value.settlementCue?.payments.map((t) => [t.from, t.to, t.amount])).toEqual([[1, 0, 300]])
+    } finally { scope.stop() }
+  })
   it.each([0, 1, 2, 3].flatMap((seat) => (['ready', 'original'] as const).map((declaration) => ({ seat, declaration }))))(
     '$seat号位$declaration后切听牌BGM，后续声明不重播，新局与离桌恢复默认', async ({ seat, declaration }) => {
       vi.useFakeTimers()

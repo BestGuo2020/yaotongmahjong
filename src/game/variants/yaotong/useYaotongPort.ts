@@ -22,7 +22,15 @@ import type {
 import { defaultAvatarForSeat } from '../../core/presentation/avatar'
 import { activeBgmTrackPort, DEFAULT_BGM_FILE } from '../../core/presentation/useAudio'
 import { READY_BGM_ASSET } from '../../core/presentation/audioAssets'
-import { TABLE_ACTION_CUE_DURATION_MS, type TableDeclarationEvent } from '../../core/presentation/tableActionCue'
+import {
+  TABLE_ACTION_CUE_DURATION_MS,
+  type TableDeclarationEvent,
+} from '../../core/presentation/tableActionCue'
+import {
+  prefersReducedMotion,
+  WIN_REVEAL_DURATION,
+  REDUCED_WIN_REVEAL_DURATION,
+} from '../../core/presentation/winEffect'
 import { tileName as sharedTileName } from '../../core/rules/tiles'
 import { createLocalTransientEventPresenter } from '../../core/local/localTransientEventPresenter'
 import { createPresentationScheduler } from '../../shared/runtime/presentationScheduler'
@@ -39,6 +47,9 @@ import {
   chickenCue as makeChickenCue,
   settlementTitle,
   winningPattern,
+  settlementCue as makeSettlementCue,
+  giftAwards,
+  type SettlementCue,
   type ChickenCue,
   type YaotongTableView,
 } from './presentation'
@@ -77,6 +88,8 @@ export function useYaotongPort(
   const tailDrawn = ref(0)
   const seatCue = shallowRef<ChickenCue | null>(null)
   const declarationCues = shallowRef<TableDeclarationEvent[]>([])
+  const settlementCue = shallowRef<SettlementCue | null>(null)
+  const gifts = computed(() => giftAwards(local.state.value?.result?.transfers ?? []))
   const winDeclared = ref(false)
   let lastDeclarationSound = -Infinity
   const tableView = computed<YaotongTableView>(() => ({
@@ -91,12 +104,12 @@ export function useYaotongPort(
           Boolean(
             local.state.value?.result?.transfers.some((t) => t.account === '杀报加分' && t.from === seat),
           ),
-        gift:
-          scoresReleased.value &&
-          Boolean(local.state.value?.result?.transfers.some((t) => t.account === '见面礼' && t.to === seat)),
+        gift: revealHands.value && gifts.value.some((gift) => gift.seat === seat),
+        giftAmount: revealHands.value ? gifts.value.find((gift) => gift.seat === seat)?.amount : undefined,
       })) ?? [],
     chickenCue: seatCue.value,
     declarationCues: declarationCues.value,
+    settlementCue: settlementCue.value,
   }))
   let generation = 0,
     settlementGeneration = 0,
@@ -275,9 +288,23 @@ export function useYaotongPort(
       activeBgmTrackPort()?.fadeTo(hasDeclaration ? READY_BGM_ASSET : DEFAULT_BGM_FILE)
     },
   )
-  watch(revealHands, (revealed) => {
-    if (revealed) playSound('tuidao.wav', 0.55)
-  })
+  watch(
+    revealHands,
+    (revealed) => {
+      if (!revealed) return
+      playSound('tuidao.wav', 0.55)
+      const cue = makeSettlementCue(local.state.value, ++eventSequence)
+      settlementCue.value = cue
+      if (cue)
+        scheduler.later(
+          () => {
+            if (settlementCue.value?.id === cue.id) settlementCue.value = null
+          },
+          prefersReducedMotion() ? REDUCED_WIN_REVEAL_DURATION : WIN_REVEAL_DURATION,
+        )
+    },
+    { flush: 'sync' },
+  )
 
   function finalizeResult(): RoundResult {
     const state = local.state.value!,
@@ -496,6 +523,7 @@ export function useYaotongPort(
     seatCue.value = null
     declarationCues.value = []
     lastDeclarationSound = -Infinity
+    settlementCue.value = null
   }
   async function opening(startOptions?: GameStartOptions) {
     local.paused.value = true
@@ -671,6 +699,7 @@ export function useYaotongPort(
       settlementGeneration++
       scheduler.clear()
       declarationCues.value = []
+      settlementCue.value = null
       openingActive.value = false
       openingStage.value = null
       result.value = null

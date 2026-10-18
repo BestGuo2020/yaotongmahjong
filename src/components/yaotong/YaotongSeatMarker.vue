@@ -28,12 +28,18 @@ defineProps<{ status?: SeatStatus; cue?: ChickenCue | null; name: string }>()
       class="burn-seal"
       title="烧鸡：本家的鸡分收益归零，其他分项仍按规则结算"
       :aria-label="`${name}烧鸡`"
-      >烧</span
+      >烧鸡</span
     >
     <span v-if="status.winner" class="win-seal" :aria-label="`${name}${status.winPattern ?? ''}胡牌`">{{
       status.winPattern ?? '胡'
     }}</span>
-    <span v-if="status.gift" class="gift-seal" title="见面礼" :aria-label="`${name}获得见面礼`">礼</span>
+    <span
+      v-if="status.gift"
+      class="gift-seal"
+      title="见面礼"
+      :aria-label="`${name}获得见面礼${status.giftAmount ?? ''}分`"
+      >礼<span v-if="status.giftAmount"> +{{ status.giftAmount }}</span></span
+    >
   </span>
   <Transition name="chicken-cue"
     ><span
@@ -52,6 +58,7 @@ defineProps<{ status?: SeatStatus; cue?: ChickenCue | null; name: string }>()
 <style scoped>
 .yaotong-seat-marker {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 3px;

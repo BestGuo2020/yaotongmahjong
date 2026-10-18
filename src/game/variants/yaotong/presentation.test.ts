@@ -1,10 +1,63 @@
 import { describe, expect, it } from 'vitest'
-import { paymentEdges, chickenCue, settlementTitle, winningPattern } from './presentation'
+import {
+  paymentEdges,
+  chickenCue,
+  giftAwards,
+  giftPayments,
+  settlementCue,
+  settlementTitle,
+  winningPattern,
+} from './presentation'
 import { evaluateHand } from './hands'
 import { ledger, settle } from './settlement'
 import { player, table } from './auditFixtures'
 
 describe('score flow and concise seat presentation', () => {
+  it.each([false, true])('见面礼飞分使用实际流水，双倍=%s，三家各付而非复制整局净分', (double) => {
+    const s = table()
+    const book = ledger(double ? [3, 3] : [2, 3])
+    for (const from of [0, 1, 3]) book.add(from, 2, '见面礼', 100, '四张')
+    book.add(2, 0, '鸡分', 45, '反向鸡分')
+    s.result = { ...settle(s, { kind: 'draw' }), transfers: book.transfers }
+    const copy = structuredClone(book.transfers)
+    expect(giftAwards(book.transfers)).toEqual([{ seat: 2, amount: double ? 600 : 300 }])
+    expect(giftPayments(book.transfers).map(({ from, to, amount }) => ({ from, to, amount }))).toEqual(
+      [0, 1, 3].map((from) => ({ from, to: 2, amount: double ? 200 : 100 })),
+    )
+    expect(settlementCue(s, 7)).toMatchObject({
+      id: 7,
+      burned: [],
+      gifts: [{ seat: 2, amount: double ? 600 : 300 }],
+    })
+    expect(book.transfers).toEqual(copy)
+  })
+  it.each([300, 600])('包见面礼%s只产生实际责任家的一条付款线', (amount) => {
+    const book = ledger(amount === 600 ? [2, 2] : [2, 3])
+    book.add(3, 1, '见面礼', 300, '包三份')
+    book.add(0, 1, '胡牌分', 45, '其他分项')
+    expect(giftPayments(book.transfers)).toEqual([
+      { from: 3, to: 1, amount, parts: [{ account: '见面礼', amount }] },
+    ])
+  })
+  it('烧鸡只标记本家，不制造额外付款，包牌不播放烧鸡/见面礼', () => {
+    const s = table()
+    s.players[3].burned = true
+    s.result = settle(s, { kind: 'win' })
+    expect(settlementCue(s, 8)).toMatchObject({ burned: [3], gifts: [], payments: [] })
+    s.result = settle(s, { kind: 'penalty', offender: 3 })
+    expect(settlementCue(s, 9)).toBeNull()
+    expect(settlementCue(null, 1)).toBeNull()
+  })
+  it('同一人烧鸡但仍持有四幺筒时，烧鸡和见面礼同时保留', () => {
+    const s = table()
+    s.players[1].burned = true
+    s.result = settle(s, { kind: 'win' })
+    const book = ledger([2, 3])
+    for (const from of [0, 2, 3]) book.add(from, 1, '见面礼', 100, '仍归本人四张')
+    s.result.transfers = book.transfers
+    expect(settlementCue(s, 10)).toMatchObject({ burned: [1], gifts: [{ seat: 1, amount: 300 }] })
+    expect(settlementCue(s, 10)?.payments).toHaveLength(3)
+  })
   it('nets each pair, retains signed categories, and reproduces each player’s exact balance', () => {
     const { transfers, add } = ledger([2, 2])
     add(0, 1, '胡牌分', 35, '清一色')

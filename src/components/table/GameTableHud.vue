@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import MahjongTile from '../MahjongTile.vue'
 import YaotongSeatMarker from '../yaotong/YaotongSeatMarker.vue'
+import YaotongSettlementEffects from '../yaotong/YaotongSettlementEffects.vue'
 import type { YaotongTableView } from '../../game/variants/yaotong/presentation'
 import PlayerSeat from '../PlayerSeat.vue'
 import TableActionCue from './TableActionCue.vue'
@@ -598,6 +599,7 @@ function onAvatarError(entry: GamePlayer) {
     <!-- players 已按本家视角排序，但 player.seat 保留服务器绝对座位；气泡必须按本地索引读取。 -->
     <PlayerSeat
       v-for="(player, index) in players.slice(1)" :key="player.seat" :player="player"
+      :data-yaotong-seat="index + 1"
       :position="seatPosition[index + 1]" :active="currentPlayer === index + 1"
       :action-active="tableActionEvent?.actorIndex === index + 1 || yaotongView?.declarationCues.some(cue => cue.actorIndex === index + 1)" :score-delta="scoreDeltaFor(index + 1)"
       :score-flow-id="presentedScoreFlowEvent?.id" :dealer="dealer === index + 1"
@@ -626,6 +628,8 @@ function onAvatarError(entry: GamePlayer) {
         :aria-label="`${players[cue.actorIndex]?.name}${cue.type === 'ready' ? '报听' : '原报'}`"
         :position="seatPosition[cue.actorIndex]" :theme-name="themeName" />
     </TransitionGroup>
+    <YaotongSettlementEffects v-if="yaotongView?.settlementCue" :key="yaotongView.settlementCue.id"
+      :cue="yaotongView.settlementCue" :players="players" />
     <Transition name="announce">
       <div v-if="announcement" :key="announcement.id" class="announcement" :class="announcement.tone"><span>{{ announcement.text }}</span></div>
     </Transition>
@@ -634,7 +638,7 @@ function onAvatarError(entry: GamePlayer) {
     </Transition>
 
     <section class="user-area">
-      <div class="user-identity" :class="{ active: currentPlayer === 0, 'action-active': tableActionEvent?.actorIndex === 0 || yaotongView?.declarationCues.some(cue => cue.actorIndex === 0) }" :style="userAnimeStyle">
+      <div class="user-identity" data-yaotong-seat="0" :class="{ active: currentPlayer === 0, 'action-active': tableActionEvent?.actorIndex === 0 || yaotongView?.declarationCues.some(cue => cue.actorIndex === 0) }" :style="userAnimeStyle">
         <span v-if="dealer === 0" class="dealer-badge">庄</span>
         <img class="avatar" :src="userAvatar" :alt="`${user.name}头像`" @error="onAvatarError(user)" />
         <div class="player-info"><strong>{{ user.name }}</strong><span>{{ user.score }}</span><YaotongSeatMarker v-if="yaotongView" :name="user.name" :status="yaotongView.seats[0]" :cue="yaotongView.chickenCue?.seat === 0 ? yaotongView.chickenCue : null" /></div>

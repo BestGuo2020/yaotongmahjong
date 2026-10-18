@@ -4,20 +4,32 @@ import type { GamePlayer } from '../../game/core/contracts/types'
 import type { TableThemeName } from '../table/three/tableTheme'
 import { animeAvatarForPlayer } from '../../game/core/presentation/animeAvatarPresentation'
 import { displayImageSrc } from '../../game/core/presentation/imagePreload'
-import { paymentEdges } from '../../game/variants/yaotong/presentation'
-import type { Transfer } from '../../game/variants/yaotong/types'
+import { giftAwards, giftPayments, paymentEdges } from '../../game/variants/yaotong/presentation'
+import type { Account, Transfer } from '../../game/variants/yaotong/types'
 
 const props = defineProps<{
   transfers: Transfer[]
   players: GamePlayer[]
   themeName?: TableThemeName
   handNumber: number
+  burnedSeats?: number[]
 }>()
-const emit = defineEmits<{ inspect: [pair: { from: number; to: number }] }>()
+const emit = defineEmits<{ inspect: [pair: { from: number; to: number; account?: Account }] }>()
 const selected = ref(0)
+const mode = ref<'net' | 'gift'>('net')
+const gifts = computed(() => giftAwards(props.transfers))
 const edges = computed(() =>
-  paymentEdges(props.transfers).filter((edge) => edge.from === selected.value || edge.to === selected.value),
+  (mode.value === 'gift' ? giftPayments(props.transfers) : paymentEdges(props.transfers)).filter(
+    (edge) => edge.from === selected.value || edge.to === selected.value,
+  ),
 )
+function showGift() {
+  mode.value = 'gift'
+  selected.value = gifts.value[0]?.seat ?? selected.value
+}
+function inspect(from: number, to: number) {
+  emit('inspect', { from, to, account: mode.value === 'gift' ? '见面礼' : undefined })
+}
 const others = computed(() => [0, 1, 2, 3].filter((seat) => seat !== selected.value))
 const position = (seat: number) =>
   seat === selected.value ? { x: 300, y: 139 } : { x: [85, 300, 515][others.value.indexOf(seat)], y: 30 }
@@ -30,12 +42,20 @@ function path(from: number, to: number) {
 const avatar = (player: GamePlayer) =>
   displayImageSrc(props.themeName === 'llmAnime' ? animeAvatarForPlayer(player) : player.avatar)
 const label = (from: number, to: number, amount: number) =>
-  `${props.players[from].name}向${props.players[to].name}净付${amount}分`
+  `${props.players[from].name}向${props.players[to].name}${mode.value === 'gift' ? '支付见面礼' : '净付'}${amount}分`
 </script>
 <template>
-  <section class="yaotong-payment-map" aria-label="本局分数流向">
+  <section class="yaotong-payment-map" :class="{ 'gift-mode': mode === 'gift' }" aria-label="本局分数流向">
     <header>
-      <span>本局收付</span
+      <span v-if="gifts.length" class="payment-modes" role="group" aria-label="收付分项">
+        <button :aria-pressed="mode === 'net'" :class="{ selected: mode === 'net' }" @click="mode = 'net'">
+          净收付
+        </button>
+        <button :aria-pressed="mode === 'gift'" :class="{ selected: mode === 'gift' }" @click="showGift">
+          见面礼
+        </button>
+      </span>
+      <span v-else>本局净收付</span
       ><span class="payment-viewers" role="group" aria-label="查看玩家收付"
         ><button
           v-for="(p, seat) in players"
@@ -65,15 +85,15 @@ const label = (from: number, to: number, amount: number) =>
       </defs>
       <g
         v-for="edge in edges"
-        :key="`${handNumber}/${selected}/${edge.from}/${edge.to}`"
+        :key="`${handNumber}/${mode}/${selected}/${edge.from}/${edge.to}`"
         class="payment-edge"
         :class="{ incoming: edge.to === selected }"
         role="button"
         tabindex="0"
         :aria-label="label(edge.from, edge.to, edge.amount)"
-        @click="emit('inspect', edge)"
-        @keydown.enter="emit('inspect', edge)"
-        @keydown.space.prevent="emit('inspect', edge)"
+        @click="inspect(edge.from, edge.to)"
+        @keydown.enter="inspect(edge.from, edge.to)"
+        @keydown.space.prevent="inspect(edge.from, edge.to)"
       >
         <title>
           {{ label(edge.from, edge.to, edge.amount) }}；{{
@@ -103,7 +123,11 @@ const label = (from: number, to: number, amount: number) =>
         :key="seat"
         :transform="`translate(${position(seat).x},${position(seat).y})`"
         class="payment-player"
-        :class="{ selected: seat === selected }"
+        :class="{
+          selected: seat === selected,
+          burned: burnedSeats?.includes(seat),
+          gifted: gifts.some((gift) => gift.seat === seat),
+        }"
       >
         <circle r="22" />
         <image
@@ -115,6 +139,19 @@ const label = (from: number, to: number, amount: number) =>
           clip-path="url(#yaotong-pay-avatar)"
         />
         <text y="37" text-anchor="middle">{{ p.name }}</text>
+        <g v-if="burnedSeats?.includes(seat)" class="map-burn-mark" :aria-label="`${p.name}烧鸡`">
+          <title>烧鸡</title>
+          <path d="M-27 -3 C-37 -14 -25 -14 -29 -23 C-12 -12 -15 -2 -23 -2 C-29 -1 -34 -6 -29 -11Z" />
+          <text x="-22" y="-24" text-anchor="end">烧鸡</text>
+        </g>
+        <g
+          v-if="gifts.some((gift) => gift.seat === seat)"
+          class="map-gift-mark"
+          :aria-label="`${p.name}见面礼${gifts.find((gift) => gift.seat === seat)!.amount}分`"
+        >
+          <title>见面礼</title>
+          <text x="30" y="5">礼 +{{ gifts.find((gift) => gift.seat === seat)!.amount }}</text>
+        </g>
       </g>
       <text v-if="!edges.length" class="no-payments" x="300" y="92" text-anchor="middle">无收付</text>
     </svg>
@@ -137,6 +174,58 @@ const label = (from: number, to: number, amount: number) =>
 .payment-viewers {
   display: flex;
   gap: 5px;
+}
+.payment-modes {
+  display: flex;
+  gap: 5px;
+}
+.payment-modes button {
+  border: 1px solid transparent;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--theme-text-muted);
+  font-size: 11px;
+  padding: 4px 8px;
+}
+.payment-modes button.selected {
+  border-color: var(--theme-border);
+  color: var(--theme-accent-text);
+  background: var(--theme-surface);
+}
+.gift-mode .payment-edge {
+  color: #e6bf6f;
+}
+.payment-player.gifted > circle {
+  stroke: #e6bf6f;
+  stroke-width: 3;
+  animation: map-gift-glow 1.1s ease-out both;
+}
+.payment-player.burned > circle {
+  stroke: #ed8969;
+  stroke-width: 3;
+}
+.map-burn-mark path {
+  fill: #ed8969;
+}
+.payment-player .map-burn-mark text {
+  fill: #ed8969;
+  font-size: 10px;
+  font-weight: 800;
+}
+.payment-player .map-gift-mark text {
+  fill: #e6bf6f;
+  font-size: 11px;
+  font-weight: 800;
+}
+@keyframes map-gift-glow {
+  0% {
+    stroke-width: 6;
+    filter: drop-shadow(0 0 9px #e6bf6f);
+  }
+  100% {
+    stroke-width: 3;
+    filter: none;
+  }
 }
 .payment-viewers button {
   border: 1px solid transparent;
@@ -230,6 +319,9 @@ svg {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .payment-player.gifted > circle {
+    animation: none;
+  }
   .payment-particle {
     display: none;
   }

@@ -6,6 +6,7 @@ export interface SeatStatus {
   burned: boolean
   winner: boolean
   gift: boolean
+  giftAmount?: number
   winPattern?: string
   killed?: boolean
 }
@@ -20,12 +21,52 @@ export interface YaotongTableView {
   seats: SeatStatus[]
   chickenCue: ChickenCue | null
   declarationCues: TableDeclarationEvent[]
+  settlementCue: SettlementCue | null
 }
 export interface PaymentEdge {
   from: number
   to: number
   amount: number
   parts: Array<{ account: Account; amount: number }>
+}
+
+export interface GiftAward {
+  seat: number
+  amount: number
+}
+export interface SettlementCue {
+  id: number
+  burned: number[]
+  gifts: GiftAward[]
+  payments: PaymentEdge[]
+}
+
+/** Gift transfers are their own account, never an extra copy of the net round payment. */
+export function giftPayments(transfers: readonly Transfer[]): PaymentEdge[] {
+  const grouped = new Map<string, PaymentEdge>()
+  for (const t of transfers) {
+    if (t.account !== '见面礼' || t.amount <= 0 || t.from === t.to) continue
+    const key = `${t.from}/${t.to}`
+    const amount = (grouped.get(key)?.amount ?? 0) + t.amount
+    grouped.set(key, { from: t.from, to: t.to, amount, parts: [{ account: '见面礼', amount }] })
+  }
+  return [...grouped.values()]
+}
+
+export function giftAwards(transfers: readonly Transfer[]): GiftAward[] {
+  const totals = new Map<number, number>()
+  for (const t of giftPayments(transfers)) totals.set(t.to, (totals.get(t.to) ?? 0) + t.amount)
+  return [...totals].map(([seat, amount]) => ({ seat, amount }))
+}
+
+export function settlementCue(state: GameState | null, id: number): SettlementCue | null {
+  const result = state?.result
+  if (!state || !result || result.kind === 'penalty') return null
+  const burned = result.kind === 'win' ? state.players.flatMap((p, seat) => (p.burned ? [seat] : [])) : []
+  const gifts = giftAwards(result.transfers)
+  return burned.length || gifts.length
+    ? { id, burned, gifts, payments: giftPayments(result.transfers) }
+    : null
 }
 
 /** Announce the selected structural pattern before the shared hand-reveal stage. */

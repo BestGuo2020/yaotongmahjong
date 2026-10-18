@@ -4,23 +4,24 @@ import MahjongTile from '../MahjongTile.vue'
 import YaotongPaymentMap from './YaotongPaymentMap.vue'
 import type { GamePlayer } from '../../game/core/contracts/types'
 import { useEffectPlayer } from '../../game/core/presentation/useAudio'
-import type { GameState } from '../../game/variants/yaotong/types'
+import type { Account, GameState } from '../../game/variants/yaotong/types'
 import { toSharedTile } from '../../game/variants/yaotong/useYaotongPort'
 import type { TableThemeName } from '../table/three/tableTheme'
 const props = defineProps<{ state: GameState; players: GamePlayer[]; themeName?: TableThemeName }>()
 const result = computed(() => props.state.result!)
 const detailOpen = ref(false)
-const pair = ref<{ from: number; to: number } | null>(null)
+const pair = ref<{ from: number; to: number; account?: Account } | null>(null)
 const entries = computed(() =>
   result.value.transfers.filter(
     (entry) =>
       !pair.value ||
-      (entry.from === pair.value.from && entry.to === pair.value.to) ||
-      (entry.from === pair.value.to && entry.to === pair.value.from),
+      ((!pair.value.account || entry.account === pair.value.account) &&
+        ((entry.from === pair.value.from && entry.to === pair.value.to) ||
+          (entry.from === pair.value.to && entry.to === pair.value.from))),
   ),
 )
 const playEffect = useEffectPlayer()
-function inspect(value: { from: number; to: number }) {
+function inspect(value: { from: number; to: number; account?: Account }) {
   pair.value = value
   detailOpen.value = true
   if (entries.value.some((entry) => entry.account === '幺筒责任分')) playEffect?.('zerenji.wav', 0.35)
@@ -64,6 +65,9 @@ function download() {
       :players="players"
       :theme-name="themeName"
       :hand-number="state.handNumber"
+      :burned-seats="
+        result.kind === 'win' ? state.players.flatMap((player, seat) => (player.burned ? [seat] : [])) : []
+      "
       @inspect="inspect"
     />
     <details :open="detailOpen" @toggle="detailOpen = ($event.target as HTMLDetailsElement).open">
