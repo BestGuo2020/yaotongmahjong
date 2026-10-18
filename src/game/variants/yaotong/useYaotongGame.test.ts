@@ -11,7 +11,6 @@ describe('幺筒对局生命周期', () => {
     const scope = effectScope()
     const game = scope.run(useYaotongGame)!
     game.begin(4)
-    game.fast.value = true
     game.autoplay.value = true
     await nextTick()
     await vi.runAllTimersAsync()

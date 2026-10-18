@@ -3,6 +3,26 @@ import { settle, type Ending } from './settlement'
 import { breakWall, countsOf, isChicken, isFixed, shuffledWall, sortHand, tileName, YAO } from './tiles'
 import type { ActionOptions, Command, GameEvent, GameState, Player, Seat, Tile } from './types'
 
+/** Optional presentation boundaries. Headless rules stay synchronous and deterministic. */
+export type FlowStep =
+  | 'first-draw'
+  | 'next-draw'
+  | 'after-peng'
+  | 'after-open-kong'
+  | 'before-rob'
+  | 'between-robbers'
+  | 'after-added-kong'
+  | 'rob-win'
+export type EngineFlow = (step: FlowStep, resume: () => void) => void
+function advance(state: GameState, flow: EngineFlow | undefined, step: FlowStep, resume: () => void) {
+  if (!flow) {
+    resume()
+    return
+  }
+  state.phase = 'transition'
+  flow(step, resume)
+}
+
 export function makePlayer(name = '玩家'): Player {
   return {
     name,
@@ -177,7 +197,7 @@ function passSelf(state: GameState, seat: Seat): boolean {
   return true
 }
 
-function offerResponses(state: GameState) {
+function offerResponses(state: GameState, flow?: EngineFlow) {
   const pending = state.pending!
   for (let offset = 1; offset < 4; offset++) {
     const seat = (pending.from + offset) % 4
@@ -206,7 +226,7 @@ function offerResponses(state: GameState) {
       }
   }
   state.phase = 'response'
-  if (!Object.keys(pending.options).length) resolveResponses(state)
+  if (!Object.keys(pending.options).length) resolveResponses(state, flow)
 }
 
 function removeTiles(p: Player, tile: Tile, count: number) {
@@ -217,24 +237,28 @@ function removeTiles(p: Player, tile: Tile, count: number) {
   }
 }
 
-function resolveResponses(state: GameState) {
+function resolveResponses(state: GameState, flow?: EngineFlow) {
   const pending = state.pending!
   const winners = Object.entries(pending.choices)
     .filter(([, c]) => c === 'hu')
     .map(([seat]) => Number(seat))
   if (winners.length) {
-    if (pending.kind === 'rob') removeTiles(state.players[pending.from], pending.tile, 1)
-    else state.players[pending.from].river.pop()
-    for (const seat of winners) state.players[seat].hand.push(pending.tile)
-    if (pending.kind === 'hot' || pending.kind === 'rob') state.players[pending.from].burned = true
-    finish(state, {
-      kind: 'win',
-      winners,
-      source: pending.from,
-      winKind: pending.kind,
-      tile: pending.tile,
-      responsibility: pending.tile === YAO ? (pending.discard?.chicken ?? 0) : 0,
-    })
+    const end = () => {
+      if (pending.kind === 'rob') removeTiles(state.players[pending.from], pending.tile, 1)
+      else state.players[pending.from].river.pop()
+      for (const seat of winners) state.players[seat].hand.push(pending.tile)
+      if (pending.kind === 'hot' || pending.kind === 'rob') state.players[pending.from].burned = true
+      finish(state, {
+        kind: 'win',
+        winners,
+        source: pending.from,
+        winKind: pending.kind,
+        tile: pending.tile,
+        responsibility: pending.tile === YAO ? (pending.discard?.chicken ?? 0) : 0,
+      })
+    }
+    if (pending.kind === 'rob') advance(state, flow, 'rob-win', end)
+    else end()
     return
   }
   if (pending.kind === 'rob') {
@@ -245,7 +269,7 @@ function resolveResponses(state: GameState) {
     meld.chicken = pending.tile === YAO ? (meld.pre ? 120 : 60) : isFixed(pending.tile) ? 10 : 0
     state.pending = null
     event(state, pending.from, 'kong', '补杠', pending.tile)
-    draw(state, pending.from, true)
+    advance(state, flow, 'after-added-kong', () => draw(state, pending.from, true))
     return
   }
   const claimant = [1, 2, 3]
@@ -283,12 +307,16 @@ function resolveResponses(state: GameState) {
     state.current = claimant
     state.phase = 'discard'
     event(state, claimant, kong ? 'kong' : 'peng', kong ? '明杠' : '碰', pending.tile)
-    if (kong) draw(state, claimant, true)
-  } else draw(state, (pending.from + 1) % 4)
+    if (kong) advance(state, flow, 'after-open-kong', () => draw(state, claimant, true))
+    else
+      advance(state, flow, 'after-peng', () => {
+        state.phase = 'discard'
+      })
+  } else advance(state, flow, 'next-draw', () => draw(state, (pending.from + 1) % 4))
 }
 
 /** Single deterministic command boundary. Invalid basic actions do not mutate state. */
-export function act(state: GameState, seat: Seat, command: Command): boolean {
+export function act(state: GameState, seat: Seat, command: Command, flow?: EngineFlow): boolean {
   if (!Number.isInteger(seat) || seat < 0 || seat > 3 || state.phase === 'settled') return false
   const p = state.players[seat]
   if (command.type === 'original') {
@@ -299,7 +327,8 @@ export function act(state: GameState, seat: Seat, command: Command): boolean {
       p.declaration = 'original'
       event(state, seat, 'ready', '原报 · 锁定听口')
     }
-    if (state.originalDecisions.every(Boolean)) draw(state, state.dealer)
+    if (state.originalDecisions.every(Boolean))
+      advance(state, flow, 'first-draw', () => draw(state, state.dealer))
     return true
   }
   if (command.type === 'respond') {
@@ -328,7 +357,11 @@ export function act(state: GameState, seat: Seat, command: Command): boolean {
     if (command.action !== 'hu' && options.hu && !options.restrictedHu)
       p.passedHu = Math.max(p.passedHu ?? 0, options.h)
     pending.choices[seat] = command.action
-    if (Object.keys(pending.options).every((i) => pending.choices[Number(i)])) resolveResponses(state)
+    if (Object.keys(pending.options).every((i) => pending.choices[Number(i)])) resolveResponses(state, flow)
+    else if (pending.kind === 'rob')
+      advance(state, flow, 'between-robbers', () => {
+        state.phase = 'response'
+      })
     return true
   }
   if (state.phase !== 'discard' || state.current !== seat) return false
@@ -345,7 +378,8 @@ export function act(state: GameState, seat: Seat, command: Command): boolean {
     const meld = p.melds.find((m) => m.kind === 'peng' && m.tile === command.tile)
     if (meld) {
       state.pending = { kind: 'rob', tile: command.tile, from: seat, discard: null, options: {}, choices: {} }
-      offerResponses(state)
+      if (flow) event(state, seat, 'kong-intent', '宣告补杠', command.tile)
+      advance(state, flow, 'before-rob', () => offerResponses(state, flow))
     } else {
       const kind = p.drawn === command.tile ? 'turn' : 'stored'
       removeTiles(p, command.tile, 4)
@@ -419,7 +453,7 @@ export function act(state: GameState, seat: Seat, command: Command): boolean {
     event(state, seat, 'ready', '报听 · 锁定听口')
   }
   state.pending = { kind: hot ? 'hot' : 'discard', tile, from: seat, discard, options: {}, choices: {} }
-  offerResponses(state)
+  offerResponses(state, flow)
   return true
 }
 

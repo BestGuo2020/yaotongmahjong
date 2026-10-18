@@ -1,20 +1,22 @@
 import { effectScope, isRef, nextTick } from 'vue'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GAME_PORT_ACTION_KEYS, GAME_PORT_STATE_KEYS } from '../../core/contracts/gamePort'
 import { wallStackSlot, wallTilePlacement } from '../../core/rules/wallLayout'
 import { tileMarkerFor } from '../../../components/table/three/tileMarker'
 import { createGame } from './engine'
 import { fromSharedTile, toSharedTile, useYaotongPort } from './useYaotongPort'
 
-afterEach(() => vi.useRealTimers())
+beforeEach(() => vi.stubGlobal('window', globalThis))
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('幺筒复用原版GamePort与3D表现', () => {
-  it('无人响应的出牌仍保留3D飞牌事件，不被紧接着的摸牌覆盖', () => {
+  it('无人响应的出牌保留3D飞牌事件，450ms后才摸下一张', async () => {
     vi.useFakeTimers()
     const scope = effectScope()
     const port = scope.run(() => useYaotongPort())!
     const state = createGame({ dealer: 0, dice: [2, 3] })
-    state.phase = 'discard'; state.current = 0
+    state.phase = 'discard'
+    state.current = 0
     for (const player of state.players) {
       player.hand = [0, 3, 6, 10, 13, 16, 20, 23, 26, 19, 21, 23, 25]
       player.draws = 2
@@ -24,6 +26,9 @@ describe('幺筒复用原版GamePort与3D表现', () => {
     port.local.state.value = state
     port.userDiscard(13)
     expect(port.lastDiscard.value).toMatchObject({ tile: 'm5', from: 0 })
+    expect(state.phase).toBe('transition')
+    expect(state.current).toBe(0)
+    await vi.advanceTimersByTimeAsync(450)
     expect(state.current).toBe(1)
     expect(state.phase).toBe('discard')
     scope.stop()
@@ -104,7 +109,11 @@ describe('幺筒复用原版GamePort与3D表现', () => {
     await vi.advanceTimersByTimeAsync(2100)
     expect(port.winEffect.value?.winnerIndex).toBe(0)
     expect(port.winPresentation.value?.sourceIndex).toBe(13)
-    await vi.advanceTimersByTimeAsync(3000)
+    await vi.advanceTimersByTimeAsync(2500)
+    expect(port.phase.value).toBe('revealing')
+    expect(port.result.value).toBeNull()
+    expect(port.players.every((p) => p.score === 0)).toBe(true)
+    await vi.advanceTimersByTimeAsync(1500)
     expect(port.phase.value).toBe('settled')
     expect(port.result.value?.scoreChanges.reduce((sum, p) => sum + p.delta, 0)).toBe(0)
     expect(port.revealHands.value).toBe(true)

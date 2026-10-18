@@ -3,7 +3,7 @@ import { createWall, shuffle, sortTiles } from '../rules/tiles'
 import { wallBreakIndexForDealer } from '../rules/wallLayout'
 import { MATCH_HANDS } from './localGameConfig'
 import type { LocalGameState } from './localGameState'
-import { dealInitialHands, resetLocalPlayers, type PlayerSeed } from '../../shared/runtime/localOpening'
+import { dealInitialHands, resetLocalPlayers, playOpeningCue, OPENING_PACE_MS, type PlayerSeed } from '../../shared/runtime/localOpening'
 
 interface LocalOpeningTimelineOptions {
   state: LocalGameState
@@ -142,7 +142,7 @@ export function createLocalOpeningTimeline(options: LocalOpeningTimelineOptions)
     }
     state.openingStage.value = 'start'
 
-    await Promise.all([options.playSoundAndWait('game_start.mp3'), options.wait(1250)])
+    await playOpeningCue('start', options)
     if (currentSequence !== sequence) return
     state.diceValues.value = startOptions.openingDice
       ? [...startOptions.openingDice]
@@ -151,7 +151,7 @@ export function createLocalOpeningTimeline(options: LocalOpeningTimelineOptions)
           Math.floor(Math.random() * 6) + 1,
         ]
     state.openingStage.value = 'dice'
-    await Promise.all([options.playSoundAndWait('dice.mp3'), options.wait(1150)])
+    await playOpeningCue('dice', options)
     if (currentSequence !== sequence) return
 
     const breakIndex = wallBreakIndexForDealer(state.diceValues.value, state.dealer.value)
@@ -196,7 +196,7 @@ export function createLocalOpeningTimeline(options: LocalOpeningTimelineOptions)
       await startOptions.waitForOpeningReady()
       if (currentSequence !== sequence) return
     }
-    options.later(() => options.beginTurn(state.dealer.value, { skipDraw: true, preDrawn: true }), 650)
+    options.later(() => options.beginTurn(state.dealer.value, { skipDraw: true, preDrawn: true }), OPENING_PACE_MS.firstTurn)
   }
 
   return { start, cancel, resetPlayers }

@@ -2,7 +2,7 @@ import type { ScoreDelta, TableActionEvent, TableActionType, TileType } from '..
 import type { LocalGameState } from './localGameState'
 
 interface LocalTransientEventPresenterOptions {
-  state: LocalGameState
+  state: Pick<LocalGameState, 'announcement' | 'tableActionEvent' | 'scoreFlowEvent'>
   later(callback: () => void, delay: number): number
   /** 主题表现副作用；不得抛错或阻塞规则推进。 */
   onTableAction?: (event: TableActionEvent) => void

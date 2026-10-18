@@ -119,7 +119,7 @@ export interface GameEvent {
   id: number
   seat: Seat
   text: string
-  kind: 'draw' | 'discard' | 'peng' | 'kong' | 'hu' | 'ready' | 'penalty' | 'start'
+  kind: 'draw' | 'discard' | 'peng' | 'kong' | 'kong-intent' | 'hu' | 'ready' | 'penalty' | 'start'
   tile?: Tile
 }
 export interface GameState {
@@ -130,7 +130,7 @@ export interface GameState {
   reservedStacks: number
   dealer: Seat
   current: Seat
-  phase: 'original' | 'discard' | 'response' | 'settled'
+  phase: 'original' | 'discard' | 'response' | 'transition' | 'settled'
   originalDecisions: boolean[]
   pending: Pending | null
   result: Settlement | null

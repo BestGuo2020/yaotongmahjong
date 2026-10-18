@@ -277,9 +277,11 @@ const localGame = useGame({
   analysis: analysis.port,
   analysisSink: lotusClassicAnalysisSink,
 })
-const yaotongGame = useYaotongPort({ playSound: playEffect, getCharacterId: () => animeCharacterId.value })
+const yaotongGame = useYaotongPort({ playSound: playEffect, playSoundAndWait: playEffectAndWait, getCharacterId: () => animeCharacterId.value })
 const isYaotong = computed(() => selectedRule.value === 'yaotong' && gameMode.value === 'local')
-watch(rulesOpen, (open) => { if (isYaotong.value && !yaotongGame.openingStage.value) yaotongGame.local.paused.value = open })
+watch([rulesOpen, () => yaotongGame.openingActive.value], ([open, opening]) => {
+  if (isYaotong.value && !opening) yaotongGame.local.paused.value = open
+})
 const lotusGame = useLotusGame({
   playSound: playEffect,
   playSoundAndWait: playEffectAndWait,

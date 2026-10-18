@@ -54,6 +54,21 @@ export interface InitialDealOptions<S extends OpeningState> {
   playSound(name: string, volume?: number): unknown
   sortHand?: (hand: TileType[]) => TileType[]
   isCancelled?(): boolean
+  /** 幺筒各家13张、原报窗口后庄家才首摸；其他玩法保持原有跳牌。 */
+  dealerJump?: boolean
+}
+
+export const OPENING_PACE_MS = { start: 1250, dice: 1150, batch: 260, single: 150, firstTurn: 650 } as const
+
+/** Wait for both the original minimum cue duration and its audio completion. */
+export async function playOpeningCue(stage: 'start' | 'dice', options: {
+  wait(delay: number): Promise<void>
+  playSoundAndWait(name: string): Promise<void>
+}) {
+  await Promise.all([
+    options.playSoundAndWait(stage === 'start' ? 'game_start.mp3' : 'dice.mp3'),
+    options.wait(OPENING_PACE_MS[stage]),
+  ])
 }
 
 export async function dealInitialHands<S extends OpeningState>(options: InitialDealOptions<S>) {
@@ -77,7 +92,7 @@ export async function dealInitialHands<S extends OpeningState>(options: InitialD
       count,
       serial: state.dealAnimation.value.serial + 1,
     }
-    await options.wait(count === 4 ? 260 : 150)
+    await options.wait(count === 4 ? OPENING_PACE_MS.batch : OPENING_PACE_MS.single)
   }
 
   for (let batch = 0; batch < 3; batch += 1) {
@@ -85,6 +100,16 @@ export async function dealInitialHands<S extends OpeningState>(options: InitialD
       await dealBatch(playerIndex, 4)
       if (options.isCancelled?.()) return false
     }
+  }
+
+  if (options.dealerJump === false) {
+    for (const playerIndex of seatOrder) {
+      await dealBatch(playerIndex, 1)
+      if (options.isCancelled?.()) return false
+    }
+    const sortHand = options.sortHand ?? sortTiles
+    state.players.forEach((player) => { player.hand = sortHand(player.hand) })
+    return true
   }
 
   const jumpTiles = Array.from({ length: 5 }, () => options.takeTile(false))
@@ -95,14 +120,14 @@ export async function dealInitialHands<S extends OpeningState>(options: InitialD
     count: 2,
     serial: state.dealAnimation.value.serial + 1,
   }
-  await options.wait(260)
+  await options.wait(OPENING_PACE_MS.batch)
   for (const playerIndex of [seatOrder[1], seatOrder[2], seatOrder[3]]) {
     state.dealAnimation.value = {
       playerIndex,
       count: 1,
       serial: state.dealAnimation.value.serial + 1,
     }
-    await options.wait(150)
+    await options.wait(OPENING_PACE_MS.single)
   }
   if (options.isCancelled?.()) return false
 
