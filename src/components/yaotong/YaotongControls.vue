@@ -1,0 +1,77 @@
+<script setup lang="ts">
+import type { useYaotongPort } from '../../game/variants/yaotong/useYaotongPort'
+const props = defineProps<{ game: ReturnType<typeof useYaotongPort> }>()
+</script>
+<template>
+  <template v-if="!game.local.autoplay.value">
+    <template v-if="game.original.value">
+      <button
+        v-if="game.local.waiting.value.length"
+        class="action hu"
+        data-action-role="major"
+        @click="game.local.dispatch({ type: 'original', declare: true })"
+      >
+        <b>原报</b>
+      </button>
+      <button
+        class="action primary"
+        data-action-role="primary"
+        @click="game.local.dispatch({ type: 'original', declare: false })"
+      >
+        <b>{{ game.local.waiting.value.length ? '不原报' : '开打' }}</b>
+      </button>
+    </template>
+    <button
+      v-if="game.canArmDeclaration.value"
+      class="action primary"
+      :class="{ active: game.declarationArmed.value }"
+      data-action-role="primary"
+      :aria-pressed="game.declarationArmed.value"
+      @click="game.declarationArmed.value = !game.declarationArmed.value"
+    >
+      <b>{{ game.declarationArmed.value ? '取消报听' : '报听' }}</b>
+    </button>
+  </template>
+  <span v-if="game.declarationArmed.value" class="yaotong-action-note">请打出带「听」提示的牌</span>
+  <span v-else-if="game.risk.value" class="yaotong-action-note danger" role="status">{{
+    game.risk.value
+  }}</span>
+  <span v-else-if="game.local.user.value?.declaration !== 'none'" class="yaotong-action-note"
+    >{{ game.local.user.value?.declaration === 'original' ? '原报' : '报听' }} · 未胡摸切</span
+  >
+  <span v-if="game.local.state.value?.dice[0] === game.local.state.value?.dice[1]" class="yaotong-double"
+    >本局 ×2</span
+  >
+</template>
+<style scoped>
+.yaotong-action-note {
+  max-width: 220px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--theme-accent-text);
+  padding: 5px 9px;
+  background: var(--theme-panel);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+}
+.yaotong-action-note.danger {
+  color: var(--theme-danger, #ffbd9a);
+}
+.yaotong-double {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--theme-accent-text);
+  padding: 4px 8px;
+  border: 1px solid var(--theme-border);
+  border-radius: 20px;
+}
+@container (max-width:700px) {
+  .yaotong-action-note {
+    font-size: 10px;
+    max-width: 130px;
+  }
+  .yaotong-double {
+    font-size: 10px;
+  }
+}
+</style>
