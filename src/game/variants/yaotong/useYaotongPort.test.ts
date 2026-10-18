@@ -5,11 +5,48 @@ import { wallStackSlot, wallTilePlacement } from '../../core/rules/wallLayout'
 import { tileMarkerFor } from '../../../components/table/three/tileMarker'
 import { createGame } from './engine'
 import { fromSharedTile, toSharedTile, useYaotongPort } from './useYaotongPort'
+import { player, table } from './auditFixtures'
 
 beforeEach(() => vi.stubGlobal('window', globalThis))
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('幺筒复用原版GamePort与3D表现', () => {
+  it('原报属于声明者座位，短音一次，不产生全桌公告', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope(), playSound = vi.fn()
+    const port = scope.run(() => useYaotongPort({ playSound }))!
+    const state = createGame({ dealer: 0, dice: [2, 3] })
+    state.players[1] = player('234567m 234s 66p 78s', { draws: 0 })
+    state.players[2] = player('234567m 234s 66p 78s', { draws: 0 })
+    port.local.state.value = state
+    port.local.dispatch({ type: 'original', declare: true }, 1)
+    port.local.dispatch({ type: 'original', declare: true }, 2)
+    expect(port.tableView.value.seats.map((s) => s.declaration)).toEqual(['none', 'original', 'original', 'none'])
+    expect(port.announcement.value).toBeNull()
+    expect(playSound.mock.calls.filter(([file]) => file === 'ting.wav')).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(port.tableView.value.seats[1].declaration).toBe('original')
+    scope.stop()
+  })
+  it('幺筒冲分浮标跟随出牌者，报牌完成后衔接短音，到时自动消失', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope(), playSound = vi.fn()
+    let finish!: () => void
+    const port = scope.run(() => useYaotongPort({ playSound, playSoundAndWait: () => new Promise<void>((resolve) => { finish = resolve }) }))!
+    const state = table()
+    state.players[0] = player('147m 258p 369s 2468s 1p')
+    port.local.state.value = state
+    port.userDiscard(13)
+    expect(port.tableView.value.chickenCue).toMatchObject({ seat: 0, label: '预冲', points: 30 })
+    expect(port.announcement.value).toBeNull()
+    await vi.advanceTimersByTimeAsync(80)
+    expect(playSound.mock.calls.some(([file]) => file === 'chongfengji.wav')).toBe(false)
+    finish(); await Promise.resolve(); await Promise.resolve()
+    expect(playSound.mock.calls.some(([file]) => file === 'chongfengji.wav')).toBe(true)
+    await vi.advanceTimersByTimeAsync(970)
+    expect(port.tableView.value.chickenCue).toBeNull()
+    scope.stop()
+  })
   it('无人响应的出牌保留3D飞牌事件，450ms后才摸下一张', async () => {
     vi.useFakeTimers()
     const scope = effectScope()

@@ -8,33 +8,14 @@ import {
   type LlmAudioPlaybackHooks,
 } from './llmAudioBus'
 import type { LlmSpeechPriority } from '../../llm/speechPolicy'
+import { DEFAULT_BGM_ASSET, EFFECT_AUDIO_ASSETS, resolveAudioAsset, resolveBgmAsset } from './audioAssets'
 
 const AUDIO_BASE = `${import.meta.env.BASE_URL}audio/`
-const SUIT_AUDIO_FILES = ['m', 'p', 's'].flatMap((suit) => (
-  Array.from({ length: 9 }, (_, index) => `${index + 1}${suit}.mp3`)
-))
-const HONOR_AUDIO_FILES = Array.from({ length: 7 }, (_, index) => `${index + 1}z.mp3`)
-const EFFECT_AUDIO_FILES = [
-  ...SUIT_AUDIO_FILES,
-  ...HONOR_AUDIO_FILES,
-  'chi.mp3',
-  'click.mp3',
-  'dapai.mp3',
-  'deal.mp3',
-  'dice.mp3',
-  'game_start.mp3',
-  'gang.mp3',
-  'give.mp3',
-  'hu.mp3',
-  'hu_effect_sound.mp3',
-  'peng.mp3',
-  'zimo.mp3',
-  'didu.ogg',
-]
+const EFFECT_AUDIO_FILES = EFFECT_AUDIO_ASSETS
 const EFFECT_WAIT_TIMEOUT_MS = 4_000
 const BGM_VOLUME = 0.32
 /** 默认循环 BGM；`audio/` 下的文件名。 */
-export const DEFAULT_BGM_FILE = 'bg.ogg'
+export const DEFAULT_BGM_FILE = DEFAULT_BGM_ASSET
 /** 换曲总时长：先把旧曲淡到 0（此时才停旧曲），再让新曲从 0 淡起。 */
 export const BGM_SWITCH_FADE_SECONDS = 1.4
 /** 总时长里分给「淡出」的比例（其余给「淡入」）：约 0.5s 淡出 + 0.9s 淡入。 */
@@ -210,13 +191,17 @@ export function useAudio() {
 
   function playEffect(name: string, volume = 1, onFinish?: () => void): EffectAudio | null {
     if (!soundOn.value || !effectsOn.value || !name) return null
-    const template = effectTemplates.get(name)
+    const file = resolveAudioAsset(name)
+    if (!file || !file.startsWith('sounds/')) return null
+    // A full deal sample covers several batches; don't stack the same one-second WAV four times.
+    if (file === 'sounds/fapai.wav' && !onFinish && [...activeEffects].some((a) => a.dataset?.assetFile === file)) return null
+    const template = effectTemplates.get(file)
     const audio = (template
       ? template.cloneNode(true)
-      : new Audio(`${AUDIO_BASE}${name}`)) as EffectAudio
+      : new Audio(`${AUDIO_BASE}${file}`)) as EffectAudio
     audio.preload = 'auto'
     audio.volume = volume
-    if(audio.dataset)audio.dataset.effectName=name
+    if(audio.dataset) { audio.dataset.effectName=name; audio.dataset.assetFile=file }
     activeEffects.add(audio)
     let finished = false
     const release = () => {
@@ -743,6 +728,9 @@ export function useAudio() {
 
   /** 预热一条 BGM：Web Audio 下解码进缓存，回退路径下预建元素让浏览器先下载。 */
   function preloadBgmTrack(file: string) {
+    const asset = resolveBgmAsset(file)
+    if (!asset) return
+    file = asset
     if (ensureAudioContext()) { void loadBgmBuffer(file); return }
     usePreloadedFallbackSrc(fallbackTrackFor(file))
   }
@@ -750,6 +738,9 @@ export function useAudio() {
   /** 顺序切换循环 BGM（旧曲先淡到 0 停掉，新曲再从 0 淡起；同一时刻只有一条在播）。
    *  file 为 `audio/` 下的文件名，fadeSeconds 是整段过渡总时长（缺省见 BGM_SWITCH_FADE_SECONDS）。 */
   function fadeToBgm(file: string, fadeSeconds = BGM_SWITCH_FADE_SECONDS) {
+    const asset = resolveBgmAsset(file)
+    if (!asset) return
+    file = asset
     if (file === bgmTrackFile) return
     bgmTrackFile = file
     if (!bgmStarted.value || !soundOn.value || !bgmOn.value) return

@@ -811,6 +811,7 @@ function changeTableTheme(theme: TableThemeName) {
         :wall-total="isYaotong ? 108 : undefined"
         :extra-actions="isYaotong && !result && !yaotongGame.openingStage.value"
         :locked-hand="isYaotong && yaotongGame.local.user.value?.declaration !== 'none'"
+        :yaotong-view="isYaotong ? yaotongGame.tableView.value : undefined"
         :llm-bubbles="llmBubbles"
         :joker-tiles="jokerTiles"
         :wildcard-tiles="wildcardTiles"
@@ -900,6 +901,7 @@ function changeTableTheme(theme: TableThemeName) {
         v-if="!capabilities.bloodFlow"
         v-model:result-visible="resultVisible"
         :result="result"
+        :result-title="isYaotong ? yaotongGame.resultTitle.value : undefined"
         :match-finished="matchFinished"
         :dealer="dealer"
         :waiting-next-round="waitingNextRound"
@@ -917,7 +919,7 @@ function changeTableTheme(theme: TableThemeName) {
         @report="reportPlayer"
       >
         <template v-if="isYaotong && yaotongGame.local.state.value?.result" #summary>
-          <YaotongLedger :state="yaotongGame.local.state.value" :theme-name="tableThemeName" />
+          <YaotongLedger :state="yaotongGame.local.state.value" :players="players" :theme-name="tableThemeName" />
         </template>
       </SettlementOverlay>
       <StatsOverlay

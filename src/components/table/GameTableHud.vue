@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import MahjongTile from '../MahjongTile.vue'
+import YaotongSeatMarker from '../yaotong/YaotongSeatMarker.vue'
+import type { YaotongTableView } from '../../game/variants/yaotong/presentation'
 import PlayerSeat from '../PlayerSeat.vue'
 import TableActionCue from './TableActionCue.vue'
 import { splitWinningTile } from '../../game/core/presentation/winEffect'
@@ -75,6 +77,7 @@ interface Props {
   wallTotal?: number
   extraActions?: boolean
   lockedHand?: boolean
+  yaotongView?: YaotongTableView
   bloodFlow?: BloodFlowTableState | null
   /** 联机（房间）对局：结算页的「退出本场」与暂离文案只在这种模式下有意义。 */
   online?: boolean
@@ -602,16 +605,19 @@ function onAvatarError(entry: GamePlayer) {
       :theme-name="themeName"
       :bubble="presentedLlmBubbles?.[index + 1]"
     >
-      <template v-if="bloodFlow" #footer>
+      <template v-if="bloodFlow || yaotongView" #footer>
         <button type="button" class="blood-flow-pile-badge" :class="`win-count-${seatPosition[index + 1]}`" :data-pile-seat="player.seat"
+          v-if="bloodFlow"
           :aria-label="`${player.name}，胡${bloodFlow.seats[player.seat].winCount}次，查看流水`"
           @click="settlementHost?.showDetails(player.seat)">胡 {{ bloodFlow.seats[player.seat].winCount }}次</button>
+        <YaotongSeatMarker v-else :name="player.name" :status="yaotongView?.seats[index + 1]" :cue="yaotongView?.chickenCue?.seat === index + 1 ? yaotongView.chickenCue : null" />
       </template>
     </PlayerSeat>
 
     <Transition name="table-action" mode="out-in">
       <TableActionCue v-if="presentedTableActionEvent" :key="presentedTableActionEvent.id"
         :event="presentedTableActionEvent" :player="players[presentedTableActionEvent.actorIndex]"
+        :label="yaotongView?.seats[presentedTableActionEvent.actorIndex]?.winner ? yaotongView.seats[presentedTableActionEvent.actorIndex]?.winPattern : undefined"
         :position="seatPosition[presentedTableActionEvent.actorIndex]" :theme-name="themeName" />
     </Transition>
     <Transition name="announce">
@@ -625,7 +631,7 @@ function onAvatarError(entry: GamePlayer) {
       <div class="user-identity" :class="{ active: currentPlayer === 0, 'action-active': tableActionEvent?.actorIndex === 0 }" :style="userAnimeStyle">
         <span v-if="dealer === 0" class="dealer-badge">庄</span>
         <img class="avatar" :src="userAvatar" :alt="`${user.name}头像`" @error="onAvatarError(user)" />
-        <div class="player-info"><strong>{{ user.name }}</strong><span>{{ user.score }}</span></div>
+        <div class="player-info"><strong>{{ user.name }}</strong><span>{{ user.score }}</span><YaotongSeatMarker v-if="yaotongView" :name="user.name" :status="yaotongView.seats[0]" :cue="yaotongView.chickenCue?.seat === 0 ? yaotongView.chickenCue : null" /></div>
         <button v-if="bloodFlow" type="button" class="blood-flow-pile-badge win-count-bottom" :data-pile-seat="user.seat"
           :aria-label="`${user.name}，胡${bloodFlow.seats[user.seat].winCount}次，查看流水`"
           @click="settlementHost?.showDetails(user.seat)">胡 {{ bloodFlow.seats[user.seat].winCount }}次</button>

@@ -19,6 +19,7 @@ type Standing = GamePlayer & { playerIndex: number; rank: number }
 
 interface Props {
   result: RoundResult | null
+  resultTitle?: string
   resultVisible: boolean
   matchFinished: boolean
   dealer: number
@@ -149,7 +150,7 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
         :data-result-strength="resultPresentation.strength"
         :data-result-source="resultKindLab ? 'lab' : 'game'"
       >
-        <h2>{{ result.roundLabel }} · {{ resultPresentation.label }}</h2>
+        <h2>{{ result.roundLabel }} · {{ resultTitle ?? resultPresentation.label }}</h2>
         <slot name="summary" />
         <div v-if="!$slots.summary && resultPresentation.kind !== 'draw'" class="score-total"><span>总倍数</span><strong>×{{ result.totalMultiplier ?? result.multiplier }}</strong><em>+{{ result.totalWon ?? result.points * 3 }} 分</em></div>
         <div v-if="!$slots.summary && resultPresentation.kind !== 'draw' && result.details?.length" class="score-details">

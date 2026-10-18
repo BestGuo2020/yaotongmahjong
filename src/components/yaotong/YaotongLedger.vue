@@ -1,11 +1,30 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import MahjongTile from '../MahjongTile.vue'
+import YaotongPaymentMap from './YaotongPaymentMap.vue'
+import type { GamePlayer } from '../../game/core/contracts/types'
+import { useEffectPlayer } from '../../game/core/presentation/useAudio'
 import type { GameState } from '../../game/variants/yaotong/types'
 import { toSharedTile } from '../../game/variants/yaotong/useYaotongPort'
 import type { TableThemeName } from '../table/three/tableTheme'
-const props = defineProps<{ state: GameState; themeName?: TableThemeName }>()
+const props = defineProps<{ state: GameState; players: GamePlayer[]; themeName?: TableThemeName }>()
 const result = computed(() => props.state.result!)
+const detailOpen = ref(false)
+const pair = ref<{ from: number; to: number } | null>(null)
+const entries = computed(() =>
+  result.value.transfers.filter(
+    (entry) =>
+      !pair.value ||
+      (entry.from === pair.value.from && entry.to === pair.value.to) ||
+      (entry.from === pair.value.to && entry.to === pair.value.from),
+  ),
+)
+const playEffect = useEffectPlayer()
+function inspect(value: { from: number; to: number }) {
+  pair.value = value
+  detailOpen.value = true
+  if (entries.value.some((entry) => entry.account === '幺筒责任分')) playEffect?.('zerenji.wav', 0.35)
+}
 function download() {
   const url = URL.createObjectURL(
     new Blob(
@@ -28,20 +47,28 @@ function download() {
 </script>
 <template>
   <section class="yaotong-ledger">
-    <h3 v-if="result.kind === 'penalty'">包牌 · {{ state.players[result.offender!].name }}</h3>
-    <h3 v-else-if="result.winners.length > 1">一炮{{ result.winners.length }}响</h3>
-    <p>{{ result.reason }}<b v-if="state.dice[0] === state.dice[1]"> · 骰子同点 ×2</b></p>
+    <p v-if="result.kind === 'penalty'">{{ state.players[result.offender!].name }} · {{ result.reason }}</p>
+    <b v-if="state.dice[0] === state.dice[1]" class="settlement-double" title="全部适用分数已乘2">同点 ×2</b>
     <div v-if="result.indicator !== null" class="yaotong-flip">
-      <span>指示牌</span><MahjongTile :theme-name="themeName" :tile="toSharedTile(result.indicator)" small disabled /><span
+      <span>指示牌</span
+      ><MahjongTile :theme-name="themeName" :tile="toSharedTile(result.indicator)" small disabled /><span
         >→ 翻鸡</span
       ><MahjongTile :theme-name="themeName" :tile="toSharedTile(result.chicken!)" small disabled />
     </div>
     <p v-for="(value, seat) in result.values" :key="seat">
       <b>{{ state.players[Number(seat)].name }}</b> ·
-      {{ value.patterns.map((p) => p.name).join('＋') || '鸡胡' }} · H={{ value.h }}
+      {{ value.patterns.map((p) => p.name).join('＋') || '鸡胡' }} · 胡牌 {{ value.h }}分
     </p>
-    <details>
+    <YaotongPaymentMap
+      :transfers="result.transfers"
+      :players="players"
+      :theme-name="themeName"
+      :hand-number="state.handNumber"
+      @inspect="inspect"
+    />
+    <details :open="detailOpen" @toggle="detailOpen = ($event.target as HTMLDetailsElement).open">
       <summary>分项账单 · {{ result.transfers.length }} 笔</summary>
+      <button v-if="pair" class="secondary" @click="pair = null">查看全部收付</button>
       <div class="yaotong-ledger-scroll">
         <table>
           <thead>
@@ -52,7 +79,7 @@ function download() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(entry, i) in result.transfers" :key="i">
+            <tr v-for="(entry, i) in entries" :key="i">
               <td>{{ state.players[entry.from].name }} → {{ state.players[entry.to].name }}</td>
               <td>
                 {{ entry.account }}<small>{{ entry.reason }}</small>

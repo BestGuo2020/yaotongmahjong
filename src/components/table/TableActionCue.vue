@@ -12,6 +12,7 @@ const props = defineProps<{
   themeName: TableThemeName
   position: string
   progress?: number
+  label?: string
 }>()
 const presentation = computed(() => resolveTableActionPresentation(props.event.type))
 const timing = computed(() => props.progress == null ? undefined : {
@@ -24,11 +25,11 @@ const timing = computed(() => props.progress == null ? undefined : {
   <AnimeActionCue v-if="themeName === 'llmAnime'"
     :class="[`action-${presentation.kind}`, `strength-${presentation.strength}`]"
     :data-action-type="event.type" :data-action-kind="presentation.kind" :data-action-strength="presentation.strength"
-    :event="event" :player="player" :position="position" :progress="progress" />
+    :event="event" :player="player" :position="position" :progress="progress" :label="label" />
   <div v-else class="table-action-cue"
     :class="[`action-from-${position}`, `action-${presentation.kind}`, `strength-${presentation.strength}`,
       { gang: presentation.kind === 'gang', win: presentation.kind === 'win' }]"
     :data-action-type="event.type" :data-action-kind="presentation.kind" :data-action-strength="presentation.strength"
     :style="timing" aria-live="polite"
-  ><span>{{ presentation.label }}</span></div>
+  ><span>{{ label ?? presentation.label }}</span></div>
 </template>

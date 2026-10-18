@@ -63,33 +63,78 @@ export function ownedTiles(player: Player, exposedOnly = false): Tile[] {
   ]
 }
 
-/** A meld/discard uses one tariff, never base + peng + kong piled onto the same tiles. */
-export function chickenValue(
+export interface ChickenTerm {
+  label: string
+  count: number
+  unit: number
+  multiplier: number
+  amount: number
+}
+
+/** One tariff per physical holding, also used verbatim by the inspectable ledger. */
+export function chickenBreakdown(
   player: Player,
   naturalYaos: number,
   flipped: Tile | null,
   exposedOnly = false,
-): number {
-  const valueByTile = Array<number>(27).fill(0)
+): ChickenTerm[] {
+  const terms = new Map<string, ChickenTerm>()
+  const add = (tile: Tile, label: string, count: number, unit: number) => {
+    if (!count || !unit) return
+    const multiplier = tile === flipped && (tile === YAO || isFixed(tile)) ? 3 : 1
+    const name = `${tileName(tile)}·${label}`,
+      key = `${name}/${unit}`
+    const previous = terms.get(key)
+    const quantity = count + (previous?.count ?? 0)
+    terms.set(key, { label: name, count: quantity, unit, multiplier, amount: quantity * unit * multiplier })
+  }
   if (!exposedOnly) {
     for (const tile of player.hand) {
-      if (isFixed(tile)) valueByTile[tile] += 2
-      else if (tile === flipped && tile !== YAO) valueByTile[tile]++
+      if (isFixed(tile)) add(tile, '底鸡', 1, 2)
+      else if (tile === flipped && tile !== YAO) add(tile, '翻牌鸡', 1, 1)
     }
-    valueByTile[YAO] += naturalYaos * 10
+    add(YAO, '本牌', naturalYaos, 10)
   }
-  for (const d of player.river)
-    valueByTile[d.tile] += isFixed(d.tile) || d.tile === YAO ? d.chicken : +(d.tile === flipped)
-  for (const m of player.melds)
-    valueByTile[m.tile] +=
-      isFixed(m.tile) || m.tile === YAO ? m.chicken : m.tile === flipped ? (m.kind === 'peng' ? 3 : 4) : 0
-  if (flipped !== null) {
-    if (countsOf(ownedTiles(player, exposedOnly))[flipped] === 4)
-      valueByTile[flipped] += flipped === YAO ? 10 : isFixed(flipped) ? 2 : 1
-    if (flipped === YAO || isFixed(flipped)) valueByTile[flipped] *= 3
+  for (const d of player.river) {
+    if (d.tile === YAO)
+      add(
+        d.tile,
+        { pre: '预冲', first: '首冲', later: '后冲', hot: '杠冲', normal: '牌河' }[d.stage],
+        1,
+        d.chicken,
+      )
+    else if (isFixed(d.tile)) add(d.tile, d.chicken === 4 ? '冲鸡' : '牌河底鸡', 1, d.chicken)
+    else if (d.tile === flipped) add(d.tile, '牌河翻鸡', 1, 1)
   }
-  return valueByTile.reduce((a, b) => a + b, 0)
+  for (const m of player.melds) {
+    if (m.tile === YAO || isFixed(m.tile)) {
+      const label =
+        m.kind === 'peng'
+          ? isFixed(m.tile) && m.chicken === 8
+            ? '首碰'
+            : '碰'
+          : { open: '明杠', turn: '转弯杠', stored: '存杠', added: '补杠' }[m.kind]
+      add(m.tile, `${m.pre && m.tile === YAO ? '预冲' : ''}${label}`, 1, m.chicken)
+    } else if (m.tile === flipped) add(m.tile, '副露翻鸡', m.kind === 'peng' ? 3 : 4, 1)
+  }
+  if (flipped !== null && countsOf(ownedTiles(player, exposedOnly))[flipped] === 4)
+    add(flipped, '四张额外一份', 1, flipped === YAO ? 10 : isFixed(flipped) ? 2 : 1)
+  return [...terms.values()]
 }
+
+export const chickenValue = (
+  player: Player,
+  naturalYaos: number,
+  flipped: Tile | null,
+  exposedOnly = false,
+) => chickenBreakdown(player, naturalYaos, flipped, exposedOnly).reduce((sum, item) => sum + item.amount, 0)
+const chickenReason = (player: Player, naturalYaos: number, flipped: Tile | null, exposedOnly = false) =>
+  chickenBreakdown(player, naturalYaos, flipped, exposedOnly)
+    .map(
+      (item) =>
+        `${item.label} ${item.count > 1 ? `${item.count}×` : ''}${item.unit}${item.multiplier > 1 ? `×${item.multiplier}` : ''}=${item.amount}`,
+    )
+    .join('；')
 
 export function nextDealer(
   state: GameState,
@@ -128,7 +173,7 @@ export function settle(state: GameState, ending: Ending): Settlement {
         killsReport: (ending.winKind === 'self' ? others(winner) : [source!]).some(
           (seat) => players[seat].declaration !== 'none',
         ),
-      }).filter((v) => passAllows(players[winner], v.h))
+      }).filter((v) => passAllows(players[winner], v.h, v))
       const fan = chicken === YAO ? 3 : 1
       const payers = ending.winKind === 'self' ? others(winner) : [source!]
       // High-point selection includes chicken and the winning tile's individual responsibility.
@@ -169,7 +214,13 @@ export function settle(state: GameState, ending: Ending): Settlement {
           for (let to = 0; to < 4; to++)
             if (ready[to]) {
               add(from, to, '流局赔听款', info[to].price, '赔听牌型价（不加基础5）')
-              add(from, to, '鸡分', exposed[from], '未听者赔露出鸡')
+              add(
+                from,
+                to,
+                '鸡分',
+                exposed[from],
+                `未听赔露出鸡：${chickenReason(players[from], 0, chicken, true)}`,
+              )
             }
         }
     } else {
@@ -182,10 +233,16 @@ export function settle(state: GameState, ending: Ending): Settlement {
               owner,
               '鸡分',
               collected[owner],
-              `${players[owner].name}的鸡分${players[owner].burned ? '（烧鸡）' : ''}`,
+              chickenReason(players[owner], info[owner].natural, chicken),
             )
           else if (ready[other])
-            add(owner, other, '鸡分', exposed[owner], `${players[owner].name}未听，赔露出鸡`)
+            add(
+              owner,
+              other,
+              '鸡分',
+              exposed[owner],
+              `未听赔露出鸡：${chickenReason(players[owner], 0, chicken, true)}`,
+            )
         }
       }
     }

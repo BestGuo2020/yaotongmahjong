@@ -12,6 +12,7 @@ class MockAudio {
   volume = 1
   currentTime = 0
   duration = 4
+  dataset: Record<string, string> = {}
   readonly pause = vi.fn()
   readonly play = vi.fn(async () => {})
   private listeners = new Map<string, Array<() => void>>()
@@ -65,6 +66,28 @@ afterEach(() => {
 })
 
 describe('useAudio LLM 语音播放', () => {
+  it('one deal WAV spans consecutive batches without overlapping itself, then can restart after ending', () => {
+    const audio = useAudio()
+    const first = audio.playEffect('deal.mp3') as unknown as MockAudio
+    expect(first.src).toContain('/sounds/fapai.wav')
+    expect(audio.playEffect('deal.mp3')).toBeNull()
+    first.emit('ended')
+    expect(audio.playEffect('deal.mp3')).not.toBeNull()
+  })
+  it('legacy effect names use WAV and completion still waits for ended; removed sounds finish immediately', async () => {
+    const audio = useAudio()
+    let completed = false
+    const pending = audio.playEffectAndWait('hu.mp3').then(() => { completed = true })
+    const sound = MockAudio.instances.find((item) => item.src.endsWith('/sounds/chihu.wav'))!
+    expect(sound).toBeDefined()
+    await Promise.resolve()
+    expect(completed).toBe(false)
+    sound.emit('ended')
+    await pending
+    expect(completed).toBe(true)
+    await expect(audio.playEffectAndWait('game_start.mp3')).resolves.toBeUndefined()
+    expect(MockAudio.instances.some((item) => item.src.endsWith('game_start.mp3'))).toBe(false)
+  })
   it('一炮多响组播：多条语音同时创建互不打断，全部结束后 resolve，静音时直接拒绝', async () => {
     const audio = useAudio()
     const before = MockAudio.instances.length
@@ -310,7 +333,7 @@ describe('useAudio preferences', () => {
     await nextTick()
     expect(bgm.pause).toHaveBeenCalled()
 
-    const effect = audio.playEffect('click.mp3') as unknown as MockAudio
+    const effect = audio.playEffect('peng.mp3') as unknown as MockAudio
     expect(effect).not.toBeNull()
     expect(effect.play).toHaveBeenCalledOnce()
   })
@@ -322,7 +345,7 @@ describe('useAudio preferences', () => {
     audio.effectsOn.value = false
     await nextTick()
 
-    expect(audio.playEffect('click.mp3')).toBeNull()
+    expect(audio.playEffect('peng.mp3')).toBeNull()
     audio.playLlmAudio('/api/tts/audio/blocked.mp3', 1, 1)
     expect(MockAudio.instances.some((item) => item.src.endsWith('/blocked.mp3'))).toBe(false)
     expect(bgm.pause).not.toHaveBeenCalled()
@@ -335,7 +358,7 @@ describe('useAudio preferences', () => {
 
     expect(audio.bgmOn.value).toBe(true)
     expect(audio.effectsOn.value).toBe(true)
-    expect(audio.playEffect('click.mp3')).toBeNull()
+    expect(audio.playEffect('peng.mp3')).toBeNull()
     await audio.startBgm()
     expect(MockAudio.instances[0].play).not.toHaveBeenCalled()
   })

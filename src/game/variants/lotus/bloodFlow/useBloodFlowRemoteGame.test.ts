@@ -540,6 +540,6 @@ describe('useBloodFlowRemoteGame', () => {
 
     // 本局结束（结算）：切回默认 BGM
     capture.onMessage!({ kind: 'bf_snapshot', view: viewWithWins([3, 2, 2, 1], 'settled'), round: 0, mode: 'east', dealer: 0 })
-    await vi.waitFor(() => expect(fadeTo).toHaveBeenLastCalledWith('bg.ogg', undefined))
+    await vi.waitFor(() => expect(fadeTo).toHaveBeenLastCalledWith('bgm/bgm.wav', undefined))
   })
 })

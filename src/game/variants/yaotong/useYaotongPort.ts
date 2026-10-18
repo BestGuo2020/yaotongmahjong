@@ -20,6 +20,8 @@ import type {
   WinPresentation,
 } from '../../core/contracts/types'
 import { defaultAvatarForSeat } from '../../core/presentation/avatar'
+import { activeBgmTrackPort, DEFAULT_BGM_FILE } from '../../core/presentation/useAudio'
+import { READY_BGM_ASSET } from '../../core/presentation/audioAssets'
 import { tileName as sharedTileName } from '../../core/rules/tiles'
 import { createLocalTransientEventPresenter } from '../../core/local/localTransientEventPresenter'
 import { createPresentationScheduler } from '../../shared/runtime/presentationScheduler'
@@ -32,6 +34,13 @@ import {
 import { useYaotongGame } from './useYaotongGame'
 import { countsOf } from './tiles'
 import type { GameEvent, Wait } from './types'
+import {
+  chickenCue as makeChickenCue,
+  settlementTitle,
+  winningPattern,
+  type ChickenCue,
+  type YaotongTableView,
+} from './presentation'
 
 export const toSharedTile = (tile: number): TileType =>
   `${['m', 'p', 's'][Math.floor(tile / 9)]}${(tile % 9) + 1}` as TileType
@@ -65,6 +74,27 @@ export function useYaotongPort(
   const winningDiscardMoved = ref(false)
   const presentationPhase = ref<GamePhase | null>(null)
   const tailDrawn = ref(0)
+  const seatCue = shallowRef<ChickenCue | null>(null)
+  const winDeclared = ref(false)
+  let lastDeclarationSound = -Infinity
+  const tableView = computed<YaotongTableView>(() => ({
+    seats:
+      local.state.value?.players.map((player, seat) => ({
+        declaration: player.declaration,
+        burned: player.burned && revealHands.value,
+        winner: winDeclared.value && Boolean(local.state.value?.result?.winners.includes(seat)),
+        winPattern: winDeclared.value ? winningPattern(local.state.value?.result?.values[seat]) : undefined,
+        killed:
+          revealHands.value &&
+          Boolean(
+            local.state.value?.result?.transfers.some((t) => t.account === '杀报加分' && t.from === seat),
+          ),
+        gift:
+          scoresReleased.value &&
+          Boolean(local.state.value?.result?.transfers.some((t) => t.account === '见面礼' && t.to === seat)),
+      })) ?? [],
+    chickenCue: seatCue.value,
+  }))
   let generation = 0,
     settlementGeneration = 0,
     seenSerial = 0,
@@ -236,6 +266,15 @@ export function useYaotongPort(
   })
   const winningPlayerIndex = ref(-1)
   const honba = ref(0)
+  watch(
+    () => local.state.value?.players[0].declaration,
+    (declaration) => {
+      activeBgmTrackPort()?.fadeTo(declaration && declaration !== 'none' ? READY_BGM_ASSET : DEFAULT_BGM_FILE)
+    },
+  )
+  watch(revealHands, (revealed) => {
+    if (revealed) playSound('tuidao.wav', 0.55)
+  })
 
   function finalizeResult(): RoundResult {
     const state = local.state.value!,
@@ -292,7 +331,10 @@ export function useYaotongPort(
       },
       playSound,
       playSoundAndWait,
-      showTableAction: transient.showTableAction,
+      showTableAction(...args) {
+        winDeclared.value = true
+        transient.showTableAction(...args)
+      },
       getRoundLabel: () => roundLabel.value,
       getSourceIndex: ({ winnerIndex, endOptions }) =>
         endOptions.selfDraw ? local.state.value!.players[winnerIndex].hand.length - 1 : -1,
@@ -328,11 +370,36 @@ export function useYaotongPort(
         current: () => local.state.value === game,
       })
     }
-    if (event.kind === 'peng') lastDiscard.value = null
-    if (event.kind === 'ready') playSound('give.mp3')
+    if (event.kind === 'peng') {
+      lastDiscard.value = null
+      seatCue.value = null
+    }
+    if (event.kind === 'ready' && Date.now() - lastDeclarationSound > 100) {
+      lastDeclarationSound = Date.now()
+      playSound('ting.wav', 0.7)
+    }
     if (event.kind === 'penalty') playSound('didu.ogg')
-    if (event.kind === 'ready' || event.kind === 'penalty' || event.text.includes('冲幺筒'))
-      transient.announce(`${local.state.value!.players[event.seat].name} · ${event.text}`)
+    const cue = makeChickenCue(event, local.state.value!)
+    if (cue) {
+      seatCue.value = cue
+      scheduler.later(() => {
+        if (seatCue.value === cue) seatCue.value = null
+      }, 1050)
+      const game = local.state.value
+      void lastDiscardSound.value?.then(() => {
+        if (
+          local.state.value === game &&
+          !game?.result &&
+          game?.players[event.seat].river.some((d) => d.id === event.id)
+        )
+          playSound('chongfengji.wav', 0.3)
+      })
+    }
+    if (event.kind === 'kong')
+      playSound(
+        event.text === '转弯杠' || event.text === '存杠' ? 'angang_rainy.wav' : 'mingang_windy.wav',
+        0.28,
+      )
     const kongKey = `${event.seat}/${event.tile}`
     if (event.kind === 'kong-intent') declaredKongs.add(kongKey)
     if (event.kind === 'kong' && event.text === '补杠' && declaredKongs.delete(kongKey)) return
@@ -371,6 +438,7 @@ export function useYaotongPort(
       for (const event of state.events.filter((e) => e.id > seenSerial)) present(event)
       seenSerial = state.serial
       if (!state.result || result.value || presentationPhase.value) return
+      seatCue.value = null
       const r = state.result
       // The headless rules have finished; the display has not. Enter the shared timeline from a live phase.
       presentationPhase.value = 'checking'
@@ -401,6 +469,7 @@ export function useYaotongPort(
     scoresReleased.value = false
     winningDiscardMoved.value = false
     winningPlayerIndex.value = -1
+    winDeclared.value = false
     tableActionEvent.value = null
     scoreFlowEvent.value = null
     lastDiscard.value = null
@@ -409,6 +478,8 @@ export function useYaotongPort(
     declarationArmed.value = false
     dealCounts.value = [0, 0, 0, 0]
     declaredKongs.clear()
+    seatCue.value = null
+    lastDeclarationSound = -Infinity
   }
   async function opening(startOptions?: GameStartOptions) {
     local.paused.value = true
@@ -456,16 +527,13 @@ export function useYaotongPort(
     if (!dealt || token !== generation) return
     openingStage.value = null
     dealAnimation.value = { playerIndex: -1, count: 0, serial: ++eventSequence }
-    transient.announce(
-      `${roundLabel.value} · ${state.dice[0] === state.dice[1] ? '同点双倍 ×2' : '原报确认'}`,
-    )
     await startOptions?.waitForOpeningReady?.()
     if (token !== generation) return
     openingActive.value = false
     local.paused.value = false
   }
   const risk = computed(() =>
-    local.response.value?.mandatory
+    local.response.value?.mandatory || local.self.value?.mandatory
       ? '本次必须胡牌，选择其他操作将包牌'
       : local.response.value?.restrictedHu || local.self.value?.restrictedHu
         ? '过手胡尚未解除，选择胡将包牌'
@@ -605,6 +673,8 @@ export function useYaotongPort(
     length,
     original,
     risk,
+    tableView,
+    resultTitle: computed(() => settlementTitle(local.state.value?.result ?? null)),
     declarationArmed,
     openingActive,
     canArmDeclaration: computed(

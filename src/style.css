@@ -3694,3 +3694,22 @@ button { font: inherit; }
     transition: none !important;
   }
 }
+
+/* Yaotong keeps pairwise payments and all four score rows readable above the sticky footer. */
+@container game (max-height: 760px) {
+  .game-app .settlement-card:has(.yaotong-ledger) { padding: 18px 24px 0; }
+  .game-app .settlement-card:has(.yaotong-ledger) h2 { font-size: 26px; margin: 0 0 6px; }
+  .game-app .settlement-card:has(.yaotong-ledger) .round-rankings article { min-height: 44px; padding-top: 4px; padding-bottom: 4px; }
+  .game-app .settlement-card:has(.yaotong-ledger) .round-rankings img { width: 32px; height: 32px; }
+  .game-app .settlement-card:has(.yaotong-ledger) .round-rankings article > b { font-size: 18px; }
+  .game-app .settlement-card:has(.yaotong-ledger) .yaotong-payment-map svg { height: clamp(85px, 19cqh, 135px); }
+  .game-app .settlement-card:has(.yaotong-ledger) .yaotong-flip { margin: 6px 0; }
+  .game-app .settlement-card:has(.yaotong-ledger) .yaotong-ledger details { margin: 7px 0; padding: 8px; }
+}
+@container game (max-height: 600px) {
+  .game-app .settlement-card:has(.yaotong-ledger) { padding: 10px 16px 0; }
+  .game-app .settlement-card:has(.yaotong-ledger) h2 { font-size: 22px; margin-bottom: 4px; }
+  .game-app .settlement-card:has(.yaotong-ledger) .yaotong-payment-map { margin: 6px 0; padding-top: 5px; }
+  .game-app .settlement-card:has(.yaotong-ledger) .yaotong-ledger p { margin: 5px 0; }
+  .game-app .settlement-card:has(.yaotong-ledger) .round-rankings article { min-height: 40px; }
+}

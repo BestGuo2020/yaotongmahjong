@@ -14,6 +14,7 @@ const props = defineProps<{
   position: string
   progress?: number
   hideCopy?: boolean
+  label?: string
 }>()
 
 const dedicatedArtFailed = ref(false)
@@ -67,7 +68,7 @@ function onPortraitError(event: Event) {
     :class="[`action-from-${position}`, `anime-action-${action.key}`]"
     role="status"
     aria-live="polite"
-    :aria-label="action.label"
+    :aria-label="label ?? action.label"
     :style="cueStyle"
   >
     <div class="anime-action-burst" aria-hidden="true"></div>
@@ -79,7 +80,7 @@ function onPortraitError(event: Event) {
       @error="onPortraitError"
     >
     <div v-if="!hideCopy" class="anime-action-copy" aria-hidden="true">
-      <strong :data-text="action.label">{{ action.label }}</strong>
+      <strong :data-text="label ?? action.label">{{ label ?? action.label }}</strong>
     </div>
   </div>
 </template>

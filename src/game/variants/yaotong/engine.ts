@@ -1,4 +1,4 @@
-import { discardWaits, evaluateHand, passAllows, waits } from './hands'
+import { discardWaits, huOpportunity, waits } from './hands'
 import { settle, type Ending } from './settlement'
 import { breakWall, countsOf, isChicken, isFixed, shuffledWall, sortHand, tileName, YAO } from './tiles'
 import type { ActionOptions, Command, GameEvent, GameState, Player, Seat, Tile } from './types'
@@ -37,6 +37,7 @@ export function makePlayer(name = '玩家'): Player {
     afterKong: false,
     burned: false,
     passedHu: null,
+    passedShape: null,
     chickenPeng: false,
     chickenDiscard: false,
   }
@@ -95,8 +96,15 @@ export function createGame(options: StartOptions = {}): GameState {
   return state
 }
 
-function event(state: GameState, seat: Seat, kind: GameEvent['kind'], text: string, tile?: Tile) {
-  state.events.push({ id: ++state.serial, seat, kind, text, tile })
+function event(
+  state: GameState,
+  seat: Seat,
+  kind: GameEvent['kind'],
+  text: string,
+  tile?: Tile,
+  details?: Pick<GameEvent, 'chicken' | 'rush'>,
+) {
+  state.events.push({ id: ++state.serial, seat, kind, text, tile, ...details })
   if (state.events.length > 80) state.events.shift()
 }
 
@@ -140,6 +148,7 @@ function draw(state: GameState, seat: Seat, tail = false) {
   p.drawn = tile
   p.draws++
   p.passedHu = null
+  p.passedShape = null
   p.chickenPeng = false
   p.chickenDiscard = false
   p.afterKong = tail
@@ -163,16 +172,14 @@ export function selfOptions(state: GameState, seat: Seat): ActionOptions {
   // A peng creates a discard turn, not a self-draw win opportunity.
   if (p.drawn === null) return empty
   const killsReport = state.players.some((other, i) => i !== seat && other.declaration !== 'none')
-  const h = evaluateHand(p, { kind: 'self', tile: p.drawn, killsReport }).reduce(
-    (max, v) => Math.max(max, v.h),
-    0,
-  )
+  const opportunity = huOpportunity(p, { kind: 'self', tile: p.drawn, killsReport })
   return {
     ...empty,
-    hu: h > 0,
-    h,
-    restrictedHu: h > 0 && !passAllows(p, h),
-    mandatory: h > 0 && passAllows(p, h) && killsReport,
+    hu: opportunity.hu,
+    h: opportunity.h,
+    shapePoints: opportunity.shapePoints,
+    restrictedHu: opportunity.restricted,
+    mandatory: opportunity.hu && !opportunity.restricted && killsReport,
   }
 }
 
@@ -192,8 +199,10 @@ function passSelf(state: GameState, seat: Seat): boolean {
     penalty(state, seat, '可杀报却放弃胡牌')
     return false
   }
-  if (options.hu && !options.restrictedHu)
+  if (options.hu && !options.restrictedHu) {
     state.players[seat].passedHu = Math.max(state.players[seat].passedHu ?? 0, options.h)
+    state.players[seat].passedShape = Math.max(state.players[seat].passedShape ?? 0, options.shapePoints ?? 0)
+  }
   return true
 }
 
@@ -204,19 +213,21 @@ function offerResponses(state: GameState, flow?: EngineFlow) {
     const p = state.players[seat]
     const n = p.hand.filter((t) => t === pending.tile).length
     const killsReport = state.players[pending.from].declaration !== 'none'
-    const h = evaluateHand(
+    const opportunity = huOpportunity(
       { ...p, hand: [...p.hand, pending.tile] },
       { kind: pending.kind, tile: pending.tile, killsReport },
-    ).reduce((max, v) => Math.max(max, v.h), 0)
+    )
+    const h = opportunity.h
     const peng = pending.kind !== 'rob' && p.declaration === 'none' && n >= 2
     const kong = pending.kind !== 'rob' && p.declaration === 'none' && n >= 3 && state.wall.length > 0
-    const restrictedHu = h > 0 && !passAllows(p, h)
+    const restrictedHu = opportunity.restricted
     if (h || peng || kong)
       pending.options[seat] = {
         hu: h > 0,
         peng,
         kong,
         h,
+        shapePoints: opportunity.shapePoints,
         restrictedHu,
         restrictedPeng: peng && isChicken(pending.tile) && p.chickenDiscard,
         mandatory:
@@ -354,8 +365,10 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
       penalty(state, seat, '同巡打鸡后碰鸡')
       return true
     }
-    if (command.action !== 'hu' && options.hu && !options.restrictedHu)
+    if (command.action !== 'hu' && options.hu && !options.restrictedHu) {
       p.passedHu = Math.max(p.passedHu ?? 0, options.h)
+      p.passedShape = Math.max(p.passedShape ?? 0, options.shapePoints ?? 0)
+    }
     pending.choices[seat] = command.action
     if (Object.keys(pending.options).every((i) => pending.choices[Number(i)])) resolveResponses(state, flow)
     else if (pending.kind === 'rob')
@@ -440,6 +453,7 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
       ? `${{ pre: '预冲', first: '首冲', later: '后冲', hot: '杠冲', normal: '' }[stage]}幺筒 · ${chicken}`
       : `打出${tileName(tile)}`,
     tile,
+    { chicken, rush: stage },
   )
   const discard = { tile, chicken, stage, pre, id: state.serial }
   p.river.push(discard)

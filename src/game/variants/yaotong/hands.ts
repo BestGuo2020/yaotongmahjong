@@ -258,5 +258,25 @@ export function discardWaits(player: Player): Array<{ index: number; waits: Wait
     .filter((entry) => entry.waits.length)
 }
 
-export const passAllows = (player: Player, h: number) =>
-  player.passedHu === null || (h >= 45 && h > player.passedHu)
+const SCENE_PATTERNS = new Set(['抢杠', '热炮', '天胡／地胡', '报听', '原报', '素胡'])
+export const shapePoints = (value: HandValue) =>
+  value.patterns
+    .filter((pattern) => !SCENE_PATTERNS.has(pattern.name))
+    .reduce((sum, pattern) => sum + pattern.points, 0)
+
+export const passAllows = (player: Player, h: number, value?: HandValue) =>
+  player.passedHu === null ||
+  (h >= 45 &&
+    h > player.passedHu &&
+    (player.passedShape == null || Boolean(value && shapePoints(value) > player.passedShape)))
+
+export function huOpportunity(player: Player, context: WinContext) {
+  const values = evaluateHand(player, context)
+  const legal = values.filter((value) => passAllows(player, value.h, value))
+  return {
+    hu: values.length > 0,
+    restricted: values.length > 0 && legal.length === 0,
+    h: Math.max(0, ...(legal.length ? legal : values).map((value) => value.h)),
+    shapePoints: Math.max(0, ...legal.map(shapePoints)),
+  }
+}

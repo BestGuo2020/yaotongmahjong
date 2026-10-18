@@ -34,6 +34,8 @@ export interface Player {
   afterKong: boolean
   burned: boolean
   passedHu: number | null
+  /** Actual structural value at the last legal pass; scene bonuses alone cannot make a bigger hand. */
+  passedShape?: number | null
   chickenPeng: boolean
   chickenDiscard: boolean
 }
@@ -70,6 +72,7 @@ export interface ActionOptions {
   restrictedPeng: boolean
   mandatory: boolean
   h: number
+  shapePoints?: number
 }
 export type ResponseAction = 'hu' | 'peng' | 'kong' | 'pass'
 export interface Pending {
@@ -121,6 +124,8 @@ export interface GameEvent {
   text: string
   kind: 'draw' | 'discard' | 'peng' | 'kong' | 'kong-intent' | 'hu' | 'ready' | 'penalty' | 'start'
   tile?: Tile
+  chicken?: number
+  rush?: Discard['stage']
 }
 export interface GameState {
   players: Player[]
