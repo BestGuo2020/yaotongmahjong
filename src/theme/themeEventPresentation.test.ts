@@ -11,9 +11,12 @@ describe('主题动作表现分类', () => {
     expect(Object.keys(TABLE_ACTION_PRESENTATIONS)).toEqual([
       'chi', 'peng', 'discard-gang', 'concealed-gang', 'added-gang', 'flower-gang', 'wind-kong',
       'self-draw', 'discard-win', 'robbed-kong-win',
+      'ready', 'original-ready',
     ])
     expect(resolveTableActionPresentation('chi')).toEqual({ label: '吃', kind: 'chi', strength: 'medium' })
     expect(resolveTableActionPresentation('peng')).toEqual({ label: '碰', kind: 'peng', strength: 'medium' })
+    expect(resolveTableActionPresentation('ready')).toEqual({ label: '报听', kind: 'peng', strength: 'medium' })
+    expect(resolveTableActionPresentation('original-ready')).toEqual({ label: '原报', kind: 'peng', strength: 'medium' })
     expect(resolveTableActionPresentation('concealed-gang')).toEqual({ label: '杠', kind: 'gang', strength: 'strong' })
     expect(resolveTableActionPresentation('robbed-kong-win')).toEqual({ label: '抢杠胡', kind: 'win', strength: 'climax' })
   })

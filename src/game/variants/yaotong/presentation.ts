@@ -1,4 +1,5 @@
 import type { Account, Declaration, GameEvent, GameState, HandValue, Settlement, Transfer } from './types'
+import type { TableDeclarationEvent } from '../../core/presentation/tableActionCue'
 
 export interface SeatStatus {
   declaration: Declaration
@@ -18,6 +19,7 @@ export interface ChickenCue {
 export interface YaotongTableView {
   seats: SeatStatus[]
   chickenCue: ChickenCue | null
+  declarationCues: TableDeclarationEvent[]
 }
 export interface PaymentEdge {
   from: number

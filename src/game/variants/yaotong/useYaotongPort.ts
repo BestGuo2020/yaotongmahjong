@@ -22,6 +22,7 @@ import type {
 import { defaultAvatarForSeat } from '../../core/presentation/avatar'
 import { activeBgmTrackPort, DEFAULT_BGM_FILE } from '../../core/presentation/useAudio'
 import { READY_BGM_ASSET } from '../../core/presentation/audioAssets'
+import { TABLE_ACTION_CUE_DURATION_MS, type TableDeclarationEvent } from '../../core/presentation/tableActionCue'
 import { tileName as sharedTileName } from '../../core/rules/tiles'
 import { createLocalTransientEventPresenter } from '../../core/local/localTransientEventPresenter'
 import { createPresentationScheduler } from '../../shared/runtime/presentationScheduler'
@@ -75,6 +76,7 @@ export function useYaotongPort(
   const presentationPhase = ref<GamePhase | null>(null)
   const tailDrawn = ref(0)
   const seatCue = shallowRef<ChickenCue | null>(null)
+  const declarationCues = shallowRef<TableDeclarationEvent[]>([])
   const winDeclared = ref(false)
   let lastDeclarationSound = -Infinity
   const tableView = computed<YaotongTableView>(() => ({
@@ -94,6 +96,7 @@ export function useYaotongPort(
           Boolean(local.state.value?.result?.transfers.some((t) => t.account === '见面礼' && t.to === seat)),
       })) ?? [],
     chickenCue: seatCue.value,
+    declarationCues: declarationCues.value,
   }))
   let generation = 0,
     settlementGeneration = 0,
@@ -374,9 +377,20 @@ export function useYaotongPort(
       lastDiscard.value = null
       seatCue.value = null
     }
-    if (event.kind === 'ready' && Date.now() - lastDeclarationSound > 100) {
-      lastDeclarationSound = Date.now()
-      playSound('ting.wav', 0.7)
+    if (event.kind === 'ready') {
+      const cue: TableDeclarationEvent = {
+        id: ++eventSequence,
+        actorIndex: event.seat,
+        type: local.state.value!.players[event.seat].declaration === 'original' ? 'original-ready' : 'ready',
+      }
+      declarationCues.value = [...declarationCues.value.filter((item) => item.actorIndex !== event.seat), cue]
+      scheduler.later(() => {
+        declarationCues.value = declarationCues.value.filter((item) => item.id !== cue.id)
+      }, TABLE_ACTION_CUE_DURATION_MS)
+      if (Date.now() - lastDeclarationSound > 100) {
+        lastDeclarationSound = Date.now()
+        playSound('ting.wav', 0.7)
+      }
     }
     if (event.kind === 'penalty') playSound('didu.ogg')
     const cue = makeChickenCue(event, local.state.value!)
@@ -439,6 +453,7 @@ export function useYaotongPort(
       seenSerial = state.serial
       if (!state.result || result.value || presentationPhase.value) return
       seatCue.value = null
+      declarationCues.value = []
       const r = state.result
       // The headless rules have finished; the display has not. Enter the shared timeline from a live phase.
       presentationPhase.value = 'checking'
@@ -479,6 +494,7 @@ export function useYaotongPort(
     dealCounts.value = [0, 0, 0, 0]
     declaredKongs.clear()
     seatCue.value = null
+    declarationCues.value = []
     lastDeclarationSound = -Infinity
   }
   async function opening(startOptions?: GameStartOptions) {
@@ -654,6 +670,7 @@ export function useYaotongPort(
     returnToLobby() {
       settlementGeneration++
       scheduler.clear()
+      declarationCues.value = []
       openingActive.value = false
       openingStage.value = null
       result.value = null

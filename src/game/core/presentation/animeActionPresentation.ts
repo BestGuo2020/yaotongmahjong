@@ -1,17 +1,19 @@
-import type { TableActionType } from '../contracts/types'
+import type { TableCueEvent } from './tableActionCue'
 
 export type AnimeActionKey = 'chi' | 'peng' | 'gang' | 'hu' | 'zimo' | 'qiangganghu'
 
 export interface AnimeActionPresentation {
   key: AnimeActionKey
-  label: '吃' | '碰' | '杠' | '胡' | '自摸' | '抢杠胡'
+  label: '吃' | '碰' | '杠' | '胡' | '自摸' | '抢杠胡' | '报听' | '原报'
 }
 
 /** 规则/协议动作 → 二次元表现动作。新增 TableActionType 时必须在这里显式处理。 */
-export function animeActionPresentation(type: TableActionType): AnimeActionPresentation {
+export function animeActionPresentation(type: TableCueEvent['type']): AnimeActionPresentation {
   switch (type) {
     case 'chi': return { key: 'chi', label: '吃' }
     case 'peng': return { key: 'peng', label: '碰' }
+    case 'ready': return { key: 'peng', label: '报听' }
+    case 'original-ready': return { key: 'peng', label: '原报' }
     case 'discard-gang':
     case 'concealed-gang':
     case 'added-gang':

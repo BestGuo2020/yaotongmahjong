@@ -35,6 +35,10 @@ describe('幺筒复用原版GamePort与3D表现', () => {
         }
         await nextTick()
         expect(state.players[seat].declaration).toBe(declaration)
+        expect(port.tableView.value.declarationCues).toEqual([
+          expect.objectContaining({ actorIndex: seat, type: declaration === 'original' ? 'original-ready' : 'ready' }),
+        ])
+        expect(port.tableActionEvent.value).toBeNull() // 声明不伪造碰牌事件或移动牌张。
         expect(fadeTo).toHaveBeenCalledExactlyOnceWith('bgm/ting_bgm.wav')
         state.players[(seat + 1) % 4].declaration = 'ready'
         triggerRef(port.local.state)
@@ -49,11 +53,12 @@ describe('幺筒复用原版GamePort与3D表现', () => {
         expect(fadeTo).toHaveBeenLastCalledWith('bgm/ting_bgm.wav')
         port.returnToLobby()
         await nextTick()
+        expect(port.tableView.value.declarationCues).toEqual([])
         expect(fadeTo).toHaveBeenLastCalledWith('bgm/bgm.wav')
       } finally { scope.stop() }
     },
   )
-  it('原报属于声明者座位，短音一次，不产生全桌公告', async () => {
+  it('多人同时原报，各座位动作字保留两秒后消失，常驻标记继续保留', async () => {
     vi.useFakeTimers()
     const scope = effectScope(), playSound = vi.fn()
     const port = scope.run(() => useYaotongPort({ playSound }))!
@@ -63,12 +68,38 @@ describe('幺筒复用原版GamePort与3D表现', () => {
     port.local.state.value = state
     port.local.dispatch({ type: 'original', declare: true }, 1)
     port.local.dispatch({ type: 'original', declare: true }, 2)
+    port.local.paused.value = true
     expect(port.tableView.value.seats.map((s) => s.declaration)).toEqual(['none', 'original', 'original', 'none'])
     expect(port.announcement.value).toBeNull()
     expect(playSound.mock.calls.filter(([file]) => file === 'ting.wav')).toHaveLength(1)
-    await vi.advanceTimersByTimeAsync(1100)
+    expect(port.tableView.value.declarationCues.map((cue) => [cue.actorIndex, cue.type])).toEqual([
+      [1, 'original-ready'], [2, 'original-ready'],
+    ])
+    await vi.advanceTimersByTimeAsync(1999)
+    expect(port.tableView.value.declarationCues).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(port.tableView.value.declarationCues).toHaveLength(0)
     expect(port.tableView.value.seats[1].declaration).toBe('original')
     scope.stop()
+  })
+  it('立即胡牌时清除声明动作字，避免遮住胡牌演出', () => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    try {
+      const port = scope.run(() => useYaotongPort())!
+      const state = createGame({ dealer: 0, dice: [2, 3] })
+      state.players[0] = player('234567m 234s 66p 78s', { draws: 0 })
+      port.local.state.value = state
+      port.local.dispatch({ type: 'original', declare: true })
+      expect(port.tableView.value.declarationCues).toHaveLength(1)
+      state.players[0].hand.push(26)
+      state.players[0].drawn = 26
+      state.players[0].draws = 1
+      state.phase = 'discard'
+      port.local.dispatch({ type: 'hu' })
+      expect(port.tableView.value.declarationCues).toEqual([])
+      expect(port.tableActionEvent.value?.type).toBe('self-draw')
+    } finally { scope.stop() }
   })
   it('幺筒冲分浮标跟随出牌者，报牌完成后衔接短音，到时自动消失', async () => {
     vi.useFakeTimers()

@@ -1,5 +1,5 @@
 import type { RoundResult } from '../game/core/contracts/gamePort'
-import type { TableActionEvent } from '../game/core/contracts/types'
+import type { TableCueEvent } from '../game/core/presentation/tableActionCue'
 
 export type ActionPresentationKind = 'chi' | 'peng' | 'gang' | 'win'
 export type PresentationStrength = 'medium' | 'strong' | 'climax'
@@ -21,9 +21,11 @@ export const TABLE_ACTION_PRESENTATIONS = {
   'self-draw': { label: '自摸', kind: 'win', strength: 'climax' },
   'discard-win': { label: '胡', kind: 'win', strength: 'climax' },
   'robbed-kong-win': { label: '抢杠胡', kind: 'win', strength: 'climax' },
-} as const satisfies Record<TableActionEvent['type'], TableActionPresentation>
+  ready: { label: '报听', kind: 'peng', strength: 'medium' },
+  'original-ready': { label: '原报', kind: 'peng', strength: 'medium' },
+} as const satisfies Record<TableCueEvent['type'], TableActionPresentation>
 
-export function resolveTableActionPresentation(type: TableActionEvent['type']): TableActionPresentation {
+export function resolveTableActionPresentation(type: TableCueEvent['type']): TableActionPresentation {
   return TABLE_ACTION_PRESENTATIONS[type]
 }
 

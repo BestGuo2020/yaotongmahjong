@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { GamePlayer, TableActionEvent } from '../../game/core/contracts/types'
+import type { GamePlayer } from '../../game/core/contracts/types'
+import type { TableCueEvent } from '../../game/core/presentation/tableActionCue'
 import { resolveTableActionPresentation } from '../../theme/themeEventPresentation'
 import type { TableThemeName } from './three/tableTheme'
 import AnimeActionCue from './AnimeActionCue.vue'
 
 // Display only: callers own event deduplication, timing and audio.
 const props = defineProps<{
-  event: TableActionEvent
+  event: TableCueEvent
   player?: GamePlayer
   themeName: TableThemeName
   position: string

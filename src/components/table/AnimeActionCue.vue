@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import type { GamePlayer, TableActionEvent } from '../../game/core/contracts/types'
+import type { GamePlayer } from '../../game/core/contracts/types'
+import type { TableCueEvent } from '../../game/core/presentation/tableActionCue'
 import { animeActionPresentation } from '../../game/core/presentation/animeActionPresentation'
 import { animeActionArtUrl } from '../../game/core/presentation/llmAnimeAssets'
 import { materializedImageSrc } from '../../game/core/presentation/imagePreload'
@@ -9,7 +10,7 @@ import { resolveAnimeCharacter } from '../../game/llm/animeCharacters'
 import { animeCharacterAvatarUrl } from '../../game/llm/animeCharacterPreference'
 
 const props = defineProps<{
-  event: TableActionEvent
+  event: TableCueEvent
   player?: GamePlayer
   position: string
   progress?: number

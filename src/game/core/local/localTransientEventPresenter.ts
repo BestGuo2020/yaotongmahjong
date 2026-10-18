@@ -1,5 +1,6 @@
 import type { ScoreDelta, TableActionEvent, TableActionType, TileType } from '../contracts/types'
 import type { LocalGameState } from './localGameState'
+import { TABLE_ACTION_CUE_DURATION_MS } from '../presentation/tableActionCue'
 
 interface LocalTransientEventPresenterOptions {
   state: Pick<LocalGameState, 'announcement' | 'tableActionEvent' | 'scoreFlowEvent'>
@@ -31,7 +32,7 @@ export function createLocalTransientEventPresenter(options: LocalTransientEventP
     try { options.onTableAction?.(event) } catch { /* 表现失败不影响牌局 */ }
     options.later(() => {
       if (state.tableActionEvent.value?.id === event.id) state.tableActionEvent.value = null
-    }, 2000)
+    }, TABLE_ACTION_CUE_DURATION_MS)
   }
 
   function showScoreFlow(deltas: ScoreDelta[]) {

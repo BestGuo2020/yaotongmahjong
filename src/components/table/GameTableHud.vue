@@ -599,7 +599,7 @@ function onAvatarError(entry: GamePlayer) {
     <PlayerSeat
       v-for="(player, index) in players.slice(1)" :key="player.seat" :player="player"
       :position="seatPosition[index + 1]" :active="currentPlayer === index + 1"
-      :action-active="tableActionEvent?.actorIndex === index + 1" :score-delta="scoreDeltaFor(index + 1)"
+      :action-active="tableActionEvent?.actorIndex === index + 1 || yaotongView?.declarationCues.some(cue => cue.actorIndex === index + 1)" :score-delta="scoreDeltaFor(index + 1)"
       :score-flow-id="presentedScoreFlowEvent?.id" :dealer="dealer === index + 1"
       :avatar-override="themeName === 'llmAnime' ? animeAvatarForPlayer(player) : undefined"
       :theme-name="themeName"
@@ -620,6 +620,12 @@ function onAvatarError(entry: GamePlayer) {
         :label="yaotongView?.seats[presentedTableActionEvent.actorIndex]?.winner ? yaotongView.seats[presentedTableActionEvent.actorIndex]?.winPattern : undefined"
         :position="seatPosition[presentedTableActionEvent.actorIndex]" :theme-name="themeName" />
     </Transition>
+    <TransitionGroup name="table-action">
+      <TableActionCue v-for="cue in yaotongView?.declarationCues ?? []" :key="`declaration-${cue.id}`"
+        :event="cue" :player="players[cue.actorIndex]"
+        :aria-label="`${players[cue.actorIndex]?.name}${cue.type === 'ready' ? '报听' : '原报'}`"
+        :position="seatPosition[cue.actorIndex]" :theme-name="themeName" />
+    </TransitionGroup>
     <Transition name="announce">
       <div v-if="announcement" :key="announcement.id" class="announcement" :class="announcement.tone"><span>{{ announcement.text }}</span></div>
     </Transition>
@@ -628,7 +634,7 @@ function onAvatarError(entry: GamePlayer) {
     </Transition>
 
     <section class="user-area">
-      <div class="user-identity" :class="{ active: currentPlayer === 0, 'action-active': tableActionEvent?.actorIndex === 0 }" :style="userAnimeStyle">
+      <div class="user-identity" :class="{ active: currentPlayer === 0, 'action-active': tableActionEvent?.actorIndex === 0 || yaotongView?.declarationCues.some(cue => cue.actorIndex === 0) }" :style="userAnimeStyle">
         <span v-if="dealer === 0" class="dealer-badge">庄</span>
         <img class="avatar" :src="userAvatar" :alt="`${user.name}头像`" @error="onAvatarError(user)" />
         <div class="player-info"><strong>{{ user.name }}</strong><span>{{ user.score }}</span><YaotongSeatMarker v-if="yaotongView" :name="user.name" :status="yaotongView.seats[0]" :cue="yaotongView.chickenCue?.seat === 0 ? yaotongView.chickenCue : null" /></div>
