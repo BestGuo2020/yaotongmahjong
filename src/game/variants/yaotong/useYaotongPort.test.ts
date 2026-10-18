@@ -1,4 +1,4 @@
-import { effectScope, isRef, nextTick } from 'vue'
+import { effectScope, isRef, nextTick, triggerRef } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GAME_PORT_ACTION_KEYS, GAME_PORT_STATE_KEYS } from '../../core/contracts/gamePort'
 import { wallStackSlot, wallTilePlacement } from '../../core/rules/wallLayout'
@@ -6,11 +6,53 @@ import { tileMarkerFor } from '../../../components/table/three/tileMarker'
 import { createGame } from './engine'
 import { fromSharedTile, toSharedTile, useYaotongPort } from './useYaotongPort'
 import { player, table } from './auditFixtures'
+import * as audioPresentation from '../../core/presentation/useAudio'
 
 beforeEach(() => vi.stubGlobal('window', globalThis))
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('幺筒复用原版GamePort与3D表现', () => {
+  it.each([0, 1, 2, 3].flatMap((seat) => (['ready', 'original'] as const).map((declaration) => ({ seat, declaration }))))(
+    '$seat号位$declaration后切听牌BGM，后续声明不重播，新局与离桌恢复默认', async ({ seat, declaration }) => {
+      vi.useFakeTimers()
+      const fadeTo = vi.fn()
+      vi.spyOn(audioPresentation, 'activeBgmTrackPort').mockReturnValue({ fadeTo })
+      const scope = effectScope()
+      try {
+        const port = scope.run(() => useYaotongPort())!
+        const state = createGame({ dealer: 0, dice: [2, 3] })
+        state.players[seat] = player('234567m 234s 66p 78s', { draws: 0 })
+        port.local.state.value = state
+        await nextTick()
+        expect(fadeTo).not.toHaveBeenCalled() // 普通听牌尚未主动报听。
+        if (declaration === 'original') port.local.dispatch({ type: 'original', declare: true }, seat)
+        else {
+          state.phase = 'discard'; state.current = seat
+          state.players[seat].hand.push(8)
+          state.players[seat].drawn = 8
+          state.players[seat].draws = 1
+          port.local.dispatch({ type: 'discard', index: 13, declare: true }, seat)
+        }
+        await nextTick()
+        expect(state.players[seat].declaration).toBe(declaration)
+        expect(fadeTo).toHaveBeenCalledExactlyOnceWith('bgm/ting_bgm.wav')
+        state.players[(seat + 1) % 4].declaration = 'ready'
+        triggerRef(port.local.state)
+        await nextTick()
+        expect(fadeTo).toHaveBeenCalledTimes(1)
+        port.local.begin(4)
+        await nextTick()
+        expect(fadeTo).toHaveBeenLastCalledWith('bgm/bgm.wav')
+        port.local.state.value!.players[seat].declaration = declaration
+        triggerRef(port.local.state)
+        await nextTick()
+        expect(fadeTo).toHaveBeenLastCalledWith('bgm/ting_bgm.wav')
+        port.returnToLobby()
+        await nextTick()
+        expect(fadeTo).toHaveBeenLastCalledWith('bgm/bgm.wav')
+      } finally { scope.stop() }
+    },
+  )
   it('原报属于声明者座位，短音一次，不产生全桌公告', async () => {
     vi.useFakeTimers()
     const scope = effectScope(), playSound = vi.fn()

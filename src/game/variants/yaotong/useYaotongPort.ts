@@ -267,9 +267,9 @@ export function useYaotongPort(
   const winningPlayerIndex = ref(-1)
   const honba = ref(0)
   watch(
-    () => local.state.value?.players[0].declaration,
-    (declaration) => {
-      activeBgmTrackPort()?.fadeTo(declaration && declaration !== 'none' ? READY_BGM_ASSET : DEFAULT_BGM_FILE)
+    () => local.state.value?.players.some((player) => player.declaration !== 'none') ?? false,
+    (hasDeclaration) => {
+      activeBgmTrackPort()?.fadeTo(hasDeclaration ? READY_BGM_ASSET : DEFAULT_BGM_FILE)
     },
   )
   watch(revealHands, (revealed) => {
