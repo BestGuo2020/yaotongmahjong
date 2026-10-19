@@ -10,6 +10,36 @@ const amount = (s: Settlement, from: number, to: number, account?: string) =>
     .filter((t) => t.from === from && t.to === to && (!account || t.account === account))
     .reduce((n, t) => n + t.amount, 0)
 
+describe('鸡分账单明细', () => {
+  it('单份翻牌鸡、底鸡和未听赔出的冲鸡直接显示分数', () => {
+    const s = table()
+    s.players[0] = player('234567m 567s 22p 78p')
+    s.players[1].river = [{ tile: 0, chicken: 4, stage: 'normal', id: 1 }]
+    s.wall = [3]
+    const transfers = settle(s, { kind: 'win' }).transfers.filter((t) => t.account === '鸡分')
+    expect(transfers.filter((t) => t.to === 0 && t.reason === '五万·翻牌鸡 1分；八筒·底鸡 2分'))
+      .toHaveLength(3)
+    expect(transfers.find((t) => t.reason.startsWith('未听赔露出鸡：'))).toMatchObject({
+      from: 1, to: 0, base: 4, amount: 4, reason: '未听赔露出鸡：一万·冲鸡 4分',
+    })
+  })
+
+  it.each([
+    { hand: '234567m 567s 88p 67s', wall: [], reason: '八筒·底鸡 2×2=4分', base: 4 },
+    { hand: '234567m 567s 22p 78p', wall: [15], reason: '八筒·底鸡 2×3=6分', base: 6 },
+    { hand: '234567m 567s 88p 67s', wall: [15], reason: '八筒·底鸡 2×2×3=12分', base: 12 },
+  ])('保留有意义的数量、翻鸡倍数：$reason', ({ hand, wall, reason, base }) => {
+    const s = table()
+    s.players[0] = player(hand)
+    s.wall = wall
+    s.dice = [3, 3]
+    const incoming = settle(s, { kind: 'win' }).transfers
+      .filter((t) => t.to === 0 && t.account === '鸡分')
+    expect(incoming).toHaveLength(3)
+    incoming.forEach((t) => expect(t).toMatchObject({ reason, base, multiplier: 2, amount: base * 2 }))
+  })
+})
+
 describe('v1.0 clause audit — physical flow and eligibility', () => {
   it('§2.1 all 36 dice combinations and four dealers select sum-relative side and minimum reserved stacks', () => {
     const wall = shuffledWall(() => 0.3)

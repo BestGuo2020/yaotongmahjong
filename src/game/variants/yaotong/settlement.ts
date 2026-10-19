@@ -130,10 +130,13 @@ export const chickenValue = (
 ) => chickenBreakdown(player, naturalYaos, flipped, exposedOnly).reduce((sum, item) => sum + item.amount, 0)
 const chickenReason = (player: Player, naturalYaos: number, flipped: Tile | null, exposedOnly = false) =>
   chickenBreakdown(player, naturalYaos, flipped, exposedOnly)
-    .map(
-      (item) =>
-        `${item.label} ${item.count > 1 ? `${item.count}×` : ''}${item.unit}${item.multiplier > 1 ? `×${item.multiplier}` : ''}=${item.amount}`,
-    )
+    .map((item) => {
+      const calculation =
+        item.count > 1 || item.multiplier > 1
+          ? `${item.count > 1 ? `${item.count}×` : ''}${item.unit}${item.multiplier > 1 ? `×${item.multiplier}` : ''}=`
+          : ''
+      return `${item.label} ${calculation}${item.amount}分`
+    })
     .join('；')
 
 export function nextDealer(
