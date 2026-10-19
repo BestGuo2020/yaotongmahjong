@@ -1,5 +1,42 @@
 import { expect, test } from '@playwright/test'
 
+for (const theme of ['jade', 'rosewood', 'happyMahjong', 'llm', 'llmAnime']) {
+  for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
+    test(`最终排名默认完整可见：${theme} ${viewport.width}×${viewport.height}`, async ({ page }) => {
+      await page.setViewportSize(viewport)
+      await page.emulateMedia({ reducedMotion: 'reduce' })
+      await page.goto(`/tests/e2e/fixtures/yaotong-final.html?theme=${theme}`)
+      await expect(page.locator('.final-rankings article')).toHaveCount(4)
+      await expect(page.locator('.final-rankings em')).toHaveText(['82', '71', '-28', '-125'])
+      await expect(page.locator('.final-name').first()).toHaveText('你')
+      await expect(page.locator('.final-round-details .yaotong-ledger')).not.toBeVisible()
+      for (const row of await page.locator('.final-rankings article').all())
+        await expect(row).toBeInViewport({ ratio: 1 })
+      await expect(page.getByRole('button', { name: '返回大厅', exact: true })).toBeInViewport({ ratio: 1 })
+      const overflow = await page.locator('.final-board').evaluate(board => board.scrollHeight - board.clientHeight)
+      expect(overflow, '默认收起末局明细后不应需要滚动才能看完排名').toBeLessThanOrEqual(1)
+    })
+  }
+}
+
+test('末局明细位于总排名之后，可展开收起且不改变累计分数', async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/tests/e2e/fixtures/yaotong-final.html')
+  await page.getByText('末局明细', { exact: true }).click()
+  await expect(page.locator('.final-round-details .yaotong-ledger')).toBeVisible()
+  const gap = await page.locator('.final-board').evaluate(board =>
+    board.querySelector('.final-round-details')!.getBoundingClientRect().top -
+    board.querySelector('.final-rankings')!.getBoundingClientRect().bottom)
+  expect(gap).toBeGreaterThanOrEqual(0)
+  await expect(page.locator('.final-rankings em')).toHaveText(['82', '71', '-28', '-125'])
+  await page.getByText('末局明细', { exact: true }).click()
+  await expect(page.locator('.final-round-details .yaotong-ledger')).not.toBeVisible()
+  await expect(page.getByRole('button', { name: '返回大厅', exact: true })).toBeInViewport({ ratio: 1 })
+  await page.getByRole('button', { name: '返回大厅', exact: true }).click()
+  await expect(page.getByTestId('back-to-lobby')).toBeVisible()
+})
+
 test('大厅只提供幺筒，联机入口显示建设中且不请求旧房间服务', async ({ page }) => {
   const errors: string[] = []
   const serviceRequests: string[] = []

@@ -192,25 +192,28 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
 
   <Transition name="final-board">
     <div v-if="matchFinished || finalRankingLab" class="result-backdrop final-backdrop" data-result-kind="final" data-result-strength="climax">
-      <section class="final-board" data-result-kind="final" data-result-strength="climax" :data-result-source="finalRankingLab ? 'lab' : 'game'">
+      <section class="final-board" :class="{ 'has-final-summary': Boolean($slots.summary) }" data-result-kind="final" data-result-strength="climax" :data-result-source="finalRankingLab ? 'lab' : 'game'">
         <p>{{ matchName }} · 对局结束</p>
         <h2>最终排名</h2>
-        <slot name="summary" />
         <div class="final-rankings">
           <article v-for="entry in standings" :key="entry.playerIndex" :class="[`rank-${entry.rank}`, { self: entry.playerIndex === 0 }]" :style="animeEntryStyle(entry)">
             <div class="final-rank"><b>{{ entry.rank }}</b><span>位</span></div>
             <img :src="displayedAvatar(entry)" :alt="`${entry.name}头像`" @error="onAvatarError(entry)" />
             <div class="final-name">
               <strong>{{ entry.name }}</strong>
-              <small v-if="entry.playerIndex === 0">你</small>
+              <small v-if="entry.playerIndex === 0 && entry.name !== '你'">你</small>
               <button
                 v-if="gameMode === 'remote' && entry.playerIndex !== 0 && playerId && humanSeats?.includes(entry.playerIndex)"
                 class="report-link" @click="$emit('report', entry.name)"
               >举报</button>
             </div>
-            <em>{{ entry.score }}</em>
+            <em title="本场累计积分" :aria-label="`累计${entry.score}分`">{{ entry.score }}</em>
           </article>
         </div>
+        <details v-if="$slots.summary" class="final-round-details">
+          <summary>末局明细</summary>
+          <slot name="summary" />
+        </details>
         <div class="settlement-footer final-footer">
           <button @click="$emit('returnToLobby')">返回大厅</button>
           <p class="result-disclaimer-note">游戏结果禁止用于赌博行为</p>
