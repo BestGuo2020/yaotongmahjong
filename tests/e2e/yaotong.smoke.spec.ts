@@ -68,6 +68,41 @@ test('大厅只提供幺筒，联机入口显示建设中且不请求旧房间�
   expect(errors).toEqual([])
 })
 
+for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
+  test(`模式选择可确认、取消，并适配五个主题：${viewport.width}`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/?theme=llm')
+    const modeRow = page.locator('.game-settings > button').last()
+    await expect(modeRow).toHaveText('模式简单模式系统辅助 · 防止违规')
+    for (const theme of ['jade', 'rosewood', 'happyMahjong', 'llm', 'llmAnime']) {
+      await page.goto(`/?theme=${theme}`)
+      await modeRow.click()
+      const picker = page.getByRole('dialog', { name: '选择模式' })
+      const hard = picker.getByRole('button', { name: /困难模式/ })
+      await expect(picker).toBeVisible()
+      await expect(picker.getByRole('button', { name: /简单模式/ })).toHaveAttribute('aria-pressed', 'true')
+      await expect(hard).toBeInViewport({ ratio: 1 })
+      await hard.click()
+      await expect(hard).toHaveAttribute('aria-pressed', 'true')
+      await picker.getByRole('button', { name: '取消', exact: true }).click()
+      await expect(modeRow).toContainText('简单模式')
+      await modeRow.click()
+      await hard.click()
+      const confirm = picker.getByRole('button', { name: '确定', exact: true })
+      await expect(confirm).toBeInViewport({ ratio: 1 })
+      await page.screenshot({ path: `tmp/yaotong-mode-${theme}-${viewport.width}.png` })
+      await confirm.click()
+      await expect(modeRow).toHaveText('模式困难模式自主判断 · 违规包牌')
+      await modeRow.click()
+      await expect(hard).toHaveAttribute('aria-pressed', 'true')
+      await picker.getByRole('button', { name: /简单模式/ }).click()
+      await confirm.click()
+      await expect(modeRow).toContainText('简单模式')
+    }
+  })
+}
+
 test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => {
   test.setTimeout(180_000)
   const errors: string[] = []

@@ -7,7 +7,7 @@ interface Props {
   title: string
   wide?: boolean
   themeName?: TableThemeName
-  variant?: 'create' | 'join' | 'match' | 'rule' | 'character'
+  variant?: 'create' | 'join' | 'match' | 'rule' | 'mode' | 'character'
 }
 
 const props = defineProps<Props>()
@@ -45,3 +45,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
     </Transition>
   </Teleport>
 </template>
+
+<style scoped>
+.lobby-dialog.mode-dialog { width: min(500px, 92vw); }
+@media (orientation: landscape) and (max-height: 520px) {
+  .lobby-dialog.mode-dialog { width: min(660px, 94vw); padding: 12px 16px; }
+  .mode-dialog > header { margin-bottom: 10px; padding-bottom: 8px; }
+}
+</style>

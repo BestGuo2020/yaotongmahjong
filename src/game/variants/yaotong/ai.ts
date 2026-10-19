@@ -18,7 +18,7 @@ export function chooseAction(state: GameState, seat: Seat): Command | null {
       // Do not knowingly peng into an unavoidable chicken-discard penalty.
       const rest = [...p.hand]
       for (let n = 0; n < 2; n++) rest.splice(rest.indexOf(pending.tile), 1)
-      if (!isChicken(pending.tile) || rest.some((t) => !isChicken(t)))
+      if ((!p.chickenPeng && !isChicken(pending.tile)) || rest.some((t) => !isChicken(t)))
         return { type: 'respond', action: 'peng' }
     }
     return { type: 'respond', action: 'pass' }

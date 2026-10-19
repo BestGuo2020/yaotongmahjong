@@ -168,6 +168,8 @@ function changeTableTheme(theme: TableThemeName) {
         :wall-total="108"
         :extra-actions="!result && !yaotongGame.openingStage.value"
         :locked-hand="yaotongGame.local.user.value?.declaration !== 'none'"
+        :blocked-discard-indices="yaotongGame.local.protection.value.discards"
+        :can-pass="!yaotongGame.local.protection.value.pass"
         :yaotong-view="yaotongGame.tableView.value"
         :joker-tiles="jokerTiles"
         :theme-name="tableThemeName"
@@ -192,6 +194,7 @@ function changeTableTheme(theme: TableThemeName) {
 
 
       <LobbyView v-if="showLobby" v-model:yaotong-length="yaotongGame.length.value"
+        v-model:yaotong-mode="yaotongGame.local.mode.value"
         v-model:anime-character-id="animeCharacterId" :table-theme-name="tableThemeName"
         @start-local="startGameWithAudio" @open-rules="rulesOpen = true"
       />

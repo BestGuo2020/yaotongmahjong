@@ -31,7 +31,7 @@ const props = defineProps<{ game: ReturnType<typeof useYaotongPort> }>()
       <b>{{ game.declarationArmed.value ? '取消报听' : '报听' }}</b>
     </button>
   </template>
-  <span v-if="game.risk.value" class="yaotong-action-note danger" role="status" :title="game.risk.value" :aria-label="game.risk.value">{{ game.local.response.value?.mandatory || game.local.self.value?.mandatory ? '必胡' : '过手' }}</span>
+  <span v-if="game.local.protectionNotice.value || game.risk.value" class="yaotong-action-note" :class="{ danger: game.local.mode.value === 'hard' }" role="status" :title="game.local.protectionNotice.value || game.risk.value" :aria-label="game.local.protectionNotice.value || game.risk.value">{{ game.local.mode.value === 'easy' ? '系统防护' : game.local.response.value?.mandatory || game.local.self.value?.mandatory ? '必胡' : '过手' }}</span>
   <span v-if="game.local.state.value?.dice[0] === game.local.state.value?.dice[1]" class="yaotong-double"
     title="骰子同点，本局双倍">×2</span
   >

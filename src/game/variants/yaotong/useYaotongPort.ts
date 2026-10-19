@@ -632,7 +632,10 @@ export function useYaotongPort(
     local.paused.value = false
   }
   const risk = computed(() =>
-    local.response.value?.mandatory || local.self.value?.mandatory
+    local.mode.value === 'easy'
+      ? local.protection.value.pass || local.protection.value.hu || local.protection.value.peng ||
+        (local.protection.value.discards.length ? '本巡已碰鸡，系统已禁用鸡牌出牌' : '')
+      : local.response.value?.mandatory || local.self.value?.mandatory
       ? '本次必须胡牌，选择其他操作将包牌'
       : local.response.value?.restrictedHu || local.self.value?.restrictedHu
         ? '过手胡尚未解除，选择胡将包牌'
@@ -660,9 +663,9 @@ export function useYaotongPort(
             type: 'claim',
             tile: toSharedTile(local.state.value!.pending!.tile),
             from: local.state.value!.pending!.from,
-            canHu: local.response.value.hu,
-            canPeng: local.response.value.peng,
-            canGang: local.response.value.kong,
+            canHu: local.response.value.hu && !local.protection.value.hu,
+            canPeng: local.response.value.peng && !local.protection.value.peng,
+            canGang: local.response.value.kong && !local.protection.value.kong,
           }
         : null,
     ),
@@ -678,7 +681,7 @@ export function useYaotongPort(
     dealer: computed(() => local.state.value?.dealer ?? 0),
     user: computed(() => players.value[0]),
     isUserTurn: computed(() => local.ownTurn.value && !local.paused.value && !local.autoplay.value),
-    userCanHu: computed(() => Boolean(local.self.value?.hu && !local.paused.value && !local.autoplay.value)),
+    userCanHu: computed(() => Boolean(local.self.value?.hu && !local.protection.value.hu && !local.paused.value && !local.autoplay.value)),
     matchType: computed<MatchType>(() => (length.value === 4 ? 'east' : 'hanchan')),
     matchName,
     matchFinished: computed(() => Boolean(result.value && local.state.value?.result?.finished)),
@@ -701,7 +704,7 @@ export function useYaotongPort(
         local.selected.value < 0 ? null : toSharedTile(local.user.value!.hand[local.selected.value]),
       ),
     ),
-    userKongs: computed(() => local.kongs.value.map(toSharedTile)),
+    userKongs: computed(() => local.protection.value.kong ? [] : local.kongs.value.map(toSharedTile)),
     capabilities: computed(() => ({})),
     startGame(_mode?: MatchType, startOptions?: GameStartOptions) {
       resetPresentation()
@@ -785,6 +788,7 @@ export function useYaotongPort(
     canArmDeclaration: computed(
       () =>
         local.ownTurn.value &&
+        !local.protection.value.pass &&
         local.user.value?.draws === 1 &&
         local.user.value.drawn !== null &&
         local.user.value.declaration === 'none' &&

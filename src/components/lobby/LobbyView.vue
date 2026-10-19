@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import GameSettingsSummary from './GameSettingsSummary.vue'
 import LobbyDialog from './LobbyDialog.vue'
 import YaotongMatchPicker from '../yaotong/YaotongMatchPicker.vue'
+import YaotongModePicker from '../yaotong/YaotongModePicker.vue'
+import { YAOTONG_MODES, type YaotongMode } from '../../game/variants/yaotong/mode'
 import AnimeCharacterPicker from '../llm/AnimeCharacterPicker.vue'
 import LobbyThemeVisual from './LobbyThemeVisual.vue'
 import type { CharacterId } from '../../game/llm/animeCharacters'
@@ -10,16 +12,18 @@ import type { TableThemeName } from '../table/three/tableTheme'
 
 const props = defineProps<{
   yaotongLength: 4 | 8 | 16
+  yaotongMode: YaotongMode
   animeCharacterId: CharacterId
   tableThemeName: TableThemeName
 }>()
 defineEmits<{
   'update:yaotongLength': [value: 4 | 8 | 16]
+  'update:yaotongMode': [value: YaotongMode]
   'update:animeCharacterId': [value: CharacterId]
   startLocal: []
   openRules: []
 }>()
-const dialog = ref<'match' | 'character' | null>(null)
+const dialog = ref<'match' | 'mode' | 'character' | null>(null)
 const mode = ref<'local' | 'multiplayer'>('local')
 const matchOption = computed(() => ({
   name: ({ 4: '东风场', 8: '半庄场', 16: '全庄场' })[props.yaotongLength],
@@ -45,8 +49,8 @@ const matchOption = computed(() => ({
         </div>
         <template v-if="mode === 'local'">
           <GameSettingsSummary :match-name="matchOption.name" :match-description="matchOption.description"
-            rule-name="幺筒麻将" rule-description="108张牌 · 一筒百变 · 翻鸡结算"
-            @select-match="dialog = 'match'" @select-rule="$emit('openRules')" />
+            rule-label="模式" :rule-name="YAOTONG_MODES[yaotongMode].name" :rule-description="YAOTONG_MODES[yaotongMode].summary"
+            @select-match="dialog = 'match'" @select-rule="dialog = 'mode'" />
           <button class="start-button" data-action-role="primary" @click="$emit('startLocal')">
             <b>开始{{ matchOption.name }}</b><span>幺筒麻将 · 四人对局</span>
           </button>
@@ -60,10 +64,12 @@ const matchOption = computed(() => ({
         </div>
       </section>
     </div>
-    <LobbyDialog v-if="dialog" :title="dialog === 'match' ? '选择场次' : '本家形象'"
+    <LobbyDialog v-if="dialog" :title="dialog === 'match' ? '选择场次' : dialog === 'mode' ? '选择模式' : '本家形象'"
       :wide="dialog === 'character'" :theme-name="tableThemeName" :variant="dialog" @close="dialog = null">
       <YaotongMatchPicker v-if="dialog === 'match'" :model-value="yaotongLength"
         @confirm="$emit('update:yaotongLength', $event); dialog = null" @close="dialog = null" />
+      <YaotongModePicker v-else-if="dialog === 'mode'" :model-value="yaotongMode"
+        @confirm="$emit('update:yaotongMode', $event); dialog = null" @close="dialog = null" />
       <AnimeCharacterPicker v-else :model-value="animeCharacterId"
         @update:model-value="$emit('update:animeCharacterId', $event); dialog = null" />
     </LobbyDialog>

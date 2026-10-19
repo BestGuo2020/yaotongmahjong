@@ -79,6 +79,8 @@ interface Props {
   wallTotal?: number
   extraActions?: boolean
   lockedHand?: boolean
+  blockedDiscardIndices?: number[]
+  canPass?: boolean
   yaotongView?: YaotongTableView
   bloodFlow?: BloodFlowTableState | null
   /** 联机（房间）对局：结算页的「退出本场」与暂离文案只在这种模式下有意义。 */
@@ -415,6 +417,7 @@ function finishTileGesture(index: number, event: PointerEvent) {
   const start = touchStarts.get(event.pointerId)
   touchStarts.delete(event.pointerId)
   if (!start || start.index !== index || !props.isUserTurn) return
+  if (props.blockedDiscardIndices?.includes(index)) return
   const deltaX = event.clientX - start.x
   const upwardDistance = -(event.clientY - start.y)
   if (upwardDistance >= 28 && upwardDistance > Math.abs(deltaX) * 1.15 && performance.now() - start.startedAt < 700) {
@@ -432,6 +435,7 @@ function cancelTileGesture(event: PointerEvent) {
 
 function handleTileActivation(index: number, event?: PointerEvent) {
   if (!props.isUserTurn) return
+  if (props.blockedDiscardIndices?.includes(index)) return
   if (props.lockedHand && index !== props.user.drawnTileIndex) return
   if (props.bloodFlow?.seats[props.user.seat].locked && index !== props.user.drawnTileIndex) return
   const now = performance.now()
@@ -677,7 +681,7 @@ function onAvatarError(entry: GamePlayer) {
           <span v-if="isTingDiscard(index, tile) && !isReformDiscard(index, tile)" class="ting-arrow" aria-hidden="true"></span>
           <span v-if="isReformDiscard(index, tile)" class="ting-arrow reform-arrow" aria-hidden="true"></span>
           <span v-if="isReformDiscard(index, tile)" class="reform-badge" aria-hidden="true">改</span>
-          <MahjongTile :tile="tile" :joker-tiles="jokerTiles" :wildcard-tiles="wildcardTiles" :laizi-only="rulesetId === 'yaotong'" :theme-name="themeName" :selected="selectedIndex === index" :drawn="userDrawnIndex === index" :disabled="!isUserTurn || Boolean((lockedHand || bloodFlow?.seats[user.seat].locked) && index !== userDrawnIndex)" @choose="handleTileActivation(index, $event)" />
+          <MahjongTile :tile="tile" :joker-tiles="jokerTiles" :wildcard-tiles="wildcardTiles" :laizi-only="rulesetId === 'yaotong'" :theme-name="themeName" :selected="selectedIndex === index" :drawn="userDrawnIndex === index" :disabled="!isUserTurn || blockedDiscardIndices?.includes(index) || Boolean((lockedHand || bloodFlow?.seats[user.seat].locked) && index !== userDrawnIndex)" @choose="handleTileActivation(index, $event)" />
         </div>
       </div>
     </section>
@@ -699,7 +703,7 @@ function onAvatarError(entry: GamePlayer) {
           <button v-if="!bloodFlow?.seats[user.seat].locked && actionPrompt.canPeng" class="action primary" data-action-role="primary" @click="$emit('peng')"><b>碰</b></button>
           <button v-if="actionPrompt.canGang" class="action primary" data-action-role="primary" @click="$emit('gangFromDiscard')"><b>杠</b></button>
           <button v-if="!bloodFlow?.seats[user.seat].locked && actionPrompt.chiOptions?.length" class="action primary" data-action-role="primary" @click="toggleChiPicker"><b>吃</b></button>
-          <button v-if="!bloodFlow || !bloodFlow.seats[user.seat].locked || (actionPrompt.canGang && !actionPrompt.canHu)" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
+          <button v-if="canPass !== false && (!bloodFlow || !bloodFlow.seats[user.seat].locked || (actionPrompt.canGang && !actionPrompt.canHu))" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
         </template>
         <template v-else-if="actionPrompt?.type === 'response'">
           <button v-if="!bloodFlow?.seats[user.seat].locked && actionPrompt.canPeng" class="action primary" data-action-role="primary" @click="$emit('peng')"><b>碰</b></button>

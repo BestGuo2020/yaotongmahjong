@@ -4,6 +4,7 @@ interface Props {
   matchDescription: string
   ruleName: string
   ruleDescription: string
+  ruleLabel?: string
 }
 
 defineProps<Props>()
@@ -20,7 +21,7 @@ defineEmits<{ selectMatch: []; selectRule: [] }>()
       <i aria-hidden="true"></i>
     </button>
     <button type="button" data-action-role="secondary" @click="$emit('selectRule')">
-      <span>玩法</span>
+      <span>{{ ruleLabel ?? '玩法' }}</span>
       <strong>{{ ruleName }}</strong>
       <small>{{ ruleDescription }}</small>
       <i aria-hidden="true"></i>

@@ -15,11 +15,16 @@ import { PACE_MS } from '../../core/local/localGameConfig'
 import { OPENING_PACE_MS } from '../../shared/runtime/localOpening'
 import { discardWaits, waits } from './hands'
 import type { Command, GameState } from './types'
+import { actionProtection, NO_PROTECTION, protectionReason, type YaotongMode } from './mode'
 
 export function useYaotongGame() {
   const state = shallowRef<GameState | null>(null)
   const paused = ref(false)
   const autoplay = ref(false)
+  const mode = ref<YaotongMode>('easy')
+  const protection = computed(() => mode.value === 'easy' && state.value
+    ? actionProtection(state.value) : NO_PROTECTION)
+  const protectionNotice = ref('')
   const pendingTransition = shallowRef<{ state: GameState; step: FlowStep; resume: () => void } | null>(null)
   const flowStep = computed(() => pendingTransition.value?.step ?? null)
   const selected = ref(-1)
@@ -35,7 +40,8 @@ export function useYaotongGame() {
   const kongs = computed(() => (state.value ? kongOptions(state.value, 0) : []))
   const waiting = computed(() => (user.value ? waits(user.value) : []))
   const discardOptions = computed(() =>
-    ownTurn.value && user.value?.declaration === 'none' ? discardWaits(user.value) : [],
+    ownTurn.value && user.value?.declaration === 'none'
+      ? discardWaits(user.value).filter((option) => !protection.value.discards.includes(option.index)) : [],
   )
   const selectedWaits = computed(
     () => discardOptions.value.find((o) => o.index === selected.value)?.waits ?? [],
@@ -60,7 +66,13 @@ export function useYaotongGame() {
   function dispatch(command: Command, seat = 0) {
     if (!state.value || paused.value) return
     try {
+      const reason = seat === 0 ? protectionReason(protection.value, command) : ''
+      if (reason) {
+        protectionNotice.value = reason
+        return
+      }
       if (act(state.value, seat, command, flow)) {
+        protectionNotice.value = ''
         selected.value = -1
         error.value = ''
         triggerRef(state)
@@ -77,13 +89,16 @@ export function useYaotongGame() {
     paused.value = false
     autoplay.value = false
     error.value = ''
+    protectionNotice.value = ''
   }
   function next() {
+    protectionNotice.value = ''
     pendingTransition.value = null
     if (state.value) state.value = continueGame(state.value)
     selected.value = -1
   }
   function leave() {
+    protectionNotice.value = ''
     pendingTransition.value = null
     state.value = null
     selected.value = -1
@@ -167,6 +182,9 @@ export function useYaotongGame() {
     user,
     paused,
     autoplay,
+    mode,
+    protection,
+    protectionNotice,
     flowStep,
     selected,
     error,
