@@ -28,6 +28,7 @@ export interface ChickenCue {
   strong: boolean
 }
 export interface YaotongTableView {
+  multiWinIntro?: { id: number; sourceIndex: number } | null
   settlementIndicator?: { id: number; seat: number; tile: TileType } | null
   seats: SeatStatus[]
   chickenCue: ChickenCue | null

@@ -95,6 +95,8 @@ export interface SettlementTimelineOptions<E extends SettlementEndOptions, S ext
   getWinSound?(context: SettlementWinContext<E>): string
   /** 清理旧回合控制器后立即启动赢家优先的 AI 感言队列；结算阶段可等待同一 Promise。 */
   onWinStart?(context: SettlementWinContext<E>): void
+  /** Optional exclusive title before the winner's normal cue; returns its duration in ms. */
+  showWinIntro?(context: SettlementWinContext<E>): number
   finalizeWin(context: SettlementWinContext<E>): RoundResult
   endDraw(context: SettlementDrawContext): RoundResult
   /** 亮牌完成后串行播放 AI 胜负感言；Promise 完成前不得弹出结算窗口。 */
@@ -247,17 +249,24 @@ export function createSettlementTimeline<E extends SettlementEndOptions, S exten
       options.later(activateWinEffect, cueLeadDuration + cueExitDuration)
     }
 
+    const startWinPresentation = () => {
+      if (serial !== currentSerial) return
+      const introDuration = options.showWinIntro?.(context) ?? 0
+      if (introDuration > 0) options.later(startWinCue, introDuration)
+      else startWinCue()
+    }
+
     if (isDiscardWin) {
       // 等具体牌名音效播放结束，再留出约 1 秒过渡；到点时同一个回调内启动
       // 胡音效与视觉特效。牌名音效由出牌流程提前创建，避免在这里重复播放。
       void (state.lastDiscardSound?.value ?? Promise.resolve()).then(() => {
         if (serial !== currentSerial) return
-        options.later(startWinCue, DISCARD_WIN_EFFECT_DELAY)
+        options.later(startWinPresentation, DISCARD_WIN_EFFECT_DELAY)
       })
       return
     }
 
-    startWinCue()
+    startWinPresentation()
   }
 
   function endDraw() {

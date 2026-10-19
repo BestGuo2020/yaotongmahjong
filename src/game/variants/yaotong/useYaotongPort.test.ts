@@ -12,6 +12,77 @@ beforeEach(() => vi.stubGlobal('window', globalThis))
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('幺筒复用原版GamePort与3D表现', () => {
+  it.each([1, 2, 3].flatMap(count => [false, true].map(reduced => ({ count, reduced }))))(
+    '$count家胡牌，减少动态效果=$reduced：多响字效独占1.5秒后才启动胡牌演出', async ({ count, reduced }) => {
+      vi.useFakeTimers()
+      vi.stubGlobal('matchMedia', () => ({ matches: reduced }))
+      const scope = effectScope(), playSound = vi.fn()
+      let finishDiscard!: () => void
+      try {
+        const port = scope.run(() => useYaotongPort({ playSound,
+          playSoundAndWait: () => new Promise<void>(resolve => { finishDiscard = resolve }),
+        }))!
+        const state = table()
+        state.current = 3
+        state.players[3] = player('147m 258p 369s 2468s 9s', { drawn: 26 })
+        const winners = Array.from({ length: count }, (_, seat) => seat)
+        for (const seat of winners) state.players[seat] = player('234567m 234s 66p 78s', { declaration: 'ready' })
+        port.local.state.value = state
+        port.local.dispatch({ type: 'discard', index: 13 }, 3)
+        for (const seat of winners) port.local.dispatch({ type: 'respond', action: 'hu' }, seat)
+        expect(state.result?.winners).toEqual(winners)
+        expect(port.tableView.value.multiWinIntro).toBeNull()
+        expect(port.tableActionEvent.value).toBeNull()
+        await vi.advanceTimersByTimeAsync(80)
+        finishDiscard()
+        await vi.advanceTimersByTimeAsync(499)
+        expect(port.tableView.value.multiWinIntro).toBeNull()
+        await vi.advanceTimersByTimeAsync(1)
+        if (count > 1) {
+          expect(port.tableView.value.multiWinIntro).toMatchObject({ sourceIndex: 3 })
+          await vi.advanceTimersByTimeAsync(1499)
+          expect(port.tableActionEvent.value).toBeNull()
+          expect(port.winEffect.value).toBeNull()
+          expect(port.revealHands.value).toBe(false)
+          expect(port.result.value).toBeNull()
+          expect(playSound.mock.calls.some(([name]) => name === 'hu.mp3')).toBe(false)
+          expect(port.players.every(p => p.score === 0)).toBe(true)
+          await vi.advanceTimersByTimeAsync(1)
+        }
+        expect(port.tableView.value.multiWinIntro).toBeNull()
+        expect(port.tableActionEvent.value?.type).toBe('discard-win')
+        expect(playSound).toHaveBeenCalledWith('hu.mp3', undefined)
+        await vi.advanceTimersByTimeAsync(reduced ? 450 : 2000)
+        expect(port.winEffect.value?.winnerIndex).toBe(0)
+        await vi.advanceTimersByTimeAsync(reduced ? 420 : 2600)
+        expect(port.revealHands.value).toBe(true)
+        await vi.advanceTimersByTimeAsync(reduced ? 360 : 1500)
+        expect(port.result.value).not.toBeNull()
+        expect(port.tableView.value.seats.flatMap((seat, i) => seat.winner ? [i] : [])).toEqual(winners)
+      } finally { scope.stop() }
+    },
+  )
+  it('放炮者为本家时正常提示多响，字效中途离桌会取消后续演出', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    try {
+      const port = scope.run(() => useYaotongPort())!
+      const state = table()
+      state.players[0] = player('147m 258p 369s 2468s 9s', { drawn: 26 })
+      for (const seat of [1, 2]) state.players[seat] = player('234567m 234s 66p 78s', { declaration: 'ready' })
+      port.local.state.value = state
+      port.userDiscard(13)
+      for (const seat of [1, 2]) port.local.dispatch({ type: 'respond', action: 'hu' }, seat)
+      await vi.advanceTimersByTimeAsync(580)
+      expect(port.tableView.value.multiWinIntro).toMatchObject({ sourceIndex: 0 })
+      port.returnToLobby()
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(port.tableView.value.multiWinIntro).toBeNull()
+      expect(port.tableActionEvent.value).toBeNull()
+      expect(port.winEffect.value).toBeNull()
+      expect(port.result.value).toBeNull()
+    } finally { scope.stop() }
+  })
   it('减少动态效果仍提供准确礼金，沿用360ms亮牌窗口并及时清除', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('matchMedia', () => ({ matches: true }))

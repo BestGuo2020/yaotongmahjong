@@ -5,6 +5,7 @@ import type { GamePlayer, TableActionEvent } from '../../game/core/contracts/typ
 import type { TableThemeName } from './three/tableTheme'
 import TableActionCue from './TableActionCue.vue'
 import BloodFlowImpactTitle from './BloodFlowImpactTitle.vue'
+import MultiWinIntro from './MultiWinIntro.vue'
 import EffectNumber from '../commons/EffectNumber.vue'
 import {bloodFlowImpactProfile,bloodFlowTitleMotion} from '../../theme/bloodFlowPresentation'
 const props=defineProps<{cue:BloodFlowCue|null;now:number;themeName:TableThemeName;localSeat:number;players:GamePlayer[];compact?:boolean}>()
@@ -36,10 +37,7 @@ const payerFeedback=computed(()=>props.cue?.deltas.map((amount,seat)=>({amount,s
 const signed=(n:number)=>`${n>0?'+':''}${n}`
 const name=(seat:number)=>props.players[(seat-props.localSeat+4)%4]?.name??`玩家${seat+1}`
 const introSource=computed(()=>props.cue?.seats[0]?.source??null)
-const introStyle=computed(()=>{
-  const source=introSource.value,relative=source?(source.seat-props.localSeat+4)%4:0
-  return {left:`${(props.compact?[50,74,44,26]:[50,77,50,23])[relative]}%`,...(relative===0?{bottom:props.compact?'22%':'19%'}:{top:`${(props.compact?[0,42,12,42]:[0,38,12,38])[relative]}%`})}
-})
+const introSourceIndex=computed(()=>introSource.value?(introSource.value.seat-props.localSeat+4)%4:0)
 const actionEvent=(seat:number):TableActionEvent=>{
   const item=props.cue!.seats.find(s=>s.seat===seat)!
   return {id:Math.floor(props.cue!.startedAt),type:item.source.kind==='draw'?'self-draw':item.source.kind==='added-kong'?'robbed-kong-win':'discard-win',
@@ -51,9 +49,8 @@ const actionEvent=(seat:number):TableActionEvent=>{
     <div v-if="cue" :key="cue.id" class="blood-flow-cue" :class="[`tier-${cue.tier}`,`stage-${stage}`,{brief:cue.compact}]" :data-cue-id="cue.id" :data-cue-start="cue.startedAt" :data-phase="phase">
       <div v-if="cue.kind==='win'&&(stage==='main'||stage==='multi')" class="blood-flow-dimmer" :style="{opacity:motion?.dimming??0}" aria-hidden="true"></div>
       <!-- 一炮多响：点炮者方位 1.5s 特效字；期间飞牌、动作、主番与收付全部等待。 -->
-      <div v-if="cue.kind==='win'&&phase==='intro'" class="blood-flow-multi-intro" :class="{reduced}" :style="introStyle" :data-multi-intro="1">
-        <BloodFlowImpactTitle text="一炮多响" :theme="themeName" />
-      </div>
+      <MultiWinIntro v-if="cue.kind==='win'&&phase==='intro'" :source-index="introSourceIndex"
+        :theme-name="themeName" :compact="compact" :reduced="reduced" />
       <TableActionCue v-for="actor in activeActors" :key="actor.item.record.id"
         :event="actionEvent(actor.item.seat)" :player="players[(actor.item.seat-localSeat+4)%4]"
         :theme-name="themeName" :data-actor-seat="actor.item.seat" :data-record-id="actor.item.record.id"
@@ -84,15 +81,6 @@ const actionEvent=(seat:number):TableActionEvent=>{
 .blood-flow-presentation { position:absolute; inset:0; z-index:42; pointer-events:none; color:var(--theme-text,#fff2d9); }
 .blood-flow-cue { position:absolute; inset:0; --win-color:var(--theme-accent,#e4c17a); }
 .blood-flow-dimmer { position:absolute; inset:0; background:radial-gradient(ellipse at 50% 35%,#0004,#000 85%); }
-.blood-flow-multi-intro { position:absolute; transform:translateX(-50%); width:clamp(200px,26vw,340px); isolation:isolate; animation:multi-intro-pop 1.5s cubic-bezier(.2,1.4,.35,1) both; }
-.blood-flow-multi-intro.reduced { animation:none; }
-@keyframes multi-intro-pop {
-  0% { opacity:0; transform:translateX(-50%) scale(.55) rotate(-4deg); }
-  18% { opacity:1; transform:translateX(-50%) scale(1.12) rotate(1.5deg); }
-  30% { transform:translateX(-50%) scale(.98) rotate(0); }
-  78% { opacity:1; transform:translateX(-50%) scale(1); }
-  100% { opacity:0; transform:translateX(-50%) scale(1.04); }
-}
 .blood-flow-central { position:absolute; width:clamp(170px,23vw,330px); isolation:isolate; transform-origin:50% 65%; }
 .stage-main .blood-flow-central { width:clamp(230px,30vw,405px); }
 .blood-flow-central::before { content:''; position:absolute; inset:-12% -25%; z-index:-1; background:radial-gradient(ellipse,color-mix(in srgb,var(--win-color) 22%,transparent),transparent 70%); }
@@ -130,7 +118,6 @@ const actionEvent=(seat:number):TableActionEvent=>{
 .blood-flow-seat-feedback span { font-size:13px; }
 .feedback-0 { bottom:20%; left:50%; }.feedback-1 { top:39%; left:89%; }.feedback-2 { top:12%; left:50%; }.feedback-3 { top:39%; left:12.5%; }
 .compact .blood-flow-central { width:clamp(140px,25vw,210px); }
-.compact .blood-flow-multi-intro { width:clamp(150px,24vw,230px); }
 .compact :deep(.anime-action-cue) { width:76px; height:60px; --action-art-scale:1.55; }
 .compact :deep(.anime-action-copy strong) { font-size:28px; -webkit-text-stroke:3px #2d241c; }
 .compact .stage-main .blood-flow-central { width:clamp(170px,30vw,265px); }

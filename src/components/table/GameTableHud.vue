@@ -7,7 +7,8 @@ import YaotongChickenEffects from '../yaotong/YaotongChickenEffects.vue'
 import type { YaotongTableView } from '../../game/variants/yaotong/presentation'
 import PlayerSeat from '../PlayerSeat.vue'
 import TableActionCue from './TableActionCue.vue'
-import { splitWinningTile } from '../../game/core/presentation/winEffect'
+import MultiWinIntro from './MultiWinIntro.vue'
+import { prefersReducedMotion, splitWinningTile } from '../../game/core/presentation/winEffect'
 import { defaultAvatarForSeat } from '../../game/core/presentation/avatar'
 import { tileName } from '../../game/core/rules/tiles'
 import type { ActionPrompt, Announcement, DealAnimation, GamePhase, LastDiscard, OpeningStage, RoundResult, WaitInfo, WinEffect } from '../../game/core/contracts/gamePort'
@@ -630,6 +631,9 @@ function onAvatarError(entry: GamePlayer) {
         :label="yaotongView?.seats[presentedTableActionEvent.actorIndex]?.winner ? yaotongView.seats[presentedTableActionEvent.actorIndex]?.winPattern : undefined"
         :position="seatPosition[presentedTableActionEvent.actorIndex]" :theme-name="themeName" />
     </Transition>
+    <MultiWinIntro v-if="yaotongView?.multiWinIntro" :key="`multi-${yaotongView.multiWinIntro.id}`"
+      :source-index="yaotongView.multiWinIntro.sourceIndex" :theme-name="themeName"
+      :compact="compactBloodFlowEffects" :reduced="prefersReducedMotion()" />
     <TransitionGroup name="table-action">
       <TableActionCue v-for="cue in yaotongView?.declarationCues ?? []" :key="`declaration-${cue.id}`"
         :event="cue" :player="players[cue.actorIndex]"

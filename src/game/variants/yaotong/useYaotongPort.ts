@@ -30,6 +30,7 @@ import {
   prefersReducedMotion,
   WIN_REVEAL_DURATION,
   REDUCED_WIN_REVEAL_DURATION,
+  MULTI_WIN_INTRO_DURATION,
 } from '../../core/presentation/winEffect'
 import { tileName as sharedTileName } from '../../core/rules/tiles'
 import { createLocalTransientEventPresenter } from '../../core/local/localTransientEventPresenter'
@@ -113,6 +114,7 @@ export function useYaotongPort(
   const pendingChickens = shallowRef<ChickenPerformance[]>([])
   const declarationCues = shallowRef<TableDeclarationEvent[]>([])
   const settlementCue = shallowRef<SettlementCue | null>(null)
+  const multiWinIntro = shallowRef<YaotongTableView['multiWinIntro']>(null)
   const gifts = computed(() => giftAwards(local.state.value?.result?.transfers ?? []))
   const reportKills = computed(() => reportKillTotals(local.state.value?.result?.transfers ?? []))
   const winDeclared = ref(false)
@@ -137,6 +139,7 @@ export function useYaotongPort(
     }
   }
   const tableView = computed<YaotongTableView>(() => ({
+    multiWinIntro: multiWinIntro.value,
     settlementIndicator:
       revealHands.value && local.state.value?.result?.indicator != null
         ? {
@@ -411,7 +414,14 @@ export function useYaotongPort(
       },
       playSound,
       playSoundAndWait,
+      showWinIntro() {
+        const outcome = local.state.value?.result
+        if (!outcome || outcome.winners.length < 2 || outcome.source === null) return 0
+        multiWinIntro.value = { id: ++eventSequence, sourceIndex: outcome.source }
+        return MULTI_WIN_INTRO_DURATION
+      },
       showTableAction(...args) {
+        multiWinIntro.value = null
         winDeclared.value = true
         transient.showTableAction(...args)
       },
@@ -600,6 +610,7 @@ export function useYaotongPort(
     declarationCues.value = []
     lastDeclarationSound = -Infinity
     settlementCue.value = null
+    multiWinIntro.value = null
   }
   async function opening(startOptions?: GameStartOptions) {
     local.paused.value = true
@@ -784,6 +795,7 @@ export function useYaotongPort(
       chickenPerformances.value = []
       pendingChickens.value = []
       settlementCue.value = null
+      multiWinIntro.value = null
       openingActive.value = false
       openingStage.value = null
       result.value = null

@@ -4,6 +4,8 @@ import type { TileType, WinPresentation } from '../contracts/types'
 export const WIN_EFFECT_DURATION = 2600
 export const WIN_REVEAL_DURATION = 1500
 export const WIN_EFFECT_SOUND_DELAY = 320
+/** Shared blood-flow / Yaotong multi-winner title lead-in. */
+export const MULTI_WIN_INTRO_DURATION = 1500
 
 /** DOM 胡牌立绘的独占引导段；结束后再启动 Three.js 光束（R6.23：按用户要求立绘停留约 2 秒）。 */
 export const WIN_CUE_LEAD_DURATION = 1600

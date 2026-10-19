@@ -1,4 +1,5 @@
 import { BLOOD_FLOW_PATTERNS } from './patternDefinitions'
+import { MULTI_WIN_INTRO_DURATION } from '../../../core/presentation/winEffect'
 import type { BloodFlowRuleConfig } from './types'
 import type { DefensePolicyConfig } from './defensePolicy'
 import { BLOOD_FLOW_BIG_HAND_ROUTE, BLOOD_FLOW_BIG_HAND_ROUTE_WIDE, type BigHandRouteConfig } from './bigHandRoute'
@@ -113,7 +114,7 @@ export const BLOOD_FLOW_TIMING = Object.freeze({
    * 读视图超时时机器人分支直接回落 `backend.bot`，保证链每轮都有界推进。
    */
   authorityWorkerTimeoutMs: 4_000,
-  compactWinMs: 2300, largeWinMs: 2600, topWinMs: 2900, multiWinIntroMs: 1500,
+  compactWinMs: 2300, largeWinMs: 2600, topWinMs: 2900, multiWinIntroMs: MULTI_WIN_INTRO_DURATION,
   fullEffectCooldownMs: 8000, visualBacklogMs: 2000,
 })
 
