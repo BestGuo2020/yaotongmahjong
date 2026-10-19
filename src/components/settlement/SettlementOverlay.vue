@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import MahjongTile from '../MahjongTile.vue'
 import { isHorseForSeat } from '../../game/core/rules/tiles'
 import { defaultAvatarForSeat } from '../../game/core/presentation/avatar'
@@ -85,6 +85,16 @@ const resultKindLab = ref(resultKindLabCandidate && resultKindLabValues.has(resu
   : null)
 const finalRankingLab = ref(import.meta.env.DEV && new URLSearchParams(window.location.search).has('finalRankLab'))
 const restoredSettlement = ref(false)
+const activeTab = ref<'overview' | 'details'>('overview')
+const tabId = useId()
+function onTabKeydown(event: KeyboardEvent) {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  activeTab.value = event.key === 'Home' ? 'overview' : event.key === 'End' ? 'details'
+    : activeTab.value === 'overview' ? 'details' : 'overview'
+  const tabs = (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('[role="tab"]')
+  tabs[activeTab.value === 'overview' ? 0 : 1]?.focus()
+}
 let trackedResult: RoundResult | null = null
 let trackedResultWasOpened = false
 
@@ -93,6 +103,7 @@ watch([() => props.result, () => props.resultVisible], ([result, visible]) => {
     trackedResult = result
     trackedResultWasOpened = false
     restoredSettlement.value = false
+    activeTab.value = 'overview'
   }
   if (!result || !visible) return
   restoredSettlement.value = trackedResultWasOpened
@@ -145,36 +156,53 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
     >
       <section
         class="result-card settlement-card"
-        :class="`result-${resultPresentation.kind}`"
+        :class="[`result-${resultPresentation.kind}`, { 'has-round-overview': Boolean($slots.overview) }]"
         :data-result-kind="resultPresentation.kind"
         :data-result-strength="resultPresentation.strength"
         :data-result-source="resultKindLab ? 'lab' : 'game'"
       >
         <h2>{{ result.roundLabel }} · {{ resultTitle ?? resultPresentation.label }}</h2>
-        <slot name="summary" />
-        <div v-if="!$slots.summary && resultPresentation.kind !== 'draw'" class="score-total"><span>总倍数</span><strong>×{{ result.totalMultiplier ?? result.multiplier }}</strong><em>+{{ result.totalWon ?? result.points * 3 }} 分</em></div>
-        <div v-if="!$slots.summary && resultPresentation.kind !== 'draw' && result.details?.length" class="score-details">
-          <span v-for="detail in result.details" :key="detail.label">
-            {{ detail.label }} <b>{{ detail.points != null ? `+${detail.points} 分` : `×${detail.multiplier}` }}</b>
-          </span>
+        <div v-if="$slots.overview" class="settlement-tabs" role="tablist" aria-label="结算内容" @keydown="onTabKeydown">
+          <button :id="`${tabId}-overview-tab`" type="button" role="tab" :aria-selected="activeTab === 'overview'" :aria-controls="`${tabId}-overview`" :tabindex="activeTab === 'overview' ? 0 : -1" @click="activeTab = 'overview'">概览</button>
+          <button :id="`${tabId}-details-tab`" type="button" role="tab" :aria-selected="activeTab === 'details'" :aria-controls="`${tabId}-details`" :tabindex="activeTab === 'details' ? 0 : -1" @click="activeTab = 'details'">分数明细</button>
         </div>
-        <div v-if="resultPresentation.kind !== 'draw' && result.horses?.length" class="horse-area">
-          <div>
-            <MahjongTile v-for="(tile, index) in result.horses" :key="index" :tile="tile" :joker-tiles="jokerTiles" :wildcard-tiles="wildcardTiles" :theme-name="themeName" :class="{ 'horse-hit': isHorseForSeat(tile, relativeSeat) }" small disabled />
+        <div
+          v-show="!$slots.overview || activeTab === 'overview'"
+          :id="`${tabId}-overview`"
+          :role="$slots.overview ? 'tabpanel' : undefined"
+          :aria-labelledby="$slots.overview ? `${tabId}-overview-tab` : undefined"
+          :tabindex="$slots.overview ? 0 : undefined"
+          class="settlement-overview-panel"
+        >
+          <slot name="overview"><slot name="summary" /></slot>
+          <div v-if="!$slots.summary && resultPresentation.kind !== 'draw'" class="score-total"><span>总倍数</span><strong>×{{ result.totalMultiplier ?? result.multiplier }}</strong><em>+{{ result.totalWon ?? result.points * 3 }} 分</em></div>
+          <div v-if="!$slots.summary && resultPresentation.kind !== 'draw' && result.details?.length" class="score-details">
+            <span v-for="detail in result.details" :key="detail.label">
+              {{ detail.label }} <b>{{ detail.points != null ? `+${detail.points} 分` : `×${detail.multiplier}` }}</b>
+            </span>
+          </div>
+          <div v-if="resultPresentation.kind !== 'draw' && result.horses?.length" class="horse-area">
+            <div>
+              <MahjongTile v-for="(tile, index) in result.horses" :key="index" :tile="tile" :joker-tiles="jokerTiles" :wildcard-tiles="wildcardTiles" :theme-name="themeName" :class="{ 'horse-hit': isHorseForSeat(tile, relativeSeat) }" small disabled />
+            </div>
+          </div>
+          <div class="round-rankings">
+            <article v-for="entry in result.scoreChanges" :key="entry.playerIndex" :class="{ winner: entry.playerIndex === result.winnerIndex, self: Boolean($slots.overview) && entry.playerIndex === 0 }" :style="animeEntryStyle(entry)">
+              <strong class="rank-number">{{ entry.rank }}<small>位</small></strong>
+              <img :src="displayedAvatar(entry)" :alt="`${entry.name}头像`" @error="onAvatarError(entry)" />
+              <span class="player-line">
+                {{ entry.name }}
+                <i v-if="$slots.overview && entry.playerIndex === 0" class="mark self-mark">本家</i>
+                <i v-if="entry.playerIndex === dealer" class="mark dealer">庄</i>
+                <i v-if="result.draw && result.tenpai?.includes(entry.playerIndex)" class="mark tenpai">听</i>
+              </span>
+              <em :class="{ positive: entry.delta > 0, negative: entry.delta < 0 }">{{ entry.delta > 0 ? '+' : '' }}{{ entry.delta }}</em>
+              <b>{{ entry.score }}</b>
+            </article>
           </div>
         </div>
-        <div class="round-rankings">
-          <article v-for="entry in result.scoreChanges" :key="entry.playerIndex" :class="{ winner: entry.playerIndex === result.winnerIndex }" :style="animeEntryStyle(entry)">
-            <strong class="rank-number">{{ entry.rank }}<small>位</small></strong>
-            <img :src="displayedAvatar(entry)" :alt="`${entry.name}头像`" @error="onAvatarError(entry)" />
-            <span class="player-line">
-              {{ entry.name }}
-              <i v-if="entry.playerIndex === dealer" class="mark dealer">庄</i>
-              <i v-if="result.draw && result.tenpai?.includes(entry.playerIndex)" class="mark tenpai">听</i>
-            </span>
-            <em :class="{ positive: entry.delta > 0, negative: entry.delta < 0 }">{{ entry.delta > 0 ? '+' : '' }}{{ entry.delta }}</em>
-            <b>{{ entry.score }}</b>
-          </article>
+        <div v-if="$slots.overview" v-show="activeTab === 'details'" :id="`${tabId}-details`" role="tabpanel" :aria-labelledby="`${tabId}-details-tab`" tabindex="0" class="settlement-details-panel">
+          <slot name="summary" />
         </div>
         <div class="settlement-footer">
           <div class="result-actions">

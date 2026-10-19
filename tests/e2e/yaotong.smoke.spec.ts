@@ -135,7 +135,12 @@ test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => 
   await expect(page.locator('.round-settlement')).toBeVisible({ timeout: 140_000 })
   await expect(page.locator('.round-rankings article')).toHaveCount(4)
   await expect(page.locator('.round-settlement h2')).toHaveText(/^东[1-4]局 · (自摸|胡牌|抢杠胡|热炮胡|一炮[23]响|荒庄|包牌)$/)
+  await expect(page.getByRole('tab', { name: '概览', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('.yaotong-ledger')).not.toBeVisible()
+  await page.getByRole('tab', { name: '分数明细', exact: true }).click()
   await page.locator('.yaotong-ledger summary').click()
+  await expect(page.locator('.yaotong-ledger table')).toBeVisible()
+  await page.getByRole('tab', { name: '概览', exact: true }).click()
   for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(viewport)
     const footer = page.locator('.round-settlement .settlement-footer')

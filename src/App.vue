@@ -7,6 +7,7 @@ import LobbyView from './components/lobby/LobbyView.vue'
 import SettlementOverlay from './components/settlement/SettlementOverlay.vue'
 import YaotongControls from './components/yaotong/YaotongControls.vue'
 import YaotongLedger from './components/yaotong/YaotongLedger.vue'
+import YaotongRoundOverview from './components/yaotong/YaotongRoundOverview.vue'
 import { useYaotongPort } from './game/variants/yaotong/useYaotongPort'
 import { useAudio } from './game/core/presentation/useAudio'
 import type { TileType } from './game/core/contracts/types'
@@ -242,6 +243,9 @@ function changeTableTheme(theme: TableThemeName) {
         @next-round="nextRound"
         @return-to-lobby="returnToLobby"
       >
+        <template v-if="yaotongGame.local.state.value?.result" #overview>
+          <YaotongRoundOverview :state="yaotongGame.local.state.value" :theme-name="tableThemeName" />
+        </template>
         <template v-if="yaotongGame.local.state.value?.result" #summary>
           <YaotongLedger :state="yaotongGame.local.state.value" :players="players" :theme-name="tableThemeName" />
         </template>
