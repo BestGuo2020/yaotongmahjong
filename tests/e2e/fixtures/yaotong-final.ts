@@ -39,7 +39,7 @@ const standings = players.map((p, playerIndex) => ({ ...p, playerIndex, rank: 0 
 
 createApp({ setup() {
   const returned = ref(false)
-  const visible = ref(true)
+  const visible = ref(!params.has('closed'))
   return () => returned.value ? h('p', { 'data-testid': 'back-to-lobby' }, '已返回大厅') :
     h('main', { class: 'game-app', 'data-table-theme': theme,
       style: themePresentationCssVariables(themePresentationByName(theme)) }, [

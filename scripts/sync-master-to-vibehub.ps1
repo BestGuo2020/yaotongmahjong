@@ -143,6 +143,8 @@ try {
     'tests/e2e/remote-lotus-legacy.smoke.spec.ts'
     # Exercises master's Yaotong-only App, not the preserved P2P entry.
     'tests/e2e/yaotong.smoke.spec.ts'
+    # The overview tab belongs to master's SettlementOverlay; vibehub keeps its own overlay.
+    'tests/e2e/yaotong-settlement-motion.spec.ts'
     'tests/e2e/yaotong-replay.spec.ts'
     # 预留座位的 e2e：走 REST /api/rooms/{id}/llm-seats（WS 房间管理），vibehub 无此接口。
     'tests/e2e/llm-seat-reservation.spec.ts'

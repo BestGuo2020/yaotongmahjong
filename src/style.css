@@ -3792,10 +3792,11 @@ button { font: inherit; }
 .settlement-tabs > button[aria-selected="true"] { border-color: var(--theme-border); background: color-mix(in srgb, var(--theme-accent) 18%, transparent); color: var(--theme-accent-text); }
 .settlement-tabs > button:hover { color: var(--theme-accent-text); }
 .settlement-tabs > button:focus-visible, .has-round-overview [role="tabpanel"]:focus-visible { outline: 2px solid var(--theme-accent); outline-offset: -2px; }
-.has-round-overview > [role="tabpanel"] { flex: 1; min-height: 0; padding: 1px; overflow: auto; overscroll-behavior: contain; }
-.has-round-overview > .settlement-overview-panel { display: flex; flex-direction: column; justify-content: center; }
+.has-round-overview > [role="tabpanel"] { flex: 1; min-height: 0; padding: 1px; overflow: hidden auto; overscroll-behavior: contain; }
+.has-round-overview > .settlement-overview-panel { display: flex; flex-direction: column; justify-content: safe center; }
 .has-round-overview > .settlement-details-panel { padding: 0 8px; text-align: left; }
-.game-app .has-round-overview .round-rankings { flex: none; width: 100%; margin: 8px 0 0; }
+/* Contain ranking-slide's translated cards so their animation cannot create scrollbars. */
+.game-app .has-round-overview .round-rankings { flex: none; width: 100%; margin: 8px 0 0; overflow: clip; overflow-clip-margin: 1px; }
 .game-app .settlement-card.has-round-overview .round-rankings article { min-height: 58px; }
 .game-app .settlement-card.has-round-overview .round-rankings img { width: 38px; height: 38px; }
 .game-app .settlement-card.has-round-overview .round-rankings article > b { font-size: 22px; }
