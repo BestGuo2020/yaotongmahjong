@@ -88,7 +88,7 @@ function download() {
               <td>
                 {{ entry.account }}<small>{{ entry.reason }}</small>
               </td>
-              <td>{{ entry.base }}{{ entry.multiplier === 2 ? ' ×2' : '' }} = {{ entry.amount }}</td>
+              <td><template v-if="entry.multiplier === 2">{{ entry.base }} × 2 = </template>{{ entry.amount }}分</td>
             </tr>
           </tbody>
         </table>
