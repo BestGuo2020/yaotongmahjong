@@ -44,7 +44,15 @@ test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => 
   await expect(page.locator('.game-table-hud')).toBeVisible()
   await expect(page.locator('.game-table-hud canvas')).toBeVisible({ timeout: 30_000 })
   await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30_000 })
-  await page.getByRole('button', { name: /^(开打|不原报)$/ }).click()
+  await expect(page.locator('.round-info')).toHaveText('东风场 · 东1局')
+  await expect(page.getByRole('button', { name: '开打', exact: true })).toHaveCount(0)
+  await expect(page.locator('.announcement')).toHaveText('东1局 · 开牌', { timeout: 20_000 })
+  // An eligible starting hand still requires its owner's original-report decision.
+  const declineOriginal = page.getByRole('button', { name: '不原报', exact: true })
+  await expect.poll(async () => await declineOriginal.isVisible() ||
+    await page.locator('.hand-rack.playable .hand-tile-slot').count() === 14,
+    { timeout: 20_000 }).toBe(true)
+  if (await declineOriginal.isVisible()) await declineOriginal.click()
   await expect(page.locator('.hand-rack.playable .hand-tile-slot')).toHaveCount(14, { timeout: 15_000 })
   await page.locator('.hand-rack.playable .mahjong-tile').first().click()
   await expect(page.locator('.hand-tile-slot')).toHaveCount(13)
@@ -54,6 +62,7 @@ test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => 
   await autoplay.click()
   await expect(page.locator('.round-settlement')).toBeVisible({ timeout: 140_000 })
   await expect(page.locator('.round-rankings article')).toHaveCount(4)
+  await expect(page.locator('.round-settlement h2')).toHaveText(/^东[1-4]局 · (自摸|胡牌|抢杠胡|热炮胡|一炮[23]响|荒庄|包牌)$/)
   await page.screenshot({ path: 'tmp/yaotong-cleanup-settlement.png' })
   const previousRound = await page.locator('.round-info').innerText()
   await page.getByRole('button', { name: '继续', exact: true }).click()

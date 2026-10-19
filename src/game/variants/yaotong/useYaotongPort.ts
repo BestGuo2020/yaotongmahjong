@@ -56,6 +56,7 @@ import {
   settlementCue as makeSettlementCue,
   giftAwards,
   reportKillTotals,
+  yaotongRoundLabel,
   type SettlementCue,
   type ChickenCue,
   type YaotongTableView,
@@ -298,20 +299,17 @@ export function useYaotongPort(
       .map((p, i) => ({ ...p, rank: i + 1 })),
   )
   const matchName = computed(
-    () =>
-      `幺筒麻将 · ${{ 4: '东风场', 8: '半庄场', 16: '全庄场' }[local.state.value?.matchLength ?? length.value]}`,
+    () => ({ 4: '东风场', 8: '半庄场', 16: '全庄场' })[local.state.value?.matchLength ?? length.value],
   )
   const roundLabel = computed(() =>
-    local.state.value
-      ? `第${local.state.value.dealerRound}/${local.state.value.matchLength}庄次 · 第${local.state.value.handNumber}小局${local.state.value.repeats ? ` · 连庄${local.state.value.repeats}次` : ''}`
-      : '',
+    local.state.value ? yaotongRoundLabel(local.state.value.dealerRound) : '',
   )
   const currentPlayer = computed({
     get: () => (presentationPhase.value ? -1 : (local.state.value?.current ?? 0)),
     set(_value: number) {},
   })
   const winningPlayerIndex = ref(-1)
-  const honba = ref(0)
+  const honba = computed(() => local.state.value?.repeats ?? 0)
   watch(
     () => local.state.value?.players.some((player) => player.declaration !== 'none') ?? false,
     (hasDeclaration) => {
@@ -530,6 +528,7 @@ export function useYaotongPort(
       for (const event of state.events.filter((e) => e.id > seenSerial)) present(event)
       seenSerial = state.serial
       if (!state.result || result.value || presentationPhase.value) return
+      announcement.value = null
       seatCue.value = null
       chickenPerformances.value = []
       pendingChickens.value = []
@@ -629,6 +628,7 @@ export function useYaotongPort(
     await startOptions?.waitForOpeningReady?.()
     if (token !== generation) return
     openingActive.value = false
+    transient.announce(`${roundLabel.value} · 开牌`)
     local.paused.value = false
   }
   const risk = computed(() =>
@@ -753,6 +753,7 @@ export function useYaotongPort(
     returnToLobby() {
       settlementGeneration++
       scheduler.clear()
+      announcement.value = null
       declarationCues.value = []
       seatCue.value = null
       chickenPerformances.value = []

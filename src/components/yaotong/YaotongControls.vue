@@ -4,9 +4,8 @@ const props = defineProps<{ game: ReturnType<typeof useYaotongPort> }>()
 </script>
 <template>
   <template v-if="!game.local.autoplay.value">
-    <template v-if="game.original.value">
+    <template v-if="game.original.value && game.local.waiting.value.length">
       <button
-        v-if="game.local.waiting.value.length"
         class="action hu"
         data-action-role="major"
         @click="game.local.dispatch({ type: 'original', declare: true })"
@@ -18,7 +17,7 @@ const props = defineProps<{ game: ReturnType<typeof useYaotongPort> }>()
         data-action-role="primary"
         @click="game.local.dispatch({ type: 'original', declare: false })"
       >
-        <b>{{ game.local.waiting.value.length ? '不原报' : '开打' }}</b>
+        <b>不原报</b>
       </button>
     </template>
     <button

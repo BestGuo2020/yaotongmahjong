@@ -243,7 +243,8 @@ describe('幺筒复用原版GamePort与3D表现', () => {
     }
     for (const key of GAME_PORT_ACTION_KEYS) expect(typeof port[key]).toBe('function')
     expect(port.players).toHaveLength(0)
-    const opening = port.startGame('east')
+    const opening = port.startGame('east', { dealer: 0, openingDice: [2, 3] })
+    port.local.state.value!.players[0].hand = player('234567m 234s 66p 78s').hand
     expect(port.players).toHaveLength(4)
     expect(port.players[0].avatar).toContain('avatars/lotus.svg')
     expect(port.wall.value).toHaveLength(108)

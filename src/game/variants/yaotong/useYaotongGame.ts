@@ -123,9 +123,10 @@ export function useYaotongGame() {
     }
     if (game.phase === 'transition') return
     const seats = autoplay.value ? [0, 1, 2, 3] : [1, 2, 3]
-    // All AI seats acknowledge the same original-report window together, not three artificial turns.
+    // Resolve the original-report window together. Humans without a legal declaration need no confirmation.
     if (game.phase === 'original') {
-      const awaiting = seats.filter((seat) => !game.originalDecisions[seat])
+      const automaticSeats = !autoplay.value && !waiting.value.length ? [0, ...seats] : seats
+      const awaiting = automaticSeats.filter((seat) => !game.originalDecisions[seat])
       if (!awaiting.length) return
       timer = setTimeout(() => {
         for (const seat of awaiting) {

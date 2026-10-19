@@ -2,6 +2,11 @@ import type { Account, Declaration, GameEvent, GameState, HandValue, Settlement,
 import type { TableDeclarationEvent } from '../../core/presentation/tableActionCue'
 import type { ChickenPerformance } from './chickenPresentation'
 
+/** One wind per four dealer rounds; repeat hands keep the same label. */
+export function yaotongRoundLabel(dealerRound: number): string {
+  return `${['东', '南', '西', '北'][Math.floor((dealerRound - 1) / 4)]}${((dealerRound - 1) % 4) + 1}局`
+}
+
 export interface SeatStatus {
   declaration: Declaration
   burned: boolean

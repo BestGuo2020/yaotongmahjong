@@ -218,6 +218,7 @@ describe('共享开局、报牌与胡牌展示', () => {
     const sound = vi.fn((name: string) => (name === 'game_start.mp3' ? audio.promise : Promise.resolve()))
     const port = setup({ playSoundAndWait: sound })
     const start = port.startGame('east', { dealer: 0, openingDice: [2, 3] })
+    port.local.state.value!.players[0].hand = tiles('234567m 234s 66p 78s')
     await vi.advanceTimersByTimeAsync(OPENING_PACE_MS.start + 500)
     expect(port.openingStage.value).toBe('start')
     expect(port.players.every((p) => p.hand.length === 0)).toBe(true)
@@ -234,6 +235,7 @@ describe('共享开局、报牌与胡牌展示', () => {
     await start
     expect(port.players.map((p) => p.hand.length)).toEqual([13, 13, 13, 13])
     expect(port.original.value).toBe(true)
+    expect(port.announcement.value).toBeNull() // 开牌提示已按原1500ms时长消退。
     port.local.dispatch({ type: 'original', declare: false })
     await vi.advanceTimersByTimeAsync(OPENING_PACE_MS.firstTurn - 1)
     expect(port.players[0].hand).toHaveLength(13)
