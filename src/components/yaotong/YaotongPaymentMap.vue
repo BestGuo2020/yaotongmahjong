@@ -8,6 +8,7 @@ import {
   giftAwards,
   giftPayments,
   killPayments,
+  responsibilityPayments,
   killFocusSeat,
   reportKillTotals,
   paymentEdges,
@@ -23,18 +24,21 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ inspect: [pair: { from: number; to: number; account?: Account }] }>()
 const selected = ref(0)
-const mode = ref<'net' | 'gift' | 'kill'>('net')
+const mode = ref<'net' | 'gift' | 'kill' | 'responsibility'>('net')
+const responsibilities = computed(() => responsibilityPayments(props.transfers))
 const gifts = computed(() => giftAwards(props.transfers))
 const kills = computed(() => killPayments(props.transfers))
 const killTotals = computed(() => reportKillTotals(props.transfers))
 const killPaid = (seat: number) => killTotals.value.find((total) => total.seat === seat)?.paid ?? 0
 const killEarned = (seat: number) => killTotals.value.find((total) => total.seat === seat)?.received ?? 0
 const edges = computed(() =>
-  (mode.value === 'kill'
-    ? kills.value
-    : mode.value === 'gift'
-      ? giftPayments(props.transfers)
-      : paymentEdges(props.transfers)
+  (mode.value === 'responsibility'
+    ? responsibilities.value
+    : mode.value === 'kill'
+      ? kills.value
+      : mode.value === 'gift'
+        ? giftPayments(props.transfers)
+        : paymentEdges(props.transfers)
   ).filter((edge) => edge.from === selected.value || edge.to === selected.value),
 )
 function showGift() {
@@ -45,11 +49,22 @@ function showKill() {
   mode.value = 'kill'
   selected.value = killFocusSeat(props.transfers)
 }
+function showResponsibility() {
+  mode.value = 'responsibility'
+  selected.value = responsibilities.value[0]?.from ?? selected.value
+}
 function inspect(from: number, to: number) {
   emit('inspect', {
     from,
     to,
-    account: mode.value === 'kill' ? '杀报加分' : mode.value === 'gift' ? '见面礼' : undefined,
+    account:
+      mode.value === 'responsibility'
+        ? '幺筒责任分'
+        : mode.value === 'kill'
+          ? '杀报加分'
+          : mode.value === 'gift'
+            ? '见面礼'
+            : undefined,
   })
 }
 const others = computed(() => [0, 1, 2, 3].filter((seat) => seat !== selected.value))
@@ -64,17 +79,25 @@ function path(from: number, to: number) {
 const avatar = (player: GamePlayer) =>
   displayImageSrc(props.themeName === 'llmAnime' ? animeAvatarForPlayer(player) : player.avatar)
 const label = (from: number, to: number, amount: number) =>
-  `${props.players[from].name}向${props.players[to].name}${mode.value === 'kill' ? '额外支付杀报款' : mode.value === 'gift' ? '支付见面礼' : '净付'}${amount}分`
+  `${props.players[from].name}向${props.players[to].name}${mode.value === 'responsibility' ? '支付幺筒责任款' : mode.value === 'kill' ? '额外支付杀报款' : mode.value === 'gift' ? '支付见面礼' : '净付'}${amount}分`
 </script>
 <template>
   <section
     class="yaotong-payment-map"
     :class="{ 'gift-mode': mode === 'gift', 'kill-mode': mode === 'kill' }"
-    :style="{ '--kill-ink': themeName === 'rosewood' ? '#226e74' : '#a0e9e4', '--kill-loss-ink': themeName === 'rosewood' ? '#9b3652' : '#f0a5b6' }"
+    :style="{
+      '--kill-ink': themeName === 'rosewood' ? '#226e74' : '#a0e9e4',
+      '--kill-loss-ink': themeName === 'rosewood' ? '#9b3652' : '#f0a5b6',
+    }"
     aria-label="本局分数流向"
   >
     <header>
-      <span v-if="gifts.length || kills.length" class="payment-modes" role="group" aria-label="收付分项">
+      <span
+        v-if="gifts.length || kills.length || responsibilities.length"
+        class="payment-modes"
+        role="group"
+        aria-label="收付分项"
+      >
         <button :aria-pressed="mode === 'net'" :class="{ selected: mode === 'net' }" @click="mode = 'net'">
           净收付
         </button>
@@ -93,6 +116,14 @@ const label = (from: number, to: number, amount: number) =>
           @click="showKill"
         >
           杀报
+        </button>
+        <button
+          v-if="responsibilities.length"
+          :aria-pressed="mode === 'responsibility'"
+          :class="{ selected: mode === 'responsibility' }"
+          @click="showResponsibility"
+        >
+          责任款
         </button>
       </span>
       <span v-else>本局净收付</span

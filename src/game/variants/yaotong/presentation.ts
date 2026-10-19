@@ -1,5 +1,6 @@
 import type { Account, Declaration, GameEvent, GameState, HandValue, Settlement, Transfer } from './types'
 import type { TableDeclarationEvent } from '../../core/presentation/tableActionCue'
+import type { ChickenPerformance } from './chickenPresentation'
 
 export interface SeatStatus {
   declaration: Declaration
@@ -10,6 +11,8 @@ export interface SeatStatus {
   winPattern?: string
   killed?: boolean
   killedAmount?: number
+  rushCount?: number
+  responsibilityCount?: number
 }
 export interface ChickenCue {
   id: number
@@ -23,6 +26,7 @@ export interface YaotongTableView {
   chickenCue: ChickenCue | null
   declarationCues: TableDeclarationEvent[]
   settlementCue: SettlementCue | null
+  chickenPerformances?: ChickenPerformance[]
 }
 export interface PaymentEdge {
   from: number
@@ -41,6 +45,7 @@ export interface SettlementCue {
   gifts: GiftAward[]
   payments: PaymentEdge[]
   kills: PaymentEdge[]
+  responsibilities?: PaymentEdge[]
 }
 
 /** Account transfers retain their direction and final dice-adjusted amount; no net/H duplication. */
@@ -57,6 +62,8 @@ export function accountPayments(transfers: readonly Transfer[], account: Account
 
 export const giftPayments = (transfers: readonly Transfer[]) => accountPayments(transfers, '见面礼')
 export const killPayments = (transfers: readonly Transfer[]) => accountPayments(transfers, '杀报加分')
+export const responsibilityPayments = (transfers: readonly Transfer[]) =>
+  accountPayments(transfers, '幺筒责任分')
 
 export function killFocusSeat(transfers: readonly Transfer[]): number {
   const payments = killPayments(transfers)
@@ -76,15 +83,16 @@ export function reportKillTotals(transfers: readonly Transfer[]) {
 
 export const SETTLEMENT_FLIGHT_MS = 720
 export interface SettlementFlight extends PaymentEdge {
-  kind: 'gift' | 'kill'
+  kind: 'gift' | 'kill' | 'responsibility'
   delayMs: number
 }
 export function settlementFlights(cue: SettlementCue): SettlementFlight[] {
   const entries = [
     ...(cue.kills ?? []).map((payment) => ({ ...payment, kind: 'kill' as const })),
+    ...(cue.responsibilities ?? []).map((payment) => ({ ...payment, kind: 'responsibility' as const })),
     ...cue.payments.map((payment) => ({ ...payment, kind: 'gift' as const })),
   ]
-  // Even mixed gift/kill effects must arrive and show their totals inside the existing 1500ms reveal.
+  // All account flights must arrive and show their totals inside the existing 1500ms reveal.
   const gap = Math.min(120, 300 / Math.max(1, entries.length - 1))
   return entries.map((payment, index) => ({ ...payment, delayMs: index * gap }))
 }
@@ -101,8 +109,9 @@ export function settlementCue(state: GameState | null, id: number): SettlementCu
   const burned = result.kind === 'win' ? state.players.flatMap((p, seat) => (p.burned ? [seat] : [])) : []
   const gifts = giftAwards(result.transfers)
   const kills = result.kind === 'win' ? killPayments(result.transfers) : []
-  return burned.length || gifts.length || kills.length
-    ? { id, burned, gifts, payments: giftPayments(result.transfers), kills }
+  const responsibilities = responsibilityPayments(result.transfers)
+  return burned.length || gifts.length || kills.length || responsibilities.length
+    ? { id, burned, gifts, payments: giftPayments(result.transfers), kills, responsibilities }
     : null
 }
 

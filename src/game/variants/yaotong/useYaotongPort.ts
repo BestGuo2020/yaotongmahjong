@@ -42,6 +42,12 @@ import {
 } from '../../shared/settlement/settlementTimeline'
 import { useYaotongGame } from './useYaotongGame'
 import { countsOf } from './tiles'
+import {
+  chickenMarks,
+  chickenPerformance,
+  CHICKEN_PERFORMANCE_MS,
+  type ChickenPerformance,
+} from './chickenPresentation'
 import type { GameEvent, Wait } from './types'
 import {
   chickenCue as makeChickenCue,
@@ -88,15 +94,37 @@ export function useYaotongPort(
   const presentationPhase = ref<GamePhase | null>(null)
   const tailDrawn = ref(0)
   const seatCue = shallowRef<ChickenCue | null>(null)
+  const chickenPerformances = shallowRef<ChickenPerformance[]>([])
+  const pendingChickens = shallowRef<ChickenPerformance[]>([])
   const declarationCues = shallowRef<TableDeclarationEvent[]>([])
   const settlementCue = shallowRef<SettlementCue | null>(null)
   const gifts = computed(() => giftAwards(local.state.value?.result?.transfers ?? []))
   const reportKills = computed(() => reportKillTotals(local.state.value?.result?.transfers ?? []))
   const winDeclared = ref(false)
   let lastDeclarationSound = -Infinity
+  function visibleChickenMarks(seat: number) {
+    const state = local.state.value!,
+      marks = chickenMarks(state, seat)
+    const landing = [...pendingChickens.value, ...chickenPerformances.value].filter(
+      (c) => c.markSeat === seat,
+    )
+    return {
+      rushCount: Math.max(
+        0,
+        marks.rushCount -
+          landing.filter((c) => c.kind === 'rush' && state.players[seat].river.some((d) => d.id === c.id))
+            .length,
+      ),
+      responsibilityCount: Math.max(
+        0,
+        marks.responsibilityCount - landing.filter((c) => c.kind === 'responsibility').length,
+      ),
+    }
+  }
   const tableView = computed<YaotongTableView>(() => ({
     seats:
       local.state.value?.players.map((player, seat) => ({
+        ...visibleChickenMarks(seat),
         declaration: player.declaration,
         burned: player.burned && revealHands.value,
         winner: winDeclared.value && Boolean(local.state.value?.result?.winners.includes(seat)),
@@ -109,6 +137,7 @@ export function useYaotongPort(
         giftAmount: revealHands.value ? gifts.value.find((gift) => gift.seat === seat)?.amount : undefined,
       })) ?? [],
     chickenCue: seatCue.value,
+    chickenPerformances: chickenPerformances.value,
     declarationCues: declarationCues.value,
     settlementCue: settlementCue.value,
   }))
@@ -401,9 +430,12 @@ export function useYaotongPort(
         current: () => local.state.value === game,
       })
     }
-    if (event.kind === 'peng') {
+    if (event.kind === 'peng' || (event.kind === 'kong' && event.text === '明杠')) {
       lastDiscard.value = null
       seatCue.value = null
+      chickenPerformances.value = chickenPerformances.value.filter(
+        (c) => c.kind !== 'rush' || local.state.value!.players[c.actorSeat].river.some((d) => d.id === c.id),
+      )
     }
     if (event.kind === 'ready') {
       const cue: TableDeclarationEvent = {
@@ -427,16 +459,30 @@ export function useYaotongPort(
       scheduler.later(() => {
         if (seatCue.value === cue) seatCue.value = null
       }, 1050)
-      const game = local.state.value
-      void lastDiscardSound.value?.then(() => {
-        if (
-          local.state.value === game &&
-          !game?.result &&
-          game?.players[event.seat].river.some((d) => d.id === event.id)
-        )
-          playSound('chongfengji.wav', 0.3)
-      })
     }
+    const performance = chickenPerformance(event, local.state.value!)
+    const game = local.state.value,
+      token = generation
+    if (performance) pendingChickens.value = [...pendingChickens.value, performance]
+    const showChicken = () => {
+      if (!performance || generation !== token || local.state.value !== game) return
+      pendingChickens.value = pendingChickens.value.filter((c) => c.id !== performance.id)
+      if (game?.result) return
+      if (performance.kind === 'rush' && !game?.players[event.seat].river.some((d) => d.id === event.id))
+        return
+      chickenPerformances.value = [
+        ...chickenPerformances.value.filter((c) => c.actorSeat !== performance.actorSeat),
+        performance,
+      ].slice(-4)
+      playSound(performance.kind === 'rush' ? 'chongfengji.wav' : 'zerenji.wav', 0.3)
+      scheduler.later(
+        () => {
+          chickenPerformances.value = chickenPerformances.value.filter((c) => c.id !== performance.id)
+        },
+        prefersReducedMotion() ? 500 : CHICKEN_PERFORMANCE_MS,
+      )
+    }
+    if (performance?.kind === 'rush') void lastDiscardSound.value?.then(showChicken, showChicken)
     if (event.kind === 'kong')
       playSound(
         event.text === '转弯杠' || event.text === '存杠' ? 'angang_rainy.wav' : 'mingang_windy.wav',
@@ -465,7 +511,10 @@ export function useYaotongPort(
         toSharedTile(event.tile!),
         Math.max(0, local.state.value!.players[event.seat].melds.length - 1),
       )
-      playSound(event.kind === 'peng' ? 'peng.mp3' : 'gang.mp3')
+      if (performance?.kind === 'responsibility') {
+        // Keep the original action voice first; the short chicken cue follows its actual completion.
+        void playSoundAndWait(event.kind === 'peng' ? 'peng.mp3' : 'gang.mp3').then(showChicken, showChicken)
+      } else playSound(event.kind === 'peng' ? 'peng.mp3' : 'gang.mp3')
     }
   }
   watch(
@@ -481,6 +530,8 @@ export function useYaotongPort(
       seenSerial = state.serial
       if (!state.result || result.value || presentationPhase.value) return
       seatCue.value = null
+      chickenPerformances.value = []
+      pendingChickens.value = []
       declarationCues.value = []
       const r = state.result
       // The headless rules have finished; the display has not. Enter the shared timeline from a live phase.
@@ -522,6 +573,8 @@ export function useYaotongPort(
     dealCounts.value = [0, 0, 0, 0]
     declaredKongs.clear()
     seatCue.value = null
+    chickenPerformances.value = []
+    pendingChickens.value = []
     declarationCues.value = []
     lastDeclarationSound = -Infinity
     settlementCue.value = null
@@ -700,6 +753,9 @@ export function useYaotongPort(
       settlementGeneration++
       scheduler.clear()
       declarationCues.value = []
+      seatCue.value = null
+      chickenPerformances.value = []
+      pendingChickens.value = []
       settlementCue.value = null
       openingActive.value = false
       openingStage.value = null

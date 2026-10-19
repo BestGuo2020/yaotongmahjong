@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, shallow
 import MahjongTile from '../MahjongTile.vue'
 import YaotongSeatMarker from '../yaotong/YaotongSeatMarker.vue'
 import YaotongSettlementEffects from '../yaotong/YaotongSettlementEffects.vue'
+import YaotongChickenEffects from '../yaotong/YaotongChickenEffects.vue'
 import type { YaotongTableView } from '../../game/variants/yaotong/presentation'
 import PlayerSeat from '../PlayerSeat.vue'
 import TableActionCue from './TableActionCue.vue'
@@ -612,7 +613,7 @@ function onAvatarError(entry: GamePlayer) {
           v-if="bloodFlow"
           :aria-label="`${player.name}，胡${bloodFlow.seats[player.seat].winCount}次，查看流水`"
           @click="settlementHost?.showDetails(player.seat)">胡 {{ bloodFlow.seats[player.seat].winCount }}次</button>
-        <YaotongSeatMarker v-else :name="player.name" :status="yaotongView?.seats[index + 1]" :cue="yaotongView?.chickenCue?.seat === index + 1 ? yaotongView.chickenCue : null" />
+        <YaotongSeatMarker v-else :name="player.name" :status="yaotongView?.seats[index + 1]" />
       </template>
     </PlayerSeat>
 
@@ -628,6 +629,7 @@ function onAvatarError(entry: GamePlayer) {
         :aria-label="`${players[cue.actorIndex]?.name}${cue.type === 'ready' ? '报听' : '原报'}`"
         :position="seatPosition[cue.actorIndex]" :theme-name="themeName" />
     </TransitionGroup>
+    <YaotongChickenEffects v-if="yaotongView?.chickenPerformances?.length" :cues="yaotongView.chickenPerformances" :players="players" />
     <YaotongSettlementEffects v-if="yaotongView?.settlementCue" :key="yaotongView.settlementCue.id"
       :cue="yaotongView.settlementCue" :players="players" />
     <Transition name="announce">
@@ -641,7 +643,7 @@ function onAvatarError(entry: GamePlayer) {
       <div class="user-identity" data-yaotong-seat="0" :class="{ active: currentPlayer === 0, 'action-active': tableActionEvent?.actorIndex === 0 || yaotongView?.declarationCues.some(cue => cue.actorIndex === 0) }" :style="userAnimeStyle">
         <span v-if="dealer === 0" class="dealer-badge">庄</span>
         <img class="avatar" :src="userAvatar" :alt="`${user.name}头像`" @error="onAvatarError(user)" />
-        <div class="player-info"><strong>{{ user.name }}</strong><span>{{ user.score }}</span><YaotongSeatMarker v-if="yaotongView" :name="user.name" :status="yaotongView.seats[0]" :cue="yaotongView.chickenCue?.seat === 0 ? yaotongView.chickenCue : null" /></div>
+        <div class="player-info"><strong>{{ user.name }}</strong><span>{{ user.score }}</span><YaotongSeatMarker v-if="yaotongView" :name="user.name" :status="yaotongView.seats[0]" /></div>
         <button v-if="bloodFlow" type="button" class="blood-flow-pile-badge win-count-bottom" :data-pile-seat="user.seat"
           :aria-label="`${user.name}，胡${bloodFlow.seats[user.seat].winCount}次，查看流水`"
           @click="settlementHost?.showDetails(user.seat)">胡 {{ bloodFlow.seats[user.seat].winCount }}次</button>

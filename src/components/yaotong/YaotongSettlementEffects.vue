@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useYaotongSeatAnchors } from './useYaotongSeatAnchors'
 import type { GamePlayer } from '../../game/core/contracts/types'
 import {
   SETTLEMENT_FLIGHT_MS,
@@ -9,44 +10,7 @@ import {
 
 const props = defineProps<{ cue: SettlementCue; players: GamePlayer[] }>()
 const root = ref<HTMLElement | null>(null)
-const size = shallowRef({ width: 1, height: 1 })
-const anchors = shallowRef<Record<number, { x: number; y: number; cardBottom: number }>>({})
-let observer: ResizeObserver | undefined
-function measure() {
-  const host = root.value
-  if (!host) return
-  const rect = host.getBoundingClientRect()
-  if (!rect.width || !rect.height) return
-  const width = host.clientWidth,
-    height = host.clientHeight
-  const found: typeof anchors.value = {}
-  for (let seat = 0; seat < 4; seat++) {
-    const card = host.parentElement?.querySelector(`[data-yaotong-seat="${seat}"]`)
-    const avatar = card?.querySelector('.avatar')
-    if (!avatar) continue
-    const a = avatar.getBoundingClientRect()
-    found[seat] = {
-      x: ((a.left + a.width / 2 - rect.left) * width) / rect.width,
-      y: ((a.top + a.height / 2 - rect.top) * height) / rect.height,
-      cardBottom: ((card!.getBoundingClientRect().bottom - a.top - a.height / 2) * height) / rect.height,
-    }
-  }
-  size.value = { width, height }
-  anchors.value = found
-}
-onMounted(() => {
-  measure()
-  observer = new ResizeObserver(measure)
-  observer.observe(root.value!)
-  root
-    .value!.parentElement?.querySelectorAll('[data-yaotong-seat]')
-    .forEach((seat) => observer!.observe(seat))
-  window.addEventListener('resize', measure)
-})
-onBeforeUnmount(() => {
-  observer?.disconnect()
-  window.removeEventListener('resize', measure)
-})
+const { size, anchors, measure } = useYaotongSeatAnchors(root)
 watch(() => props.cue.id, measure, { flush: 'post' })
 const effects = computed(() =>
   [
@@ -54,10 +18,17 @@ const effects = computed(() =>
       ...props.cue.burned,
       ...props.cue.gifts.map((gift) => gift.seat),
       ...(props.cue.kills ?? []).flatMap((kill) => [kill.from, kill.to]),
+      ...(props.cue.responsibilities ?? []).flatMap((p) => [p.from, p.to]),
     ]),
   ]
     .map((seat) => ({
       seat,
+      responsibilityPaid: (props.cue.responsibilities ?? [])
+        .filter((p) => p.from === seat)
+        .reduce((sum, p) => sum + p.amount, 0),
+      responsibilityEarned: (props.cue.responsibilities ?? [])
+        .filter((p) => p.to === seat)
+        .reduce((sum, p) => sum + p.amount, 0),
       burned: props.cue.burned.includes(seat),
       amount: props.cue.gifts.find((gift) => gift.seat === seat)?.amount ?? 0,
       killPaid: (props.cue.kills ?? [])
@@ -81,7 +52,7 @@ const payments = computed(() =>
     const inset = Math.min(30, length / 4)
     const start = { x: from.x + (dx / length) * inset, y: from.y + (dy / length) * inset }
     const end = { x: to.x - (dx / length) * inset, y: to.y - (dy / length) * inset }
-    // A gift and kill fee can travel between the same two players, even in opposite directions.
+    // Gift, kill and responsibility fees can share a pair, even in opposite directions.
     // Bend against a canonical seat order so their account lines never collapse onto one another.
     const mixedPair = plannedFlights.value.some(
       (other) =>
@@ -90,7 +61,7 @@ const payments = computed(() =>
           (other.from === payment.to && other.to === payment.from)),
     )
     const bend = mixedPair
-      ? (payment.from < payment.to ? 1 : -1) * (payment.kind === 'kill' ? -0.14 : 0.14)
+      ? (payment.from < payment.to ? 1 : -1) * { kill: -0.16, responsibility: 0, gift: 0.16 }[payment.kind]
       : 0.08
     const control = { x: (start.x + end.x) / 2 - dy * bend, y: (start.y + end.y) / 2 + dx * bend }
     const middle = { x: (start.x + 2 * control.x + end.x) / 4, y: (start.y + 2 * control.y + end.y) / 4 }
@@ -108,6 +79,7 @@ const position = (seat: number) => ({
   left: `${anchors.value[seat].x}px`,
   top: `${anchors.value[seat].y}px`,
   '--card-bottom': `${anchors.value[seat].cardBottom}px`,
+  '--responsibility-credit-delay': `${SETTLEMENT_FLIGHT_MS + Math.max(0, ...plannedFlights.value.filter((p) => p.to === seat && p.kind === 'responsibility').map((p) => p.delayMs))}ms`,
   '--gift-credit-delay': `${SETTLEMENT_FLIGHT_MS + Math.max(0, ...plannedFlights.value.filter((p) => p.to === seat && p.kind === 'gift').map((p) => p.delayMs))}ms`,
   '--kill-credit-delay': `${SETTLEMENT_FLIGHT_MS + Math.max(0, ...plannedFlights.value.filter((p) => p.to === seat && p.kind === 'kill').map((p) => p.delayMs))}ms`,
 })
@@ -124,7 +96,7 @@ const position = (seat: number) => ({
     >
       <defs>
         <marker
-          v-for="kind in ['gift', 'kill']"
+          v-for="kind in ['gift', 'kill', 'responsibility']"
           :key="kind"
           :id="`${kind}-arrow-${cue.id}`"
           viewBox="0 0 8 8"
@@ -134,7 +106,10 @@ const position = (seat: number) => ({
           markerHeight="5"
           orient="auto"
         >
-          <path d="M0 0 L8 4 L0 8 Z" :fill="kind === 'kill' ? '#81e2e2' : '#f3ce78'" />
+          <path
+            d="M0 0 L8 4 L0 8 Z"
+            :fill="kind === 'responsibility' ? '#b2d8ff' : kind === 'kill' ? '#81e2e2' : '#f3ce78'"
+          />
         </marker>
       </defs>
       <g
@@ -145,7 +120,7 @@ const position = (seat: number) => ({
         :data-from="payment.from"
         :data-to="payment.to"
         :data-amount="payment.amount"
-        :aria-label="`${players[payment.from]?.name}向${players[payment.to]?.name}${payment.kind === 'kill' ? '额外支付杀报款' : '支付见面礼'}${payment.amount}分`"
+        :aria-label="`${players[payment.from]?.name}向${players[payment.to]?.name}${payment.kind === 'responsibility' ? '支付幺筒责任款' : payment.kind === 'kill' ? '额外支付杀报款' : '支付见面礼'}${payment.amount}分`"
         role="img"
       >
         <path class="gift-trail" :d="payment.path" :marker-end="`url(#${payment.kind}-arrow-${cue.id})`" />
@@ -159,14 +134,15 @@ const position = (seat: number) => ({
         </text>
         <g class="gift-packet" :style="{ '--flight-delay': `${payment.delayMs}ms` }">
           <rect
-            :x="payment.kind === 'kill' ? -39 : -27"
+            :x="payment.kind !== 'gift' ? -39 : -27"
             y="-15"
-            :width="payment.kind === 'kill' ? 78 : 54"
+            :width="payment.kind !== 'gift' ? 78 : 54"
             height="30"
             rx="15"
           />
           <text text-anchor="middle" y="5">
-            {{ payment.kind === 'kill' ? '杀报 ' : '' }}{{ payment.amount }}
+            {{ payment.kind === 'responsibility' ? '责 ' : payment.kind === 'kill' ? '杀报 ' : ''
+            }}{{ payment.amount }}
           </text>
           <animateMotion
             :path="payment.path"
@@ -178,14 +154,15 @@ const position = (seat: number) => ({
         </g>
         <g class="gift-static-amount" :transform="`translate(${payment.middle.x},${payment.middle.y})`">
           <rect
-            :x="payment.kind === 'kill' ? -39 : -27"
+            :x="payment.kind !== 'gift' ? -39 : -27"
             y="-15"
-            :width="payment.kind === 'kill' ? 78 : 54"
+            :width="payment.kind !== 'gift' ? 78 : 54"
             height="30"
             rx="15"
           />
           <text text-anchor="middle" y="5">
-            {{ payment.kind === 'kill' ? '杀报 ' : '' }}{{ payment.amount }}
+            {{ payment.kind === 'responsibility' ? '责 ' : payment.kind === 'kill' ? '杀报 ' : ''
+            }}{{ payment.amount }}
           </text>
         </g>
       </g>
@@ -200,6 +177,7 @@ const position = (seat: number) => ({
           gift: effect.amount > 0,
           'killed-report': effect.killPaid > 0,
           'kill-credit-seat': effect.killEarned > 0,
+          'responsibility-seat': effect.responsibilityPaid > 0 || effect.responsibilityEarned > 0,
         },
         `from-${['bottom', 'right', 'top', 'left'][effect.seat]}`,
       ]"
@@ -209,8 +187,10 @@ const position = (seat: number) => ({
       :data-gift-amount="effect.amount"
       :data-kill-paid="effect.killPaid"
       :data-kill-earned="effect.killEarned"
+      :data-responsibility-paid="effect.responsibilityPaid"
+      :data-responsibility-earned="effect.responsibilityEarned"
       role="status"
-      :aria-label="`${players[effect.seat]?.name}${effect.burned ? '烧鸡，鸡分收益归零。' : ''}${effect.killPaid ? `被杀报，额外支付${effect.killPaid}分。` : ''}${effect.killEarned ? `杀报额外收取${effect.killEarned}分。` : ''}${effect.amount ? `获得见面礼${effect.amount}分` : ''}`"
+      :aria-label="`${players[effect.seat]?.name}${effect.responsibilityPaid ? `责任款支付${effect.responsibilityPaid}分。` : ''}${effect.responsibilityEarned ? `责任款收取${effect.responsibilityEarned}分。` : ''}${effect.burned ? '烧鸡，鸡分收益归零。' : ''}${effect.killPaid ? `被杀报，额外支付${effect.killPaid}分。` : ''}${effect.killEarned ? `杀报额外收取${effect.killEarned}分。` : ''}${effect.amount ? `获得见面礼${effect.amount}分` : ''}`"
     >
       <div class="seat-effect-ring" aria-hidden="true"></div>
       <svg v-if="effect.burned" class="burn-flame" viewBox="0 0 100 100" aria-hidden="true">
@@ -235,6 +215,12 @@ const position = (seat: number) => ({
         aria-hidden="true"
       ></span>
       <div class="seat-effect-label">
+        <div v-if="effect.responsibilityPaid" class="seat-account-total responsibility-debit">
+          <strong>责</strong><b>−{{ effect.responsibilityPaid }}</b>
+        </div>
+        <div v-if="effect.responsibilityEarned" class="seat-account-total responsibility-credit">
+          <strong>责</strong><b>+{{ effect.responsibilityEarned }}</b>
+        </div>
         <strong v-if="effect.burned" class="burn-title">烧鸡</strong>
         <div v-if="effect.killPaid" class="seat-account-total kill-debit">
           <strong>被杀报</strong><b>−{{ effect.killPaid }}</b>
@@ -371,6 +357,35 @@ const position = (seat: number) => ({
 .seat-account-total.kill-credit b {
   animation-delay: var(--kill-credit-delay, 0.72s);
 }
+.flight-responsibility .gift-trail {
+  stroke: #b2d8ff;
+}
+.flight-responsibility .gift-packet rect,
+.flight-responsibility .gift-static-amount rect {
+  fill: #243c59;
+  stroke: #b2d8ff;
+}
+.flight-responsibility .gift-packet text,
+.flight-responsibility .gift-static-amount text {
+  fill: #e3f1ff;
+}
+.responsibility-credit strong,
+.responsibility-credit b {
+  color: #b2d8ff !important;
+}
+.responsibility-debit strong,
+.seat-account-total.responsibility-debit b {
+  color: #edb096 !important;
+}
+.responsibility-debit b {
+  animation: none;
+}
+.seat-account-total.responsibility-credit b {
+  animation-delay: var(--responsibility-credit-delay);
+}
+.seat-special-effect.responsibility-seat {
+  color: #b2d8ff;
+}
 @keyframes report-shatter {
   from {
     stroke-dashoffset: 140;
@@ -463,11 +478,13 @@ const position = (seat: number) => ({
   left: calc(100% + 10px);
   top: 12px;
 }
+.responsibility-seat.from-right .seat-effect-label,
 .killed-report.from-right .seat-effect-label,
 .kill-credit-seat.from-right .seat-effect-label {
   top: calc(50% + var(--card-bottom) + 8px);
   right: 0;
 }
+.responsibility-seat.from-left .seat-effect-label,
 .killed-report.from-left .seat-effect-label,
 .kill-credit-seat.from-left .seat-effect-label {
   top: calc(50% + var(--card-bottom) + 8px);

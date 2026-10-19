@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ChickenCue, SeatStatus } from '../../game/variants/yaotong/presentation'
-defineProps<{ status?: SeatStatus; cue?: ChickenCue | null; name: string }>()
+import type { SeatStatus } from '../../game/variants/yaotong/presentation'
+defineProps<{ status?: SeatStatus; name: string }>()
 </script>
 <template>
   <span
@@ -8,6 +8,22 @@ defineProps<{ status?: SeatStatus; cue?: ChickenCue | null; name: string }>()
     class="yaotong-seat-marker"
     :class="{ 'is-winner': status.winner, 'is-burned': status.burned }"
   >
+    <span
+      v-if="status.rushCount"
+      class="chicken-seal rush-seal"
+      :key="`rush-${status.rushCount}`"
+      :aria-label="`${name}牌河中有${status.rushCount}张冲鸡`"
+      title="仍在本人牌河的冲鸡，终局按听牌状态计分"
+      >冲<span v-if="status.rushCount > 1">×{{ status.rushCount }}</span></span
+    >
+    <span
+      v-if="status.responsibilityCount"
+      class="chicken-seal responsibility-seal"
+      :key="`responsibility-${status.responsibilityCount}`"
+      :aria-label="`${name}有${status.responsibilityCount}笔幺筒碰杠责任记录`"
+      title="幺筒碰杠责任记录，终局按双方听牌状态收赔"
+      >责<span v-if="status.responsibilityCount > 1">×{{ status.responsibilityCount }}</span></span
+    >
     <span
       v-if="status.declaration !== 'none'"
       :key="status.declaration"
@@ -42,19 +58,6 @@ defineProps<{ status?: SeatStatus; cue?: ChickenCue | null; name: string }>()
       >礼<span v-if="status.giftAmount"> +{{ status.giftAmount }}</span></span
     >
   </span>
-  <Transition name="chicken-cue"
-    ><span
-      v-if="cue"
-      :key="cue.id"
-      class="yaotong-chicken-cue"
-      :class="{ strong: cue.strong }"
-      :title="`${name}${cue.label}，这张幺筒的鸡分档位为${cue.points}，终局按听牌状态收赔`"
-      ><i>◉</i
-      ><span
-        >{{ cue.label }}<b>{{ cue.points }}</b></span
-      ></span
-    ></Transition
-  >
 </template>
 <style scoped>
 .yaotong-seat-marker {
@@ -80,6 +83,16 @@ defineProps<{ status?: SeatStatus; cue?: ChickenCue | null; name: string }>()
 }
 .declaration-seal {
   animation: declare-pulse 0.7s ease-out 1;
+}
+.chicken-seal.rush-seal {
+  color: #ffe39b;
+  border-color: #cda95b;
+  background: #343c2a;
+}
+.chicken-seal.responsibility-seal {
+  color: #c6f2f9;
+  border-color: #6ca8b8;
+  background: #203f4b;
 }
 .declaration-seal.original {
   border-color: #dbb36f;
@@ -121,55 +134,6 @@ defineProps<{ status?: SeatStatus; cue?: ChickenCue | null; name: string }>()
   animation: winner-ring 1s ease-out 1;
   opacity: 0;
 }
-.yaotong-chicken-cue {
-  position: absolute;
-  z-index: 5;
-  left: 50%;
-  top: -28px;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  pointer-events: none;
-  padding: 4px 8px;
-  border: 1px solid #dcb968;
-  border-radius: 20px;
-  background: #193d31e8;
-  color: #f5db9b;
-  white-space: nowrap;
-  box-shadow: 0 0 15px #edc76433;
-}
-.yaotong-chicken-cue i {
-  font-size: 22px;
-  font-style: normal;
-}
-.yaotong-chicken-cue span {
-  font-size: 9px;
-}
-.yaotong-chicken-cue b {
-  font:
-    700 18px Georgia,
-    serif;
-  padding-left: 5px;
-}
-.yaotong-chicken-cue.strong {
-  box-shadow: 0 0 22px #edc76488;
-  border-width: 2px;
-}
-.chicken-cue-enter-active,
-.chicken-cue-leave-active {
-  transition:
-    opacity 0.2s,
-    translate 0.2s;
-}
-.chicken-cue-enter-from {
-  opacity: 0;
-  translate: 0 10px;
-}
-.chicken-cue-leave-to {
-  opacity: 0;
-  translate: 0 -10px;
-}
 @keyframes declare-pulse {
   0% {
     transform: scale(1.35);
@@ -195,22 +159,11 @@ defineProps<{ status?: SeatStatus; cue?: ChickenCue | null; name: string }>()
     font-size: 9px;
     padding: 2px 3px;
   }
-  .yaotong-chicken-cue {
-    top: -24px;
-    padding: 2px 6px;
-  }
-  .yaotong-chicken-cue b {
-    font-size: 15px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .declaration-seal,
   .is-winner:after {
     animation: none;
-  }
-  .chicken-cue-enter-active,
-  .chicken-cue-leave-active {
-    transition: none;
   }
 }
 </style>
