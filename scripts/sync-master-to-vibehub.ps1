@@ -67,6 +67,13 @@ try {
     'src/components/account/StatsOverlay.vue'
     'src/components/lobby/LobbyView.vue'
     'src/components/lobby/RoomPanel.vue'
+    # Still imported by the preserved P2P entry/lobby after the Yaotong-only master cleanup.
+    'src/components/lobby/MatchTypePicker.vue'
+    'src/components/lobby/RuleVariantPicker.vue'
+    'src/components/dev/WinEffectLab.vue'
+    'src/components/legal/DisclaimerDialog.vue'
+    'src/game/variants/guangma/game.ts'
+    'src/game/variants/lotus/bloodFlow/availability.ts'
     'src/components/settlement/SettlementOverlay.vue'
     'src/content/disclaimer.ts'
     'src/game/core/local/useGame.ts'
@@ -134,6 +141,8 @@ try {
     'src/components/lobby/roomSeatLlm.ts'
     'src/components/lobby/roomSeatLlm.test.ts'
     'tests/e2e/remote-lotus-legacy.smoke.spec.ts'
+    # Exercises master's Yaotong-only App, not the preserved P2P entry.
+    'tests/e2e/yaotong.smoke.spec.ts'
     # 预留座位的 e2e：走 REST /api/rooms/{id}/llm-seats（WS 房间管理），vibehub 无此接口。
     'tests/e2e/llm-seat-reservation.spec.ts'
     # Utility fixture mounts WS room/account components and mocks their REST responses.
@@ -169,6 +178,15 @@ try {
   # 按本脚本既定语义处理：这些文件对 vibehub 不存在 → 一律保留删除。
   $unresolved = @(git diff --name-only --diff-filter=U)
   foreach ($file in $unresolved) {
+    $keepConflict = @($vibehubKeep | Where-Object { $file -eq $_ -or $file.StartsWith("$_/") }).Count -gt 0
+    if ($keepConflict) {
+      git cat-file -e "${keepBase}:$file" *> $null
+      if ($LASTEXITCODE -eq 0) { git checkout $keepBase -- $file }
+      else { git rm --quiet -f -- $file }
+      if ($LASTEXITCODE -ne 0) { throw "Cannot preserve vibehub conflict: $file" }
+      Write-Host "==> resolved keep-list conflict using vibehub: $file"
+      continue
+    }
     if ($file -like 'src/game/online/api/*' -or $file -in $masterOnly) {
       git rm --quiet -f -- $file
       Write-Host "==> 按删除解决 modify/delete 冲突: $file"

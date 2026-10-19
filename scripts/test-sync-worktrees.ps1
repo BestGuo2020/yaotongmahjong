@@ -61,6 +61,8 @@ function New-Fixture([string]$name, [bool]$linked) {
   Write-Utf8 (Join-Path $repo 'src/App.vue') 'master updated'
   Write-Utf8 (Join-Path $repo 'src/game/online/api/fixture.ts') 'updated WS only'
   Write-Utf8 (Join-Path $repo $bloodFlowWsEntry) 'updated WS only'
+  # A local-only product cleanup must not delete files still used by the P2P entry.
+  Git $repo @('rm', 'tests/e2e/local-game.smoke.spec.ts', 'src/components/dev/WinEffectLab.vue') | Out-Null
   Git $repo @('add', '.') | Out-Null
   Git $repo @('commit', '-m', 'shared feature') | Out-Null
   $target = $repo
@@ -112,4 +114,4 @@ Assert ((Git $local.repo @('show', 'vibehub:shared.txt')) -eq 'shared blood-flow
 $resurrected = $true
 try { Git $local.repo @('cat-file', '-e', "vibehub:$bloodFlowWsEntry") | Out-Null } catch { $resurrected = $false }
 Assert (-not $resurrected) 'master-only blood-flow WS entry resurrected (local)'
-Write-Host "PASS: dirty master/target, linked worktree, spaces, keep restoration, WS deletion, no-op, local fallback. Evidence: $testRoot"
+Write-Host "PASS: dirty master/target, linked worktree, spaces, keep restoration including modify/delete, WS deletion, no-op, local fallback. Evidence: $testRoot"

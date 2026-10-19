@@ -59,3 +59,5 @@
 - 同步完成后建议在 vibehub 上跑 `pnpm test` 验证
 - 若改动涉及联机层（大厅/登录/传输），master 和 vibehub 需各自实现——这是两套后端的本质差异，无法合并
 - 清单维护：改脚本里的 `$vibehubKeep`（保留 vibehub 版）与 `$masterOnly`（删除）数组
+- master 收敛为幺筒入口后，P2P 入口仍引用的 `MatchTypePicker`、`RuleVariantPicker`、`WinEffectLab`、`DisclaimerDialog`、`variants/guangma/game.ts`、`bloodFlow/availability.ts` 必须留在 vibehub；两份 keep 清单同步维护。仅验证幺筒 App 的 `tests/e2e/yaotong.smoke.spec.ts` 留在 master。
+- keep 路径发生 modify/delete 冲突时，在检查剩余冲突前恢复合并前 vibehub 的内容（或保留其删除状态）；不能因 master 删除了某个 keep 文件而提前中止。临时仓库回归包含旧单机测试与 P2P 入口组件被 master 删除的场景。
