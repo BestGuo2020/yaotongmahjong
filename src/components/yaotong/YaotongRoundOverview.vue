@@ -4,11 +4,13 @@ import MahjongTile from '../MahjongTile.vue'
 import type { TableThemeName } from '../table/three/tableTheme'
 import type { Account, GameState } from '../../game/variants/yaotong/types'
 import { toSharedTile } from '../../game/variants/yaotong/useYaotongPort'
+import { huScoreBreakdown } from './huScoreBreakdown'
 
 const props = defineProps<{ state: GameState; themeName?: TableThemeName }>()
 const result = computed(() => props.state.result!)
 // The local human is seat 0. Every amount is their net income, including dice doubling.
 const delta = computed(() => result.value.deltas[0])
+const huParts = computed(() => huScoreBreakdown(result.value))
 const accounts: Account[] = ['胡牌分', '鸡分', '杠分', '幺筒责任分', '杀报加分', '见面礼', '流局赔听款', '一般包牌赔付']
 const breakdown = computed(() => accounts.flatMap(account => {
   const entries = result.value.transfers.filter(entry => entry.account === account && (entry.from === 0 || entry.to === 0))
@@ -35,6 +37,11 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
       <span v-for="item in breakdown" :key="item.account">
         {{ item.account }}
         <b :class="{ positive: item.amount > 0, negative: item.amount < 0 }">{{ signed(item.amount) }}</b>
+        <template v-if="item.account === '胡牌分'">
+          <small v-for="part in huParts" :key="part.winner" class="hu-score-parts">
+            <template v-if="huParts.length > 1">{{ state.players[part.winner].name }}：</template>{{ part.formula }}<template v-if="huParts.length > 1"> = {{ signed(part.amount) }}分</template>
+          </small>
+        </template>
       </span>
       <span v-if="!breakdown.length">本局无分数收付</span>
     </div>
@@ -59,8 +66,9 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
 .self-round-score > span { font-size: 13px; color: var(--theme-text-muted); }
 .self-round-score strong { font: 800 clamp(48px, 8cqh, 72px)/1.15 Georgia, serif; font-variant-numeric: tabular-nums; }
 .self-score-breakdown { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 12px auto; }
-.self-score-breakdown > span { display: inline-flex; align-items: baseline; gap: 9px; padding: 6px 12px; border: 1px solid var(--theme-border); border-radius: 5px; background: color-mix(in srgb, var(--theme-accent) 5%, transparent); color: var(--theme-text-muted); font-size: 12px; }
+.self-score-breakdown > span { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: baseline; max-width: 100%; gap: 4px 9px; padding: 6px 12px; border: 1px solid var(--theme-border); border-radius: 5px; background: color-mix(in srgb, var(--theme-accent) 5%, transparent); color: var(--theme-text-muted); font-size: 12px; }
 .self-score-breakdown b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.hu-score-parts { padding-left: 9px; border-left: 1px solid var(--theme-border); font-size: 11px; line-height: 1.5; }
 .positive { color: var(--theme-positive); }
 .negative { color: var(--theme-negative); }
 .overview-chicken { display: flex; align-items: center; justify-content: center; gap: 12px; width: fit-content; margin: 0 auto; padding: 8px 20px; border: 1px solid var(--theme-border); border-radius: 6px; background: color-mix(in srgb, var(--theme-accent) 4%, transparent); color: var(--theme-text-muted); font-size: 12px; }

@@ -7,6 +7,7 @@ import { useEffectPlayer } from '../../game/core/presentation/useAudio'
 import type { Account, GameState, Transfer } from '../../game/variants/yaotong/types'
 import { toSharedTile } from '../../game/variants/yaotong/useYaotongPort'
 import type { TableThemeName } from '../table/three/tableTheme'
+import { handScoreFormula } from './huScoreBreakdown'
 const props = defineProps<{ state: GameState; players: GamePlayer[]; themeName?: TableThemeName }>()
 const result = computed(() => props.state.result!)
 const detailOpen = ref(false)
@@ -41,7 +42,7 @@ function inspect(value: { from: number; to: number; account?: Account }) {
     </div>
     <p v-for="(value, seat) in result.values" :key="seat">
       <b>{{ state.players[Number(seat)].name }}</b> ·
-      {{ value.patterns.map((p) => p.name).join('＋') || '鸡胡' }} · 胡牌 {{ value.h }}分
+      单份胡分：{{ handScoreFormula(value) }} = {{ value.h }}分
     </p>
     <YaotongPaymentMap
       :transfers="result.transfers"
@@ -69,7 +70,7 @@ function inspect(value: { from: number; to: number; account?: Account }) {
             <tr v-for="(entry, i) in entries" :key="i">
               <td>{{ state.players[entry.from].name }} → {{ state.players[entry.to].name }}</td>
               <td>
-                {{ entry.account }}<small>{{ entry.reason }}</small>
+                {{ entry.account }}<small>{{ entry.account === '胡牌分' && result.values[entry.to] ? handScoreFormula(result.values[entry.to]!) : entry.reason }}</small>
               </td>
               <td
                 class="ledger-amount"

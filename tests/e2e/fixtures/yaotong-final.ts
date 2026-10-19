@@ -4,6 +4,7 @@ import SettlementOverlay from '../../../src/components/settlement/SettlementOver
 import YaotongLedger from '../../../src/components/yaotong/YaotongLedger.vue'
 import YaotongRoundOverview from '../../../src/components/yaotong/YaotongRoundOverview.vue'
 import { act } from '../../../src/game/variants/yaotong/engine'
+import { settle } from '../../../src/game/variants/yaotong/settlement'
 import { table, player } from '../../../src/game/variants/yaotong/auditFixtures'
 import { toSharedTile } from '../../../src/game/variants/yaotong/useYaotongPort'
 import { makeRoundResult } from '../../../src/game/shared/settlement/roundResult'
@@ -12,20 +13,27 @@ import { themePresentationByName, themePresentationCssVariables } from '../../..
 import type { GamePlayer } from '../../../src/game/core/contracts/types'
 import type { TableThemeName } from '../../../src/components/table/three/tableTheme'
 
-const theme = (new URLSearchParams(location.search).get('theme') ?? 'jade') as TableThemeName
-const roundView = new URLSearchParams(location.search).has('round')
-const winner = new URLSearchParams(location.search).has('self') ? 0 : 3
+const params = new URLSearchParams(location.search)
+const theme = (params.get('theme') ?? 'jade') as TableThemeName
+const roundView = params.has('round')
+const winner = params.has('self') ? 0 : 3
+const reportWin = params.has('report')
 const state = table()
-if (new URLSearchParams(location.search).has('double')) state.dice = [2, 2]
+if (params.has('double')) state.dice = [2, 2]
 const scoresBefore = [99, -11, 88, -176]
 state.current = winner
-state.players[winner] = player('234567m 567s 22p 789p', { drawn: 16 })
+state.players[winner] = player(reportWin ? '23456m 567s 122p 789p' : '234567m 567s 22p 789p', {
+  drawn: 16, declaration: reportWin ? 'ready' : 'none',
+})
 state.players.forEach((p, seat) => { p.name = ['你', '听风', '观山', '望月'][seat]; p.score = scoresBefore[seat] })
-act(state, winner, { type: 'hu' })
+if (reportWin) {
+  state.result = settle(state, { kind: 'win', winKind: 'discard', winners: [winner], source: 1, tile: 16 })
+  state.players.forEach((p, seat) => { p.score += state.result!.deltas[seat]! })
+} else act(state, winner, { type: 'hu' })
 const players: GamePlayer[] = state.players.map((p, seat) => ({ name: p.name, seat, score: p.score,
   hand: p.hand.map(toSharedTile), melds: [], discards: [], drawnTileIndex: -1, redCount: 0, avatar: defaultAvatarForSeat(seat) }))
 const result = makeRoundResult({ players, roundLabel: '东4局', honba: 0 },
-  { draw: false, winnerIndex: winner, winner: players[winner].name, winType: 'self-draw', points: state.result!.values[winner].h }, scoresBefore)
+  { draw: false, winnerIndex: winner, winner: players[winner].name, winType: reportWin ? 'discard' : 'self-draw', points: state.result!.values[winner].h }, scoresBefore)
 const standings = players.map((p, playerIndex) => ({ ...p, playerIndex, rank: 0 }))
   .sort((a, b) => b.score - a.score).map((p, i) => ({ ...p, rank: i + 1 }))
 
