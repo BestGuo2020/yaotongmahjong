@@ -10,6 +10,7 @@ const query = new URLSearchParams(location.search)
 const theme = (query.get('theme') ?? 'jade') as TableThemeName
 const source = Number(query.get('source') ?? 0)
 const count = Number(query.get('winners') ?? 2)
+const patterns = query.has('patterns')
 createApp({ setup() {
   const game = useYaotongPort()
   let hand = 0
@@ -17,9 +18,17 @@ createApp({ setup() {
     const state = table()
     state.handNumber = ++hand
     state.current = source
-    state.players[source] = player('147m 258p 369s 2468s 9s', { drawn: 26, afterKong: query.has('hot') })
-    const winners = [0, 1, 2, 3].filter(seat => seat !== source).slice(0, count)
-    for (const seat of winners) state.players[seat] = player('234567m 234s 66p 78s', { declaration: 'ready' })
+    state.players[source] = player(`147m 258p 369s 2468s ${patterns ? '9m' : '9s'}`, { drawn: patterns ? 8 : 26, afterKong: query.has('hot') })
+    const winners = query.has('self') ? [source] : [0, 1, 2, 3].filter(seat => seat !== source).slice(0, count)
+    winners.forEach((seat, i) => {
+      state.players[seat] = patterns
+        ? player(['111222333456m 9m', '1122m 3344p 5566s 9m', '111m 222p 333444s 9m'][i]!)
+        : player('234567m 234s 66p 78s', { declaration: 'ready' })
+      if (query.has('self')) {
+        state.players[seat].hand.push(patterns ? 8 : 26)
+        state.players[seat].drawn = patterns ? 8 : 26
+      }
+    })
     state.players.forEach((player, seat) => { player.name = ['你', '听风', '观山', '望月'][seat]! })
     game.local.paused.value = true
     game.local.state.value = state
@@ -29,8 +38,11 @@ createApp({ setup() {
     game.returnToLobby()
     const winners = prepare()
     game.local.paused.value = false
-    game.local.dispatch({ type: 'discard', index: 13 }, source)
-    for (const seat of winners) game.local.dispatch({ type: 'respond', action: 'hu' }, seat)
+    if (query.has('self')) game.local.dispatch({ type: 'hu' }, source)
+    else {
+      game.local.dispatch({ type: 'discard', index: 13 }, source)
+      for (const seat of winners) game.local.dispatch({ type: 'respond', action: 'hu' }, seat)
+    }
   }
   prepare()
   return () => h('main', { class: 'game-app', 'data-table-theme': theme,

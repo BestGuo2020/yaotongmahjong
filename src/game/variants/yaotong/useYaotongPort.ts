@@ -57,6 +57,7 @@ import {
   chickenCue as makeChickenCue,
   settlementTitle,
   winningPattern,
+  winPatternCue,
   settlementCue as makeSettlementCue,
   giftAwards,
   reportKillTotals,
@@ -140,6 +141,7 @@ export function useYaotongPort(
   }
   const tableView = computed<YaotongTableView>(() => ({
     multiWinIntro: multiWinIntro.value,
+    winPatterns: winPatternCue(local.state.value?.result, winEffect.value),
     settlementIndicator:
       revealHands.value && local.state.value?.result?.indicator != null
         ? {
@@ -358,6 +360,8 @@ export function useYaotongPort(
     },
     { flush: 'sync' },
   )
+  // Reduced motion shortens the action lead-in; retire it before the pattern lettering appears.
+  watch(winEffect, (effect) => { if (effect) tableActionEvent.value = null }, { flush: 'sync' })
 
   function finalizeResult(): RoundResult {
     const state = local.state.value!,

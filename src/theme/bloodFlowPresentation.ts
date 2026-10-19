@@ -18,7 +18,10 @@ export function bloodFlowImpactProfile(theme:TableThemeName,tier:WinTier,compact
     effectVolume:[.28,.4,.58,.72][tier]*(compact?.75:1)}
 }
 const clamp=(v:number)=>Math.max(0,Math.min(1,v))
-export function bloodFlowTitleMotion(cue:BloodFlowCue,now:number,theme:TableThemeName,reduced=false){
+export type WinTitleTiming = Pick<BloodFlowCue, 'startedAt' | 'tier' | 'compact' | 'duration'> & {
+  phaseMarks: Pick<BloodFlowCue['phaseMarks'], 'impact' | 'readable' | 'score'>
+}
+export function bloodFlowTitleMotion(cue:WinTitleTiming,now:number,theme:TableThemeName,reduced=false){
   const e=Math.max(0,now-cue.startedAt),m=cue.phaseMarks,p=bloodFlowImpactProfile(theme,cue.tier,cue.compact,reduced)
   const launch=Math.max(0,m.impact-130)
   if(reduced)return {scale:1,rotation:0,y:0,tilt:0,opacity:e<launch?0:e<m.score?1:0,dimming:0}

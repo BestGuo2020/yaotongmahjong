@@ -29,12 +29,20 @@ export interface ChickenCue {
 }
 export interface YaotongTableView {
   multiWinIntro?: { id: number; sourceIndex: number } | null
+  winPatterns?: YaotongWinPatternCue | null
   settlementIndicator?: { id: number; seat: number; tile: TileType } | null
   seats: SeatStatus[]
   chickenCue: ChickenCue | null
   declarationCues: TableDeclarationEvent[]
   settlementCue: SettlementCue | null
   chickenPerformances?: ChickenPerformance[]
+}
+export interface YaotongWinPatternCue {
+  id: number
+  startedAt: number
+  duration: number
+  reducedMotion: boolean
+  winners: Array<{ seat: number; label: string; tier: 0 | 1 | 2 | 3 }>
 }
 export interface PaymentEdge {
   from: number
@@ -142,6 +150,22 @@ export function winningPattern(value?: HandValue): string | undefined {
       ].includes(pattern.name),
     )
     .sort((a, b) => b.points - a.points)[0]?.name
+}
+
+/** Separate pattern lettering follows the action cue, during the existing win effect. */
+export function winPatternCue(
+  result: Settlement | null | undefined,
+  effect: { id: number; duration: number; reducedMotion: boolean } | null,
+): YaotongWinPatternCue | null {
+  if (result?.kind !== 'win' || !effect) return null
+  return {
+    ...effect, startedAt: effect.id,
+    winners: result.winners.map(seat => {
+      const value = result.values[seat], label = winningPattern(value) ?? '鸡胡'
+      const points = value?.patterns.find(pattern => pattern.name === label)?.points ?? 0
+      return { seat, label, tier: points >= 80 ? 3 : points >= 40 ? 2 : points >= 20 ? 1 : 0 }
+    }),
+  }
 }
 
 /** Net opposing payments once per pair; retain category subtotals for inspection. */

@@ -7,6 +7,7 @@ import {
   settlementCue,
   settlementTitle,
   winningPattern,
+  winPatternCue,
 } from './presentation'
 import { evaluateHand } from './hands'
 import { ledger, settle } from './settlement'
@@ -109,5 +110,23 @@ describe('score flow and concise seat presentation', () => {
     const r = settle(table(), { kind: 'draw' })
     expect(settlementTitle(r)).toBe('荒庄')
     expect(settlementTitle({ ...r, kind: 'win', winners: [1, 2, 3] })).toBe('一炮3响')
+  })
+  it('每位赢家按自己的实际结算拆解展示牌型，报听与硬胡不冒充结构牌型', () => {
+    const state = table()
+    state.players[0] = player('11122233345699m')
+    state.players[1] = player('1122m 3344p 5566s 99m')
+    state.players[2] = player('111m 222p 333444s 99m')
+    const result = settle(state, { kind: 'win', winKind: 'discard', source: 3, winners: [0, 1, 2], tile: 8 })
+    const effect = { id: 100, duration: 2600, reducedMotion: false }
+    expect(winPatternCue(result, effect)).toEqual({ ...effect, startedAt: 100, winners: [
+      { seat: 0, label: '清一色', tier: 1 },
+      { seat: 1, label: '七小对', tier: 1 },
+      { seat: 2, label: '碰碰胡', tier: 0 },
+    ] })
+    expect(winPatternCue(result, null)).toBeNull()
+    expect(winPatternCue(settle(table(), { kind: 'draw' }), effect)).toBeNull()
+    state.players[0] = player('234567m 567s 22p 789p', { declaration: 'ready' })
+    const ordinary = settle(state, { kind: 'win', winKind: 'self', winners: [0], tile: 16 })
+    expect(winPatternCue(ordinary, effect)?.winners).toEqual([{ seat: 0, label: '鸡胡', tier: 0 }])
   })
 })

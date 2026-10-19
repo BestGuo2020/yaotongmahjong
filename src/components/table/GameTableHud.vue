@@ -4,6 +4,7 @@ import MahjongTile from '../MahjongTile.vue'
 import YaotongSeatMarker from '../yaotong/YaotongSeatMarker.vue'
 import YaotongSettlementEffects from '../yaotong/YaotongSettlementEffects.vue'
 import YaotongChickenEffects from '../yaotong/YaotongChickenEffects.vue'
+import YaotongWinPatterns from '../yaotong/YaotongWinPatterns.vue'
 import type { YaotongTableView } from '../../game/variants/yaotong/presentation'
 import PlayerSeat from '../PlayerSeat.vue'
 import TableActionCue from './TableActionCue.vue'
@@ -628,12 +629,13 @@ function onAvatarError(entry: GamePlayer) {
     <Transition name="table-action" mode="out-in">
       <TableActionCue v-if="presentedTableActionEvent" :key="presentedTableActionEvent.id"
         :event="presentedTableActionEvent" :player="players[presentedTableActionEvent.actorIndex]"
-        :label="yaotongView?.seats[presentedTableActionEvent.actorIndex]?.winner ? yaotongView.seats[presentedTableActionEvent.actorIndex]?.winPattern : undefined"
         :position="seatPosition[presentedTableActionEvent.actorIndex]" :theme-name="themeName" />
     </Transition>
     <MultiWinIntro v-if="yaotongView?.multiWinIntro" :key="`multi-${yaotongView.multiWinIntro.id}`"
       :source-index="yaotongView.multiWinIntro.sourceIndex" :theme-name="themeName"
       :compact="compactBloodFlowEffects" :reduced="prefersReducedMotion()" />
+    <YaotongWinPatterns v-if="yaotongView?.winPatterns" :key="`patterns-${yaotongView.winPatterns.id}`"
+      :cue="yaotongView.winPatterns" :theme-name="themeName" :compact="compactBloodFlowEffects" />
     <TransitionGroup name="table-action">
       <TableActionCue v-for="cue in yaotongView?.declarationCues ?? []" :key="`declaration-${cue.id}`"
         :event="cue" :player="players[cue.actorIndex]"
