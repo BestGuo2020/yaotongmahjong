@@ -53,7 +53,7 @@ E02～E05、E07、E08 已实现并通过本地自动化验收。E06 的权威协
 | 条件状态机 | `engine.test.ts`：7 passed，含三种不同大牌三响、末墙、抢杠、天胡、锁手与权威节拍 |
 | mock 房主发现 | 11 passed；相同 peer 刷新仍回传 welcome，暂定房主允许首次可信元数据校正，已锁定房主不随迟到声明迁移 |
 
-浏览器为 Chromium 151.0.7922.34，Windows ANGLE / Direct3D11 / Intel Arc 130T 硬件 GPU。按用户要求修改两分支 Playwright headless 配置，保留 P2P 其他配置；19 项 master E2E、3 项 P2P 联机 E2E 及同步后的 5 项 P2P 主题尺寸 E2E 在 GPU 下全部通过，五主题 × 四尺寸全部断言非软件渲染。具体样本见[渲染测量](rendering.md)。采集 requestAnimationFrame 间隔，包含主线程调度，不是 GPU draw-call 时间；不作长期帧率保证。此前 SwiftShader 压力结果单列，不用于硬件性能结论。
+浏览器为 Chromium 151.0.7922.34，Windows ANGLE / Direct3D11 / Intel Arc 130T 硬件 GPU。按用户要求修改两分支 Playwright headless 配置，保留 P2P 其他配置；19 项 master E2E、3 项 P2P 联机 E2E 及同步后的 5 项 P2P 主题尺寸 E2E 在 GPU 下全部通过，五主题 × 四尺寸全部断言非软件渲染。具体样本见旧渲染测量（已清理，可查Git历史）。采集 requestAnimationFrame 间隔，包含主线程调度，不是 GPU draw-call 时间；不作长期帧率保证。此前 SwiftShader 压力结果单列，不用于硬件性能结论。
 
 修正 master 的 Vitest `test.dir` 为 `src`，避免把 P2P 工作树和 pnpm 缓存内的复制测试重复计数。因此早期 3000+ 测试记录不作为最终数量。没有删除业务测试或守恒断言；P2P 始终使用自己的配置。共享小屏规则改用容器查询以通过既有 responsiveCssContract。
 

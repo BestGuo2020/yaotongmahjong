@@ -7,7 +7,6 @@ import { tableThemeIdentity, type TableThemeName } from '../../theme/themeIdenti
 const props = defineProps<{
   themeName: TableThemeName
   characterId: CharacterId
-  yaotong?: boolean
 }>()
 
 defineEmits<{ selectCharacter: [] }>()
@@ -37,9 +36,9 @@ function markImageFailed() {
 <template>
   <section class="lobby-visual" :data-visual-theme="themeName" aria-label="当前主题预览">
     <div class="lobby-brand">
-      <p class="eyebrow">{{ yaotong ? 'YAOTONG MAHJONG' : 'LIANHUA MAHJONG COLLECTIONS' }}</p>
-      <h1 v-if="yaotong">幺筒<span>麻将</span></h1><h1 v-else>莲花<span>广麻</span></h1>
-      <p class="subtitle">{{ yaotong ? '一筒百变 · 碰杠争先 · 翻鸡见喜' : '一款莲花县特有的地方麻将游戏玩法' }}</p>
+      <p class="eyebrow">YAOTONG MAHJONG</p>
+      <h1>幺筒<span>麻将</span></h1>
+      <p class="subtitle">一筒百变 · 碰杠争先 · 翻鸡见喜</p>
     </div>
 
     <div

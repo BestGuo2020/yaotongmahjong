@@ -29,7 +29,7 @@ export default defineConfig({
      * 正在跑的 e2e 随即 net::ERR_CONNECTION_REFUSED。这里把这类临时产物排除掉。
      */
     watch: {
-      ignored: ['**/*.tmpdir/**', '**/*.tmp', '**/.*.tmpdir/**'],
+      ignored: ['**/tmp/**', '**/test-results/**', '**/*.tmpdir/**', '**/*.tmp', '**/.*.tmpdir/**'],
     },
     proxy: {
       '/api': {

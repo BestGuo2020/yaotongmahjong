@@ -2,13 +2,12 @@ import { defineConfig, devices } from '@playwright/test'
 
 const port = Number(process.env.E2E_PORT || 4173)
 const baseURL = `http://127.0.0.1:${port}`
-const backendPort = Number(process.env.E2E_BACKEND_PORT || 8000)
-const backendURL = `http://127.0.0.1:${backendPort}`
-const backendPython = process.platform === 'win32' ? '.venv\\Scripts\\python.exe' : '.venv/bin/python'
 const reuseExistingOnly = process.env.E2E_REUSE_ONLY === '1'
 
 export default defineConfig({
   testDir: './tests/e2e',
+  // AI/LLM 历史验收用例保留源码；默认只验收当前幺筒产品入口。
+  testMatch: 'yaotong*.spec.ts',
   // 响应式验收截图保存在 test-results/responsive-*；运行 E2E 时只清理自己的子目录。
   outputDir: 'test-results/playwright',
   fullyParallel: true,
@@ -33,16 +32,8 @@ export default defineConfig({
   ],
   webServer: reuseExistingOnly ? undefined : [
     {
-      command: `${backendPython} -m uvicorn app.main:app --host 127.0.0.1 --port ${backendPort}`,
-      cwd: 'backend',
-      url: `${backendURL}/api/health`,
-      timeout: 120_000,
-      reuseExistingServer: !process.env.CI,
-    },
-    {
       command: `npm run dev -- --port ${port}`,
       url: baseURL,
-      env: { ...process.env, VITE_API_BASE: backendURL },
       timeout: 120_000,
       reuseExistingServer: !process.env.CI,
     },

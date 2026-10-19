@@ -155,7 +155,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <button
-        v-if="gameMode === 'remote' && phase !== 'lobby'"
+        v-if="hasPlayers && phase !== 'lobby'"
         class="quit-match topbar-control"
         aria-label="退出对局"
         title="退出对局"
