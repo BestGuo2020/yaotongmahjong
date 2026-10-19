@@ -5,13 +5,13 @@ import type { Command, GameState } from './types'
 export type YaotongMode = 'easy' | 'hard'
 export const YAOTONG_MODES = {
   easy: {
-    name: '简单模式',
+    name: '新手模式',
     summary: '系统辅助 · 防止违规',
     description: '系统辅助防违规，安心熟悉规则。',
     detail: '自动拦截过手胡、同巡碰打鸡等违规操作；必须胡牌时，仅保留胡牌选择。',
   },
   hard: {
-    name: '困难模式',
+    name: '老手模式',
     summary: '自主判断 · 违规包牌',
     description: '自主判断操作，违规按规则包牌。',
     detail: '保留过手、碰打鸡及必须胡牌时的操作选择，由你判断，失误后承担包牌处罚。',

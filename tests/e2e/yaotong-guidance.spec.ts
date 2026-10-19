@@ -55,7 +55,7 @@ test('同时展示多个限制；状态解除后关闭详情并清除旧提示',
   await expect(page.getByRole('button', { name: '过', exact: true })).toHaveCount(0)
 })
 
-test('原报和报听提示按当前选择更新，困难模式不出现简单模式教学', async ({ page }) => {
+test('原报和报听提示按当前选择更新，老手模式不出现新手模式教学', async ({ page }) => {
   await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=original')
   let trigger = page.getByRole('button', { name: /操作提示/ })
   await expect(trigger).toContainText('起手已听，可选择原报')

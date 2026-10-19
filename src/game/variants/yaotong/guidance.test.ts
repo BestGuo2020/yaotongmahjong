@@ -86,7 +86,7 @@ it('原报窗口、报听开关和锁手分别给出下一步提示', () => insp
   expect(port.guidance.value[0].action).toContain('只能打出刚摸到的那张牌')
 }))
 
-it('困难模式、托管、开场及终局期间不显示简单模式教学提示', () => inspect((port) => {
+it('老手模式、托管、开场及终局期间不显示新手模式教学提示', () => inspect((port) => {
   const state = table()
   state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: true })
   port.local.state.value = state

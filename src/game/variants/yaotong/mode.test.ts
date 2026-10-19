@@ -20,7 +20,7 @@ function withGame(mode: YaotongMode, state: GameState, check: (port: ReturnType<
   } finally { scope.stop() }
 }
 
-describe('简单模式辅助防违规，困难模式保留实际包牌', () => {
+describe('新手模式辅助防违规，老手模式保留实际包牌', () => {
   it.each(['easy', 'hard'] as const)('%s：同巡碰鸡后打鸡', (mode) => {
     const state = table()
     state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: true })
