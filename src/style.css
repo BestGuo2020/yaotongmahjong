@@ -3695,7 +3695,20 @@ button { font: inherit; }
   }
 }
 
-/* Yaotong keeps pairwise payments and all four score rows readable above the sticky footer. */
+/* Yaotong keeps pairwise payments and all four score rows readable above the footer. */
+.game-app :is(.settlement-card, .final-board):has(.yaotong-ledger) > .settlement-footer {
+  position: static;
+  z-index: auto;
+  bottom: auto;
+  margin: 12px 0 0;
+  padding: 12px 0 max(12px, var(--safe-bottom));
+  border-top: 1px solid var(--theme-border);
+  background: transparent;
+  backdrop-filter: none;
+}
+.game-app :is(.settlement-card, .final-board):has(.yaotong-ledger) > .settlement-footer .result-actions {
+  margin-top: 0;
+}
 @container game (max-height: 760px) {
   .game-app .settlement-card:has(.yaotong-ledger) { padding: 18px 24px 0; }
   .game-app .settlement-card:has(.yaotong-ledger) h2 { font-size: 26px; margin: 0 0 6px; }

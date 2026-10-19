@@ -63,6 +63,21 @@ test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => 
   await expect(page.locator('.round-settlement')).toBeVisible({ timeout: 140_000 })
   await expect(page.locator('.round-rankings article')).toHaveCount(4)
   await expect(page.locator('.round-settlement h2')).toHaveText(/^东[1-4]局 · (自摸|胡牌|抢杠胡|热炮胡|一炮[23]响|荒庄|包牌)$/)
+  await page.locator('.yaotong-ledger summary').click()
+  for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
+    await page.setViewportSize(viewport)
+    const footer = page.locator('.round-settlement .settlement-footer')
+    const separation = await page.locator('.round-settlement').evaluate(root => {
+      const bottom = Math.max(...Array.from(root.querySelectorAll('.round-rankings article')).map(row => row.getBoundingClientRect().bottom))
+      return root.querySelector('.settlement-footer')!.getBoundingClientRect().top - bottom
+    })
+    expect(separation, '结算按钮不能浮到排名卡片上方').toBeGreaterThanOrEqual(0)
+    await footer.scrollIntoViewIfNeeded()
+    await expect(page.locator('.round-rankings article').last()).toBeInViewport({ ratio: 1 })
+    await expect(page.getByRole('button', { name: '继续', exact: true })).toBeInViewport({ ratio: 1 })
+    await page.screenshot({ path: `tmp/yaotong-settlement-footer-${viewport.width}.png` })
+  }
+  await page.setViewportSize({ width: 1280, height: 720 })
   await page.screenshot({ path: 'tmp/yaotong-cleanup-settlement.png' })
   const previousRound = await page.locator('.round-info').innerText()
   await page.getByRole('button', { name: '继续', exact: true }).click()
