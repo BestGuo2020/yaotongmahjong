@@ -41,6 +41,7 @@ import {
   type SettlementEndOptions,
 } from '../../shared/settlement/settlementTimeline'
 import { useYaotongGame } from './useYaotongGame'
+import { yaotongGuidance } from './guidance'
 import { countsOf } from './tiles'
 import {
   chickenMarks,
@@ -776,23 +777,31 @@ export function useYaotongPort(
     settlementGeneration++
     scheduler.clear()
   })
+  const canArmDeclaration = computed(() =>
+    local.ownTurn.value && !local.protection.value.pass &&
+    local.user.value?.draws === 1 && local.user.value.drawn !== null &&
+    local.user.value.declaration === 'none' && local.discardOptions.value.length > 0,
+  )
+  const guidance = computed(() => {
+    const state = local.state.value
+    if (local.mode.value !== 'easy' || local.autoplay.value || openingActive.value ||
+      !state || state.phase === 'settled' || state.phase === 'transition') return []
+    return yaotongGuidance(state, local.protection.value, {
+      original: original.value && local.waiting.value.length > 0,
+      canDeclare: canArmDeclaration.value,
+      declarationArmed: declarationArmed.value,
+    })
+  })
   return Object.assign(port, {
     local,
     length,
     original,
     risk,
+    guidance,
     tableView,
     resultTitle: computed(() => settlementTitle(local.state.value?.result ?? null)),
     declarationArmed,
     openingActive,
-    canArmDeclaration: computed(
-      () =>
-        local.ownTurn.value &&
-        !local.protection.value.pass &&
-        local.user.value?.draws === 1 &&
-        local.user.value.drawn !== null &&
-        local.user.value.declaration === 'none' &&
-        local.discardOptions.value.length > 0,
-    ),
+    canArmDeclaration,
   })
 }
