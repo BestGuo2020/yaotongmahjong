@@ -4,7 +4,7 @@ import MahjongTile from '../MahjongTile.vue'
 import YaotongPaymentMap from './YaotongPaymentMap.vue'
 import type { GamePlayer } from '../../game/core/contracts/types'
 import { useEffectPlayer } from '../../game/core/presentation/useAudio'
-import type { Account, GameState } from '../../game/variants/yaotong/types'
+import type { Account, GameState, Transfer } from '../../game/variants/yaotong/types'
 import { toSharedTile } from '../../game/variants/yaotong/useYaotongPort'
 import type { TableThemeName } from '../table/three/tableTheme'
 const props = defineProps<{ state: GameState; players: GamePlayer[]; themeName?: TableThemeName }>()
@@ -21,6 +21,8 @@ const entries = computed(() =>
   ),
 )
 const playEffect = useEffectPlayer()
+// The local human occupies seat 0; inspecting another player's flow does not change this perspective.
+const transferSign = (entry: Transfer) => (entry.to === 0 ? '+' : entry.from === 0 ? '−' : '')
 function inspect(value: { from: number; to: number; account?: Account }) {
   pair.value = value
   detailOpen.value = true
@@ -60,7 +62,7 @@ function inspect(value: { from: number; to: number; account?: Account }) {
             <tr>
               <th>付款 → 收款</th>
               <th>分项 / 依据</th>
-              <th>分数</th>
+              <th title="正负号以你的收付为准">分数</th>
             </tr>
           </thead>
           <tbody>
@@ -69,7 +71,13 @@ function inspect(value: { from: number; to: number; account?: Account }) {
               <td>
                 {{ entry.account }}<small>{{ entry.reason }}</small>
               </td>
-              <td><template v-if="entry.multiplier === 2">{{ entry.base }} × 2 = </template>{{ entry.amount }}分</td>
+              <td
+                class="ledger-amount"
+                :class="{ income: entry.to === 0, expense: entry.from === 0 }"
+                :title="entry.to === 0 ? '你的收入' : entry.from === 0 ? '你的支出' : undefined"
+              >
+                <template v-if="entry.multiplier === 2">{{ transferSign(entry) }}{{ entry.base }} × 2 = </template>{{ transferSign(entry) }}{{ entry.amount }}分
+              </td>
             </tr>
           </tbody>
         </table>
@@ -128,6 +136,17 @@ function inspect(value: { from: number; to: number; account?: Account }) {
 .yaotong-ledger td:last-child {
   white-space: nowrap;
   text-align: right;
+}
+.ledger-amount {
+  font-variant-numeric: tabular-nums;
+}
+.ledger-amount.income {
+  color: var(--theme-positive);
+  font-weight: 700;
+}
+.ledger-amount.expense {
+  color: var(--theme-negative);
+  font-weight: 700;
 }
 .yaotong-ledger td small {
   display: block;
