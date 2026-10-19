@@ -47,9 +47,7 @@ defineProps<{ status?: SeatStatus; name: string }>()
       :aria-label="`${name}烧鸡`"
       >烧鸡</span
     >
-    <span v-if="status.winner" class="win-seal" :aria-label="`${name}${status.winPattern ?? ''}胡牌`">{{
-      status.winPattern ?? '胡'
-    }}</span>
+    <span v-if="status.winner" class="win-seal" :aria-label="`${name}胡牌`">胡</span>
     <span
       v-if="status.gift"
       class="gift-seal"
