@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { GamePlayer } from '../../game/core/contracts/types'
+import type { GamePlayer, TileType } from '../../game/core/contracts/types'
+import { tileFaceUrl, type TileAssetTheme } from '../../game/core/presentation/tileAssets'
 import type { ChickenPerformance } from '../../game/variants/yaotong/chickenPresentation'
 import { tileName } from '../../game/variants/yaotong/tiles'
 import { useYaotongSeatAnchors } from './useYaotongSeatAnchors'
 import YaotongChickenActor from './YaotongChickenActor.vue'
 
-const props = defineProps<{ cues: ChickenPerformance[]; players: GamePlayer[] }>()
+const props = defineProps<{ cues: ChickenPerformance[]; players: GamePlayer[]; themeName?: TileAssetTheme }>()
+const fixedFaces: Record<number, TileType> = { 0: 'm1', 16: 'p8', 18: 's1' }
 const root = ref<HTMLElement | null>(null)
 const { size, anchors, measure } = useYaotongSeatAnchors(root)
 watch(() => props.cues, measure, { flush: 'post' })
@@ -36,11 +38,14 @@ const performances = computed(() =>
         actor,
         extent,
         facing,
+        tileSrc: cue.kind === 'peng' ? tileFaceUrl(fixedFaces[cue.tile], props.themeName) : undefined,
         path: `M ${x} ${y} Q ${(x + target.x) / 2} ${Math.min(y, target.y) - extent * 0.4} ${target.x} ${target.y}`,
         description:
           cue.kind === 'rush'
             ? `${props.players[cue.actorSeat]?.name}打出${tileName(cue.tile)}，${cue.label}档位${cue.points}`
-            : `${props.players[cue.actorSeat]?.name}取得幺筒，${props.players[cue.markSeat]?.name}留下责任记录，原值${cue.points}，终局按规则结算`,
+            : cue.kind === 'peng'
+              ? `${props.players[cue.actorSeat]?.name}碰${tileName(cue.tile)}，${cue.points === 8 ? '首碰' : '后碰'}鸡分原值${cue.points}`
+              : `${props.players[cue.actorSeat]?.name}取得幺筒，${props.players[cue.markSeat]?.name}留下责任记录，原值${cue.points}，终局按规则结算`,
       },
     ]
   }),
@@ -66,7 +71,7 @@ const performances = computed(() =>
       >
         <div class="chicken-entrance">
           <div class="chicken-facing">
-            <YaotongChickenActor :kind="cue.kind" :uid="`chicken-${cue.id}`" />
+            <YaotongChickenActor :kind="cue.kind" :uid="`chicken-${cue.id}`" :tile-src="cue.tileSrc" />
           </div>
         </div>
         <strong class="chicken-title">{{ cue.label }}</strong>
@@ -75,8 +80,16 @@ const performances = computed(() =>
         <circle class="actor-origin" :cx="cue.actor.x" :cy="cue.actor.y" r="30" />
         <path class="mark-trail" :d="cue.path" pathLength="1" />
         <g class="flying-mark">
-          <rect x="-15" y="-16" width="30" height="32" rx="8" />
-          <text y="7" text-anchor="middle">{{ cue.kind === 'rush' ? '冲' : '责' }}</text>
+          <template v-if="cue.kind === 'peng'">
+            <g v-for="n in 3" :key="n">
+              <rect :x="-34 + (n - 1) * 23" y="-16" width="22" height="32" rx="4" />
+              <image :href="cue.tileSrc" :x="-32 + (n - 1) * 23" y="-14" width="18" height="28" />
+            </g>
+          </template>
+          <template v-else>
+            <rect x="-15" y="-16" width="30" height="32" rx="8" />
+            <text y="7" text-anchor="middle">{{ cue.kind === 'rush' ? '冲' : '责' }}</text>
+          </template>
           <animateMotion :path="cue.path" dur=".35s" begin="1.25s" fill="freeze" repeatCount="1" />
         </g>
         <circle class="mark-arrival" :cx="cue.target.x" :cy="cue.target.y" r="33" />
@@ -109,7 +122,8 @@ const performances = computed(() =>
 .chicken-entrance {
   animation: chicken-arrive 1.8s ease-out both;
 }
-.responsibility .chicken-entrance {
+.responsibility .chicken-entrance,
+.peng .chicken-entrance {
   animation-name: chicken-transform;
 }
 .chicken-title {
@@ -155,6 +169,10 @@ const performances = computed(() =>
   fill: #294b49;
   stroke: var(--mark-color);
   stroke-width: 2;
+}
+.peng .flying-mark rect {
+  fill: #fff5d8;
+  stroke: #d7b362;
 }
 .flying-mark text {
   fill: var(--mark-color);

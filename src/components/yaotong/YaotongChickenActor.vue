@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ kind: 'rush' | 'responsibility'; uid: string }>()
+defineProps<{ kind: 'rush' | 'responsibility' | 'peng'; uid: string; tileSrc?: string }>()
 </script>
 
 <template>
@@ -116,6 +116,21 @@ defineProps<{ kind: 'rush' | 'responsibility'; uid: string }>()
         <path class="wing-detail" d="M80 103 Q98 113 105 105" fill="none" stroke="#fff0a3" stroke-width="3" />
       </g>
     </g>
+    <g v-if="kind === 'peng'" class="peng-tiles">
+      <g v-for="n in 3" :key="n" class="peng-tile" :class="`peng-tile-${n}`">
+        <rect :x="46 + n * 25" y="108" width="24" height="36" rx="4" fill="#7aa28a" stroke="#476c59" />
+        <rect :x="46 + n * 25" y="104" width="24" height="36" rx="4" fill="#fff5d8" stroke="#cda760" />
+        <image :href="tileSrc" :x="48 + n * 25" y="106" width="20" height="31" />
+      </g>
+      <path
+        class="peng-clap"
+        d="M62 100 L53 91 M112 96 L112 82 M155 100 L164 91"
+        fill="none"
+        stroke="#fff4ac"
+        stroke-width="4"
+        stroke-linecap="round"
+      />
+    </g>
     <g class="roast-chicken">
       <ellipse cx="103" cy="137" rx="67" ry="17" fill="#afc9ce" />
       <ellipse cx="103" cy="132" rx="67" ry="17" fill="#fcf4dc" stroke="#e0dcc6" stroke-width="2" />
@@ -201,7 +216,9 @@ defineProps<{ kind: 'rush' | 'responsibility'; uid: string }>()
 .feathers {
   opacity: 0;
 }
-.responsibility .helmet {
+.responsibility .helmet,
+.peng .helmet,
+.peng .dust {
   display: none;
 }
 .responsibility .living-chicken {
@@ -229,6 +246,167 @@ defineProps<{ kind: 'rush' | 'responsibility'; uid: string }>()
 }
 .responsibility .steam {
   animation: chicken-steam 0.65s 0.8s ease-in-out 2 alternate;
+}
+.peng .leg {
+  animation: none;
+}
+.peng .living-chicken {
+  transform-origin: 105px 145px;
+  animation: peng-hop 1.8s ease-out both;
+}
+.peng .chicken-bob {
+  animation: none;
+}
+.peng .wing,
+.peng .wing-detail {
+  animation: peng-hug 1.8s ease-out both;
+}
+.peng .head {
+  animation: peng-nod 1.8s ease-out both;
+}
+.peng .eye {
+  transform-origin: 155px 66px;
+  animation: peng-wink 1.8s ease-out both;
+}
+.peng-tiles {
+  transform-origin: 108px 143px;
+  animation: peng-pack 1.8s ease-out both;
+}
+.peng-tile {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.peng-tile-1 {
+  animation: peng-left 1.8s ease-out both;
+}
+.peng-tile-3 {
+  animation: peng-right 1.8s ease-out both;
+}
+.peng-tiles image {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scaleX(var(--facing, 1));
+}
+.peng-clap {
+  animation: peng-clap 1.8s ease-out both;
+}
+@keyframes peng-hop {
+  0%,
+  12% {
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    transform: translateY(-17px) rotate(-5deg);
+  }
+  40% {
+    transform: scale(1.08, 0.92);
+  }
+  52% {
+    transform: translateY(-4px) scale(0.98, 1.02);
+  }
+  65%,
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes peng-hug {
+  0%,
+  24% {
+    transform: rotate(-28deg);
+  }
+  43% {
+    transform: rotate(16deg);
+  }
+  60%,
+  100% {
+    transform: rotate(7deg);
+  }
+}
+@keyframes peng-nod {
+  0%,
+  25% {
+    transform: rotate(-9deg);
+  }
+  43% {
+    transform: rotate(14deg);
+  }
+  60%,
+  100% {
+    transform: rotate(-4deg);
+  }
+}
+@keyframes peng-wink {
+  0%,
+  52%,
+  70%,
+  100% {
+    transform: scaleY(1);
+  }
+  58%,
+  64% {
+    transform: scaleY(0.15);
+  }
+}
+@keyframes peng-pack {
+  0% {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  15% {
+    opacity: 1;
+  }
+  40% {
+    transform: translateY(-4px) scale(1.06);
+  }
+  55%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes peng-left {
+  0%,
+  15% {
+    transform: translateX(-35px) rotate(-18deg);
+  }
+  39% {
+    transform: translateX(2px);
+  }
+  47%,
+  100% {
+    transform: none;
+  }
+}
+@keyframes peng-right {
+  0%,
+  18% {
+    transform: translateX(40px) rotate(18deg);
+    opacity: 0;
+  }
+  26% {
+    opacity: 1;
+  }
+  39% {
+    transform: translateX(-2px);
+  }
+  47%,
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes peng-clap {
+  0%,
+  35% {
+    opacity: 0;
+  }
+  41% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0;
+  }
 }
 @keyframes chicken-stride {
   to {
@@ -361,6 +539,9 @@ defineProps<{ kind: 'rush' | 'responsibility'; uid: string }>()
   }
   .responsibility .roast-chicken {
     opacity: 1;
+  }
+  .peng-clap {
+    display: none;
   }
 }
 </style>

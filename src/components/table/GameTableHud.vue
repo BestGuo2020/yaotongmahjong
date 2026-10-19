@@ -629,7 +629,7 @@ function onAvatarError(entry: GamePlayer) {
         :aria-label="`${players[cue.actorIndex]?.name}${cue.type === 'ready' ? '报听' : '原报'}`"
         :position="seatPosition[cue.actorIndex]" :theme-name="themeName" />
     </TransitionGroup>
-    <YaotongChickenEffects v-if="yaotongView?.chickenPerformances?.length" :cues="yaotongView.chickenPerformances" :players="players" />
+    <YaotongChickenEffects v-if="yaotongView?.chickenPerformances?.length" :cues="yaotongView.chickenPerformances" :players="players" :theme-name="themeName" />
     <YaotongSettlementEffects v-if="yaotongView?.settlementCue" :key="yaotongView.settlementCue.id"
       :cue="yaotongView.settlementCue" :players="players" />
     <Transition name="announce">

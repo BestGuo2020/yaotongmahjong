@@ -474,7 +474,8 @@ export function useYaotongPort(
         ...chickenPerformances.value.filter((c) => c.actorSeat !== performance.actorSeat),
         performance,
       ].slice(-4)
-      playSound(performance.kind === 'rush' ? 'chongfengji.wav' : 'zerenji.wav', 0.3)
+      if (performance.kind !== 'peng')
+        playSound(performance.kind === 'rush' ? 'chongfengji.wav' : 'zerenji.wav', 0.3)
       scheduler.later(
         () => {
           chickenPerformances.value = chickenPerformances.value.filter((c) => c.id !== performance.id)
@@ -511,7 +512,7 @@ export function useYaotongPort(
         toSharedTile(event.tile!),
         Math.max(0, local.state.value!.players[event.seat].melds.length - 1),
       )
-      if (performance?.kind === 'responsibility') {
+      if (performance?.kind === 'responsibility' || performance?.kind === 'peng') {
         // Keep the original action voice first; the short chicken cue follows its actual completion.
         void playSoundAndWait(event.kind === 'peng' ? 'peng.mp3' : 'gang.mp3').then(showChicken, showChicken)
       } else playSound(event.kind === 'peng' ? 'peng.mp3' : 'gang.mp3')

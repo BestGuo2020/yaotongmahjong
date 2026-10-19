@@ -5,7 +5,7 @@ import { isFixed, YAO } from './tiles'
 export const CHICKEN_PERFORMANCE_MS = 1800
 export interface ChickenPerformance {
   id: number
-  kind: 'rush' | 'responsibility'
+  kind: 'rush' | 'responsibility' | 'peng'
   actorSeat: number
   markSeat: number
   tile: number
@@ -32,6 +32,27 @@ export function chickenPerformance(event: GameEvent, state: GameState): ChickenP
           ? { pre: '预冲', first: '首冲', later: '后冲', hot: '杠冲', normal: '幺筒' }[event.rush ?? 'normal']
           : '冲锋鸡',
     }
+  }
+  if (event.kind === 'peng' && isFixed(event.tile)) {
+    const meld = state.players[event.seat].melds.find(
+      (m) =>
+        m.tile === event.tile &&
+        m.kind === 'peng' &&
+        m.from != null &&
+        m.from !== event.seat &&
+        m.chicken > 0,
+    )
+    return meld
+      ? {
+          id: event.id,
+          kind: 'peng',
+          actorSeat: event.seat,
+          markSeat: event.seat,
+          tile: event.tile,
+          label: '碰鸡',
+          points: meld.chicken,
+        }
+      : null
   }
   // Only a successful exposed claim creates a new responsibility. An added kong inherits it.
   if (event.tile !== YAO || (event.kind !== 'peng' && !(event.kind === 'kong' && event.text === '明杠')))
