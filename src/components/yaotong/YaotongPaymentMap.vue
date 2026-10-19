@@ -4,7 +4,14 @@ import type { GamePlayer } from '../../game/core/contracts/types'
 import type { TableThemeName } from '../table/three/tableTheme'
 import { animeAvatarForPlayer } from '../../game/core/presentation/animeAvatarPresentation'
 import { displayImageSrc } from '../../game/core/presentation/imagePreload'
-import { giftAwards, giftPayments, paymentEdges } from '../../game/variants/yaotong/presentation'
+import {
+  giftAwards,
+  giftPayments,
+  killPayments,
+  killFocusSeat,
+  reportKillTotals,
+  paymentEdges,
+} from '../../game/variants/yaotong/presentation'
 import type { Account, Transfer } from '../../game/variants/yaotong/types'
 
 const props = defineProps<{
@@ -16,19 +23,34 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ inspect: [pair: { from: number; to: number; account?: Account }] }>()
 const selected = ref(0)
-const mode = ref<'net' | 'gift'>('net')
+const mode = ref<'net' | 'gift' | 'kill'>('net')
 const gifts = computed(() => giftAwards(props.transfers))
+const kills = computed(() => killPayments(props.transfers))
+const killTotals = computed(() => reportKillTotals(props.transfers))
+const killPaid = (seat: number) => killTotals.value.find((total) => total.seat === seat)?.paid ?? 0
+const killEarned = (seat: number) => killTotals.value.find((total) => total.seat === seat)?.received ?? 0
 const edges = computed(() =>
-  (mode.value === 'gift' ? giftPayments(props.transfers) : paymentEdges(props.transfers)).filter(
-    (edge) => edge.from === selected.value || edge.to === selected.value,
-  ),
+  (mode.value === 'kill'
+    ? kills.value
+    : mode.value === 'gift'
+      ? giftPayments(props.transfers)
+      : paymentEdges(props.transfers)
+  ).filter((edge) => edge.from === selected.value || edge.to === selected.value),
 )
 function showGift() {
   mode.value = 'gift'
   selected.value = gifts.value[0]?.seat ?? selected.value
 }
+function showKill() {
+  mode.value = 'kill'
+  selected.value = killFocusSeat(props.transfers)
+}
 function inspect(from: number, to: number) {
-  emit('inspect', { from, to, account: mode.value === 'gift' ? '见面礼' : undefined })
+  emit('inspect', {
+    from,
+    to,
+    account: mode.value === 'kill' ? '杀报加分' : mode.value === 'gift' ? '见面礼' : undefined,
+  })
 }
 const others = computed(() => [0, 1, 2, 3].filter((seat) => seat !== selected.value))
 const position = (seat: number) =>
@@ -42,17 +64,35 @@ function path(from: number, to: number) {
 const avatar = (player: GamePlayer) =>
   displayImageSrc(props.themeName === 'llmAnime' ? animeAvatarForPlayer(player) : player.avatar)
 const label = (from: number, to: number, amount: number) =>
-  `${props.players[from].name}向${props.players[to].name}${mode.value === 'gift' ? '支付见面礼' : '净付'}${amount}分`
+  `${props.players[from].name}向${props.players[to].name}${mode.value === 'kill' ? '额外支付杀报款' : mode.value === 'gift' ? '支付见面礼' : '净付'}${amount}分`
 </script>
 <template>
-  <section class="yaotong-payment-map" :class="{ 'gift-mode': mode === 'gift' }" aria-label="本局分数流向">
+  <section
+    class="yaotong-payment-map"
+    :class="{ 'gift-mode': mode === 'gift', 'kill-mode': mode === 'kill' }"
+    :style="{ '--kill-ink': themeName === 'rosewood' ? '#226e74' : '#a0e9e4', '--kill-loss-ink': themeName === 'rosewood' ? '#9b3652' : '#f0a5b6' }"
+    aria-label="本局分数流向"
+  >
     <header>
-      <span v-if="gifts.length" class="payment-modes" role="group" aria-label="收付分项">
+      <span v-if="gifts.length || kills.length" class="payment-modes" role="group" aria-label="收付分项">
         <button :aria-pressed="mode === 'net'" :class="{ selected: mode === 'net' }" @click="mode = 'net'">
           净收付
         </button>
-        <button :aria-pressed="mode === 'gift'" :class="{ selected: mode === 'gift' }" @click="showGift">
+        <button
+          v-if="gifts.length"
+          :aria-pressed="mode === 'gift'"
+          :class="{ selected: mode === 'gift' }"
+          @click="showGift"
+        >
           见面礼
+        </button>
+        <button
+          v-if="kills.length"
+          :aria-pressed="mode === 'kill'"
+          :class="{ selected: mode === 'kill' }"
+          @click="showKill"
+        >
+          杀报
         </button>
       </span>
       <span v-else>本局净收付</span
@@ -127,6 +167,8 @@ const label = (from: number, to: number, amount: number) =>
           selected: seat === selected,
           burned: burnedSeats?.includes(seat),
           gifted: gifts.some((gift) => gift.seat === seat),
+          'killed-report': killPaid(seat) > 0,
+          'kill-winner': killEarned(seat) > 0,
         }"
       >
         <circle r="22" />
@@ -137,6 +179,12 @@ const label = (from: number, to: number, amount: number) =>
           width="40"
           height="40"
           clip-path="url(#yaotong-pay-avatar)"
+        />
+        <path
+          v-if="killPaid(seat)"
+          class="map-report-break"
+          d="M-17 -16 L0 -1 L-4 3 L17 16 M0 -1 L9 -14"
+          aria-hidden="true"
         />
         <text y="37" text-anchor="middle">{{ p.name }}</text>
         <g v-if="burnedSeats?.includes(seat)" class="map-burn-mark" :aria-label="`${p.name}烧鸡`">
@@ -150,7 +198,23 @@ const label = (from: number, to: number, amount: number) =>
           :aria-label="`${p.name}见面礼${gifts.find((gift) => gift.seat === seat)!.amount}分`"
         >
           <title>见面礼</title>
-          <text x="30" y="5">礼 +{{ gifts.find((gift) => gift.seat === seat)!.amount }}</text>
+          <text x="30" :y="killPaid(seat) || killEarned(seat) ? -3 : 5">
+            礼 +{{ gifts.find((gift) => gift.seat === seat)!.amount }}
+          </text>
+        </g>
+        <g
+          v-if="killPaid(seat) || killEarned(seat)"
+          class="map-kill-mark"
+          :class="{ debit: killPaid(seat) > 0 }"
+          :aria-label="
+            killPaid(seat)
+              ? `${p.name}被杀报，额外支付${killPaid(seat)}分`
+              : `${p.name}杀报额外收取${killEarned(seat)}分`
+          "
+        >
+          <text x="30" :y="gifts.some((gift) => gift.seat === seat) ? 13 : 5">
+            {{ killPaid(seat) ? `被杀报 −${killPaid(seat)}` : `杀报 +${killEarned(seat)}` }}
+          </text>
         </g>
       </g>
       <text v-if="!edges.length" class="no-payments" x="300" y="92" text-anchor="middle">无收付</text>
@@ -194,6 +258,32 @@ const label = (from: number, to: number, amount: number) =>
 }
 .gift-mode .payment-edge {
   color: #e6bf6f;
+}
+.kill-mode .payment-edge {
+  color: var(--kill-ink);
+}
+.payment-player.killed-report > circle {
+  stroke: var(--kill-loss-ink);
+  stroke-width: 3;
+}
+.payment-player.kill-winner > circle {
+  stroke: var(--kill-ink);
+  stroke-width: 3;
+}
+.map-report-break {
+  fill: none;
+  stroke: #f6a1b4;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.payment-player .map-kill-mark text {
+  fill: var(--kill-ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+.payment-player .map-kill-mark.debit text {
+  fill: var(--kill-loss-ink);
 }
 .payment-player.gifted > circle {
   stroke: #e6bf6f;

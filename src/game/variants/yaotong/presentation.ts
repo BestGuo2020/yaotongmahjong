@@ -9,6 +9,7 @@ export interface SeatStatus {
   giftAmount?: number
   winPattern?: string
   killed?: boolean
+  killedAmount?: number
 }
 export interface ChickenCue {
   id: number
@@ -39,18 +40,53 @@ export interface SettlementCue {
   burned: number[]
   gifts: GiftAward[]
   payments: PaymentEdge[]
+  kills: PaymentEdge[]
 }
 
-/** Gift transfers are their own account, never an extra copy of the net round payment. */
-export function giftPayments(transfers: readonly Transfer[]): PaymentEdge[] {
+/** Account transfers retain their direction and final dice-adjusted amount; no net/H duplication. */
+export function accountPayments(transfers: readonly Transfer[], account: Account): PaymentEdge[] {
   const grouped = new Map<string, PaymentEdge>()
   for (const t of transfers) {
-    if (t.account !== '见面礼' || t.amount <= 0 || t.from === t.to) continue
+    if (t.account !== account || t.amount <= 0 || t.from === t.to) continue
     const key = `${t.from}/${t.to}`
     const amount = (grouped.get(key)?.amount ?? 0) + t.amount
-    grouped.set(key, { from: t.from, to: t.to, amount, parts: [{ account: '见面礼', amount }] })
+    grouped.set(key, { from: t.from, to: t.to, amount, parts: [{ account, amount }] })
   }
   return [...grouped.values()]
+}
+
+export const giftPayments = (transfers: readonly Transfer[]) => accountPayments(transfers, '见面礼')
+export const killPayments = (transfers: readonly Transfer[]) => accountPayments(transfers, '杀报加分')
+
+export function killFocusSeat(transfers: readonly Transfer[]): number {
+  const payments = killPayments(transfers)
+  return (new Set(payments.map((payment) => payment.to)).size > 1 ? payments[0]?.from : payments[0]?.to) ?? 0
+}
+
+export function reportKillTotals(transfers: readonly Transfer[]) {
+  const totals = new Map<number, { seat: number; paid: number; received: number }>()
+  for (const payment of killPayments(transfers)) {
+    for (const seat of [payment.from, payment.to])
+      if (!totals.has(seat)) totals.set(seat, { seat, paid: 0, received: 0 })
+    totals.get(payment.from)!.paid += payment.amount
+    totals.get(payment.to)!.received += payment.amount
+  }
+  return [...totals.values()]
+}
+
+export const SETTLEMENT_FLIGHT_MS = 720
+export interface SettlementFlight extends PaymentEdge {
+  kind: 'gift' | 'kill'
+  delayMs: number
+}
+export function settlementFlights(cue: SettlementCue): SettlementFlight[] {
+  const entries = [
+    ...(cue.kills ?? []).map((payment) => ({ ...payment, kind: 'kill' as const })),
+    ...cue.payments.map((payment) => ({ ...payment, kind: 'gift' as const })),
+  ]
+  // Even mixed gift/kill effects must arrive and show their totals inside the existing 1500ms reveal.
+  const gap = Math.min(120, 300 / Math.max(1, entries.length - 1))
+  return entries.map((payment, index) => ({ ...payment, delayMs: index * gap }))
 }
 
 export function giftAwards(transfers: readonly Transfer[]): GiftAward[] {
@@ -64,8 +100,9 @@ export function settlementCue(state: GameState | null, id: number): SettlementCu
   if (!state || !result || result.kind === 'penalty') return null
   const burned = result.kind === 'win' ? state.players.flatMap((p, seat) => (p.burned ? [seat] : [])) : []
   const gifts = giftAwards(result.transfers)
-  return burned.length || gifts.length
-    ? { id, burned, gifts, payments: giftPayments(result.transfers) }
+  const kills = result.kind === 'win' ? killPayments(result.transfers) : []
+  return burned.length || gifts.length || kills.length
+    ? { id, burned, gifts, payments: giftPayments(result.transfers), kills }
     : null
 }
 

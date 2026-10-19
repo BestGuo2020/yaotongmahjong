@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import type { GamePlayer } from '../../game/core/contracts/types'
-import type { SettlementCue } from '../../game/variants/yaotong/presentation'
+import {
+  SETTLEMENT_FLIGHT_MS,
+  settlementFlights,
+  type SettlementCue,
+} from '../../game/variants/yaotong/presentation'
 
 const props = defineProps<{ cue: SettlementCue; players: GamePlayer[] }>()
 const root = ref<HTMLElement | null>(null)
@@ -45,16 +49,29 @@ onBeforeUnmount(() => {
 })
 watch(() => props.cue.id, measure, { flush: 'post' })
 const effects = computed(() =>
-  [...new Set([...props.cue.burned, ...props.cue.gifts.map((gift) => gift.seat)])]
+  [
+    ...new Set([
+      ...props.cue.burned,
+      ...props.cue.gifts.map((gift) => gift.seat),
+      ...(props.cue.kills ?? []).flatMap((kill) => [kill.from, kill.to]),
+    ]),
+  ]
     .map((seat) => ({
       seat,
       burned: props.cue.burned.includes(seat),
       amount: props.cue.gifts.find((gift) => gift.seat === seat)?.amount ?? 0,
+      killPaid: (props.cue.kills ?? [])
+        .filter((kill) => kill.from === seat)
+        .reduce((sum, kill) => sum + kill.amount, 0),
+      killEarned: (props.cue.kills ?? [])
+        .filter((kill) => kill.to === seat)
+        .reduce((sum, kill) => sum + kill.amount, 0),
     }))
     .filter((effect) => anchors.value[effect.seat]),
 )
+const plannedFlights = computed(() => settlementFlights(props.cue))
 const payments = computed(() =>
-  props.cue.payments.flatMap((payment) => {
+  plannedFlights.value.flatMap((payment) => {
     const from = anchors.value[payment.from],
       to = anchors.value[payment.to]
     if (!from || !to) return []
@@ -64,13 +81,25 @@ const payments = computed(() =>
     const inset = Math.min(30, length / 4)
     const start = { x: from.x + (dx / length) * inset, y: from.y + (dy / length) * inset }
     const end = { x: to.x - (dx / length) * inset, y: to.y - (dy / length) * inset }
-    const middle = { x: (start.x + end.x) / 2 - dy * 0.08, y: (start.y + end.y) / 2 + dx * 0.08 }
+    // A gift and kill fee can travel between the same two players, even in opposite directions.
+    // Bend against a canonical seat order so their account lines never collapse onto one another.
+    const mixedPair = plannedFlights.value.some(
+      (other) =>
+        other.kind !== payment.kind &&
+        ((other.from === payment.from && other.to === payment.to) ||
+          (other.from === payment.to && other.to === payment.from)),
+    )
+    const bend = mixedPair
+      ? (payment.from < payment.to ? 1 : -1) * (payment.kind === 'kill' ? -0.14 : 0.14)
+      : 0.08
+    const control = { x: (start.x + end.x) / 2 - dy * bend, y: (start.y + end.y) / 2 + dx * bend }
+    const middle = { x: (start.x + 2 * control.x + end.x) / 4, y: (start.y + 2 * control.y + end.y) / 4 }
     return [
       {
         ...payment,
         start,
         middle,
-        path: `M ${start.x} ${start.y} Q ${middle.x} ${middle.y} ${end.x} ${end.y}`,
+        path: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`,
       },
     ]
   }),
@@ -79,16 +108,25 @@ const position = (seat: number) => ({
   left: `${anchors.value[seat].x}px`,
   top: `${anchors.value[seat].y}px`,
   '--card-bottom': `${anchors.value[seat].cardBottom}px`,
-  '--credit-delay': `${0.72 + Math.max(0, ...props.cue.payments.flatMap((payment, index) => (payment.to === seat ? [index] : []))) * 0.12}s`,
+  '--gift-credit-delay': `${SETTLEMENT_FLIGHT_MS + Math.max(0, ...plannedFlights.value.filter((p) => p.to === seat && p.kind === 'gift').map((p) => p.delayMs))}ms`,
+  '--kill-credit-delay': `${SETTLEMENT_FLIGHT_MS + Math.max(0, ...plannedFlights.value.filter((p) => p.to === seat && p.kind === 'kill').map((p) => p.delayMs))}ms`,
 })
 </script>
 
 <template>
   <div ref="root" class="yaotong-settlement-effects" :data-settlement-cue="cue.id">
-    <svg v-if="payments.length" class="gift-flights" :viewBox="`0 0 ${size.width} ${size.height}`" role="group" aria-label="见面礼付款方向">
+    <svg
+      v-if="payments.length"
+      class="gift-flights"
+      :viewBox="`0 0 ${size.width} ${size.height}`"
+      role="group"
+      aria-label="分项付款方向"
+    >
       <defs>
         <marker
-          :id="`gift-arrow-${cue.id}`"
+          v-for="kind in ['gift', 'kill']"
+          :key="kind"
+          :id="`${kind}-arrow-${cue.id}`"
           viewBox="0 0 8 8"
           refX="7"
           refY="4"
@@ -96,34 +134,59 @@ const position = (seat: number) => ({
           markerHeight="5"
           orient="auto"
         >
-          <path d="M0 0 L8 4 L0 8 Z" fill="#f3ce78" />
+          <path d="M0 0 L8 4 L0 8 Z" :fill="kind === 'kill' ? '#81e2e2' : '#f3ce78'" />
         </marker>
       </defs>
       <g
-        v-for="(payment, index) in payments"
-        :key="`${cue.id}/${payment.from}/${payment.to}`"
+        v-for="payment in payments"
+        :key="`${cue.id}/${payment.kind}/${payment.from}/${payment.to}`"
+        :class="`flight-${payment.kind}`"
+        :data-flight-kind="payment.kind"
         :data-from="payment.from"
         :data-to="payment.to"
         :data-amount="payment.amount"
-        :aria-label="`${players[payment.from]?.name}向${players[payment.to]?.name}支付见面礼${payment.amount}分`"
+        :aria-label="`${players[payment.from]?.name}向${players[payment.to]?.name}${payment.kind === 'kill' ? '额外支付杀报款' : '支付见面礼'}${payment.amount}分`"
         role="img"
       >
-        <path class="gift-trail" :d="payment.path" :marker-end="`url(#gift-arrow-${cue.id})`" />
-        <text class="gift-debit" :x="payment.start.x" :y="payment.start.y - 12">−{{ payment.amount }}</text>
-        <g class="gift-packet" :style="{ '--flight-delay': `${index * 0.12}s` }">
-          <rect x="-27" y="-15" width="54" height="30" rx="15" />
-          <text text-anchor="middle" y="5">{{ payment.amount }}</text>
+        <path class="gift-trail" :d="payment.path" :marker-end="`url(#${payment.kind}-arrow-${cue.id})`" />
+        <text
+          v-if="payment.kind === 'gift'"
+          class="gift-debit"
+          :x="payment.start.x"
+          :y="payment.start.y - 12"
+        >
+          −{{ payment.amount }}
+        </text>
+        <g class="gift-packet" :style="{ '--flight-delay': `${payment.delayMs}ms` }">
+          <rect
+            :x="payment.kind === 'kill' ? -39 : -27"
+            y="-15"
+            :width="payment.kind === 'kill' ? 78 : 54"
+            height="30"
+            rx="15"
+          />
+          <text text-anchor="middle" y="5">
+            {{ payment.kind === 'kill' ? '杀报 ' : '' }}{{ payment.amount }}
+          </text>
           <animateMotion
             :path="payment.path"
-            dur=".72s"
-            :begin="`${index * 0.12}s`"
+            :dur="`${SETTLEMENT_FLIGHT_MS}ms`"
+            :begin="`${payment.delayMs}ms`"
             fill="freeze"
             repeatCount="1"
           />
         </g>
         <g class="gift-static-amount" :transform="`translate(${payment.middle.x},${payment.middle.y})`">
-          <rect x="-27" y="-15" width="54" height="30" rx="15" />
-          <text text-anchor="middle" y="5">{{ payment.amount }}</text>
+          <rect
+            :x="payment.kind === 'kill' ? -39 : -27"
+            y="-15"
+            :width="payment.kind === 'kill' ? 78 : 54"
+            height="30"
+            rx="15"
+          />
+          <text text-anchor="middle" y="5">
+            {{ payment.kind === 'kill' ? '杀报 ' : '' }}{{ payment.amount }}
+          </text>
         </g>
       </g>
     </svg>
@@ -132,15 +195,22 @@ const position = (seat: number) => ({
       :key="`${cue.id}/${effect.seat}`"
       class="seat-special-effect"
       :class="[
-        { burn: effect.burned, gift: effect.amount > 0 },
+        {
+          burn: effect.burned,
+          gift: effect.amount > 0,
+          'killed-report': effect.killPaid > 0,
+          'kill-credit-seat': effect.killEarned > 0,
+        },
         `from-${['bottom', 'right', 'top', 'left'][effect.seat]}`,
       ]"
       :style="position(effect.seat)"
       :data-effect-seat="effect.seat"
       :data-burned="effect.burned"
       :data-gift-amount="effect.amount"
+      :data-kill-paid="effect.killPaid"
+      :data-kill-earned="effect.killEarned"
       role="status"
-      :aria-label="`${players[effect.seat]?.name}${effect.burned ? '烧鸡，鸡分收益归零。' : ''}${effect.amount ? `获得见面礼${effect.amount}分` : ''}`"
+      :aria-label="`${players[effect.seat]?.name}${effect.burned ? '烧鸡，鸡分收益归零。' : ''}${effect.killPaid ? `被杀报，额外支付${effect.killPaid}分。` : ''}${effect.killEarned ? `杀报额外收取${effect.killEarned}分。` : ''}${effect.amount ? `获得见面礼${effect.amount}分` : ''}`"
     >
       <div class="seat-effect-ring" aria-hidden="true"></div>
       <svg v-if="effect.burned" class="burn-flame" viewBox="0 0 100 100" aria-hidden="true">
@@ -153,6 +223,10 @@ const position = (seat: number) => ({
           fill="#ffd187"
         />
       </svg>
+      <svg v-if="effect.killPaid" class="report-break" viewBox="0 0 100 100" aria-hidden="true">
+        <path class="report-break-slash" d="M12 15 L42 43 L35 49 L65 70 L88 86" />
+        <path class="report-break-cracks" d="M39 40 L55 19 M48 58 L28 82 M65 70 L81 55" />
+      </svg>
       <span
         v-for="n in 8"
         :key="n"
@@ -162,10 +236,18 @@ const position = (seat: number) => ({
       ></span>
       <div class="seat-effect-label">
         <strong v-if="effect.burned" class="burn-title">烧鸡</strong>
+        <div v-if="effect.killPaid" class="seat-account-total kill-debit">
+          <strong>被杀报</strong><b>−{{ effect.killPaid }}</b>
+        </div>
         <template v-if="effect.amount">
           <span class="gift-tiles" aria-hidden="true"><i v-for="n in 4" :key="n">◉</i></span>
-          <strong class="gift-title">见面礼</strong><b>+{{ effect.amount }}</b>
+          <div class="seat-account-total gift-total">
+            <strong class="gift-title">见面礼</strong><b>+{{ effect.amount }}</b>
+          </div>
         </template>
+        <div v-if="effect.killEarned" class="seat-account-total kill-credit">
+          <strong>杀报</strong><b>+{{ effect.killEarned }}</b>
+        </div>
       </div>
     </div>
   </div>
@@ -221,6 +303,83 @@ const position = (seat: number) => ({
 }
 .gift-static-amount {
   display: none;
+}
+.flight-kill .gift-trail {
+  stroke: #81e2e2;
+  stroke-dasharray: 3 4;
+  opacity: 0.85;
+}
+.flight-kill .gift-packet rect,
+.flight-kill .gift-static-amount rect {
+  fill: #164650;
+  stroke: #a5f3ed;
+}
+.flight-kill .gift-packet text,
+.flight-kill .gift-static-amount text {
+  fill: #e7fffa;
+  font-size: 15px;
+}
+.seat-special-effect.kill-credit-seat {
+  color: #81e2e2;
+}
+.seat-special-effect.killed-report {
+  color: #f1879d;
+}
+.report-break {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 5px #f1879d);
+}
+.report-break path {
+  fill: none;
+  stroke: #ffb9c6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.report-break-slash {
+  stroke-width: 6;
+  stroke-dasharray: 140;
+  animation: report-shatter 0.3s ease-out both;
+}
+.report-break-cracks {
+  stroke-width: 3;
+  animation: seat-label-in 0.3s 0.15s ease-out both;
+}
+.seat-account-total {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+.seat-account-total.kill-debit strong,
+.seat-account-total.kill-debit b {
+  color: #ffa3b6;
+}
+.seat-account-total.kill-credit strong,
+.seat-account-total.kill-credit b {
+  color: #a7f4ec;
+}
+.seat-account-total.kill-debit b {
+  animation: none;
+}
+.seat-account-total.gift-total b {
+  animation-delay: var(--gift-credit-delay, 0.72s);
+}
+.seat-account-total.kill-credit b {
+  animation-delay: var(--kill-credit-delay, 0.72s);
+}
+@keyframes report-shatter {
+  from {
+    stroke-dashoffset: 140;
+    opacity: 0.3;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
 }
 .seat-special-effect {
   position: absolute;
@@ -283,7 +442,7 @@ const position = (seat: number) => ({
   line-height: 1;
   font-variant-numeric: tabular-nums;
   color: #ffe6a2;
-  animation: gift-credit-in 0.25s var(--credit-delay, 0.72s) ease-out both;
+  animation: gift-credit-in 0.25s ease-out both;
 }
 .seat-effect-label .gift-title {
   color: #f2c76e;
@@ -304,6 +463,16 @@ const position = (seat: number) => ({
   left: calc(100% + 10px);
   top: 12px;
 }
+.killed-report.from-right .seat-effect-label,
+.kill-credit-seat.from-right .seat-effect-label {
+  top: calc(50% + var(--card-bottom) + 8px);
+  right: 0;
+}
+.killed-report.from-left .seat-effect-label,
+.kill-credit-seat.from-left .seat-effect-label {
+  top: calc(50% + var(--card-bottom) + 8px);
+  left: 0;
+}
 .from-top .seat-effect-label {
   top: calc(50% + var(--card-bottom) + 8px);
   left: 50%;
@@ -311,8 +480,7 @@ const position = (seat: number) => ({
 }
 .from-bottom .seat-effect-label {
   bottom: calc(100% + 10px);
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
 }
 .gift-tiles {
   display: flex;
@@ -441,6 +609,7 @@ const position = (seat: number) => ({
   .burn-flame,
   .seat-effect-label,
   .seat-effect-label b,
+  .report-break path,
   .gift-trail {
     animation: none;
   }

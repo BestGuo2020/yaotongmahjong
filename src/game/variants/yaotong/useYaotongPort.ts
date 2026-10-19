@@ -49,6 +49,7 @@ import {
   winningPattern,
   settlementCue as makeSettlementCue,
   giftAwards,
+  reportKillTotals,
   type SettlementCue,
   type ChickenCue,
   type YaotongTableView,
@@ -90,6 +91,7 @@ export function useYaotongPort(
   const declarationCues = shallowRef<TableDeclarationEvent[]>([])
   const settlementCue = shallowRef<SettlementCue | null>(null)
   const gifts = computed(() => giftAwards(local.state.value?.result?.transfers ?? []))
+  const reportKills = computed(() => reportKillTotals(local.state.value?.result?.transfers ?? []))
   const winDeclared = ref(false)
   let lastDeclarationSound = -Infinity
   const tableView = computed<YaotongTableView>(() => ({
@@ -99,11 +101,10 @@ export function useYaotongPort(
         burned: player.burned && revealHands.value,
         winner: winDeclared.value && Boolean(local.state.value?.result?.winners.includes(seat)),
         winPattern: winDeclared.value ? winningPattern(local.state.value?.result?.values[seat]) : undefined,
-        killed:
-          revealHands.value &&
-          Boolean(
-            local.state.value?.result?.transfers.some((t) => t.account === '杀报加分' && t.from === seat),
-          ),
+        killed: revealHands.value && reportKills.value.some((kill) => kill.seat === seat && kill.paid > 0),
+        killedAmount: revealHands.value
+          ? reportKills.value.find((kill) => kill.seat === seat)?.paid
+          : undefined,
         gift: revealHands.value && gifts.value.some((gift) => gift.seat === seat),
         giftAmount: revealHands.value ? gifts.value.find((gift) => gift.seat === seat)?.amount : undefined,
       })) ?? [],

@@ -15,13 +15,14 @@ defineProps<{ status?: SeatStatus; cue?: ChickenCue | null; name: string }>()
       :class="[status.declaration, { killed: status.killed }]"
       :title="
         status.killed
-          ? '被杀报，附加款已列入结算'
+          ? `被杀报，额外支付${status.killedAmount ?? 0}分`
           : status.declaration === 'original'
             ? '原报 · 已锁定听口'
             : '报听 · 已锁定听口'
       "
       :aria-label="`${name}${status.killed ? '被杀' : ''}${status.declaration === 'original' ? '原报' : '报听'}`"
-      >{{ status.declaration === 'original' ? '原报' : '报听' }}</span
+      ><span class="declaration-name">{{ status.declaration === 'original' ? '原报' : '报听' }}</span
+      ><b v-if="status.killed && status.killedAmount"> −{{ status.killedAmount }}</b></span
     >
     <span
       v-if="status.burned"
@@ -97,10 +98,18 @@ defineProps<{ status?: SeatStatus; cue?: ChickenCue | null; name: string }>()
   color: #ffe6a0 !important;
   box-shadow: 0 0 12px #e2ba5b44;
 }
-.declaration-seal.killed {
+.declaration-seal.killed .declaration-name {
   text-decoration: line-through;
   text-decoration-color: #ef947b;
-  opacity: 0.65;
+}
+.declaration-seal.killed {
+  border-color: #f18b9e;
+  color: #f4b5bf;
+  opacity: 0.85;
+}
+.declaration-seal.killed b {
+  color: #ff9eaf;
+  font-variant-numeric: tabular-nums;
 }
 .is-winner:after {
   content: '';
