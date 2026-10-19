@@ -15,6 +15,8 @@ const props = defineProps<{
   themeName: TableThemeName
   jokerTiles: TileType[]
   wildcardTiles: TileType[]
+  revealAll?: boolean
+  laiziOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -31,15 +33,16 @@ const rows = computed(() => props.frames
   .map((frame, index, list) => {
     const step = frame.step!
     const heavy = step.t === 'meld' || step.t === 'win'
+    const concealedDraw = props.revealAll === false && step.t === 'draw' && !frame.actorIsLocal
     return {
       index: frame.index,
       turn: frame.turn,
       showTurn: index === 0 || list[index - 1].turn !== frame.turn,
       seat: step.seat,
       name: props.names[step.seat] ?? `座位${step.seat + 1}`,
-      label: stepSummary(step),
+      label: concealedDraw ? (step.fromTail ? '补牌（暗牌）' : '摸牌（暗牌）') : stepSummary(step),
       badge: step.t === 'win' ? '胡' : step.t === 'meld' ? meldLabel(step.kind) : '',
-      tile: step.t === 'draw' || step.t === 'discard' || heavy ? step.tile : undefined,
+      tile: !concealedDraw && (step.t === 'draw' || step.t === 'discard' || heavy) ? step.tile : undefined,
       kind: step.t,
       heavy,
       local: frame.actorIsLocal,
@@ -100,6 +103,7 @@ watch(() => props.frameIndex, (index) => {
               <MahjongTile
                 v-if="row.tile" :tile="row.tile" :theme-name="themeName" small disabled
                 :joker-tiles="jokerTiles" :wildcard-tiles="wildcardTiles"
+                :laizi-only="laiziOnly"
               />
             </button>
           </li>

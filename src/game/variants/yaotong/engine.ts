@@ -3,6 +3,17 @@ import { settle, type Ending } from './settlement'
 import { breakWall, countsOf, isChicken, isFixed, shuffledWall, sortHand, tileName, YAO } from './tiles'
 import type { ActionOptions, Command, GameEvent, GameState, Player, Seat, Tile } from './types'
 
+type EventObserver = (state: GameState, event: GameEvent) => void
+const eventObservers = new WeakMap<GameState, EventObserver>()
+/** Recording is optional and failure-isolated; observers must not mutate the live state. */
+export function observeGameEvents(state: GameState, observer: EventObserver) {
+  eventObservers.set(state, observer)
+  return () => { if (eventObservers.get(state) === observer) eventObservers.delete(state) }
+}
+function notifyEvent(state: GameState, value: GameEvent) {
+  try { eventObservers.get(state)?.(state, value) } catch { /* Recording must never interrupt a hand. */ }
+}
+
 /** Optional presentation boundaries. Headless rules stay synchronous and deterministic. */
 export type FlowStep =
   | 'first-draw'
@@ -103,9 +114,13 @@ function event(
   text: string,
   tile?: Tile,
   details?: Pick<GameEvent, 'chicken' | 'rush'>,
+  notify = true,
 ) {
-  state.events.push({ id: ++state.serial, seat, kind, text, tile, ...details })
+  const value = { id: ++state.serial, seat, kind, text, tile, ...details }
+  state.events.push(value)
   if (state.events.length > 80) state.events.shift()
+  if (notify) notifyEvent(state, value)
+  return value
 }
 
 function finish(state: GameState, ending: Ending) {
@@ -445,7 +460,7 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
   p.drawn = null
   p.afterKong = false
   if (isChicken(tile)) p.chickenDiscard = true
-  event(
+  const discardedEvent = event(
     state,
     seat,
     'discard',
@@ -454,9 +469,11 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
       : `打出${tileName(tile)}`,
     tile,
     { chicken, rush: stage },
+    false,
   )
   const discard = { tile, chicken, stage, pre, id: state.serial }
   p.river.push(discard)
+  notifyEvent(state, discardedEvent)
   // Judge the actual discard before opening responses. Listening status for B is now unambiguous.
   if (illegalChickenDiscard) {
     penalty(state, seat, '同巡碰鸡后打鸡')

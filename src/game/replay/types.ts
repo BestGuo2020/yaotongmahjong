@@ -6,9 +6,12 @@ import type { RoundResult } from '../core/contracts/gamePort'
 import type { GamePlayer, MatchType, Meld, TableActionType, TileType } from '../core/contracts/types'
 import type { RuleVariant } from '../core/rules/ruleVariants'
 import type { TableThemeName } from '../../theme/themeIdentity'
+import type { GameState as YaotongState } from '../variants/yaotong/types'
+import type { SeatStatus } from '../variants/yaotong/presentation'
+import type { YaotongMode } from '../variants/yaotong/mode'
 
-/** 结构版本：字段不兼容变更时递增，旧记录按版本丢弃。 */
-export const REPLAY_SCHEMA_VERSION = 1
+/** v2 adds authoritative checkpoints and Yaotong data; v1 records remain readable. */
+export const REPLAY_SCHEMA_VERSION = 2
 /** 本地保留上限（场），超出按开始时间淘汰最旧。 */
 export const REPLAY_MAX_MATCHES = 50
 
@@ -23,7 +26,7 @@ export interface ReplayPlayer {
   startScore: number
 }
 
-export type ReplayStepKind = 'draw' | 'discard' | 'meld' | 'win'
+export type ReplayStepKind = 'draw' | 'discard' | 'meld' | 'win' | 'ready' | 'notice'
 
 export type ReplayMeldKind =
   | 'peng' | 'chi'
@@ -40,6 +43,9 @@ export interface ReplaySeatState {
 }
 
 export interface ReplayStep {
+  /** Authoritative full checkpoint for engines whose one action can change several seats. */
+  snapshot?: ReplayAnchor
+  text?: string
   t: ReplayStepKind
   /** 动作发起者（绝对座位）。 */
   seat: number
@@ -66,6 +72,7 @@ export interface ReplayStep {
 }
 
 export interface ReplayAnchor {
+  yaotongSeats?: SeatStatus[]
   hands: TileType[][]
   melds: Meld[][]
   discards: TileType[][]
@@ -78,6 +85,8 @@ export interface ReplayAnchor {
 }
 
 export interface ReplayRoundFinal {
+  /** Original terminal state: exact chicken, penalty and payment details, without re-scoring. */
+  yaotongState?: YaotongState
   hands: TileType[][]
   melds: Meld[][]
   discards: TileType[][]
@@ -97,6 +106,7 @@ export interface ReplayRoundFinal {
 }
 
 export interface ReplayRound {
+  wallTotal?: number
   id: string
   matchId: string
   /** 场次内第几局（1 起，连庄也算新的一局）。 */
@@ -131,6 +141,7 @@ export interface ReplayStanding {
 }
 
 export interface ReplayMatch {
+  yaotongMode?: YaotongMode
   id: string
   schemaVersion: number
   rulesetId: RuleVariant
@@ -165,6 +176,11 @@ export interface ReplayMatch {
  * 各引擎按自身能力填字段（莲花麻将多翻精/精牌，血流留待后续接入）。
  */
 export interface ReplayFrameSource {
+  matchName?: string
+  roundLabel?: string
+  wallTotal?: number
+  yaotongSeats?: SeatStatus[]
+  yaotongState?: YaotongState
   players: GamePlayer[]
   wallLeft: number
   headDrawn: number
@@ -186,6 +202,8 @@ export interface ReplayFrameSource {
 
 /** 引擎侧需要回调的录制接口；useGame / lotusGame / 血流按需调用。 */
 export interface ReplayRecorderHooks {
+  /** Snapshot-based engines can report every authoritative event without renderer timing. */
+  step?(event: Pick<ReplayStep, 't' | 'seat' | 'tile' | 'kind' | 'from' | 'actionType' | 'meldIndex' | 'fromTail' | 'lastDiscardId' | 'text'>, frame: ReplayFrameSource): void
   roundStart(frame: ReplayFrameSource): void
   draw(event: { seat: number; tile: TileType; fromTail: boolean }, frame: ReplayFrameSource): void
   discard(event: { seat: number; tile: TileType; id: number }, frame: ReplayFrameSource): void

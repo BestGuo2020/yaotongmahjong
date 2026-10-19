@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import GameShellHeader from './components/shell/GameShellHeader.vue'
 import OrientationGate from './components/shell/OrientationGate.vue'
 import GameTableHud from './components/table/GameTableHud.vue'
@@ -16,8 +16,15 @@ import { themePresentationByName, themePresentationCssVariables } from './theme/
 import { readAnimeCharacterPreference, saveAnimeCharacterPreference } from './game/llm/animeCharacterPreference'
 import type { CharacterId } from './game/llm/animeCharacters'
 import { preloadAnimeCharacterAssets } from './game/core/presentation/llmAnimeAssets'
+import { useReplayRecorder } from './game/replay/useReplayRecorder'
+import type { ReplayMatch, ReplayRound } from './game/replay/types'
 
 const RulesPanel = defineAsyncComponent(() => import('./components/RulesPanel.vue'))
+const ReplayListView = defineAsyncComponent(() => import('./components/replay/ReplayListView.vue'))
+const ReplayViewer = defineAsyncComponent(() => import('./components/replay/ReplayViewer.vue'))
+const replayOpen = ref(false)
+const replayView = shallowRef<{ match: ReplayMatch; rounds: ReplayRound[] } | null>(null)
+const replayNotice = ref('')
 const rulesOpen = ref(false)
 const resultVisible = ref(true)
 const gameTableReady = ref(false)
@@ -64,7 +71,12 @@ watch(animeCharacterId, saveAnimeCharacterPreference)
 watch(tableThemeName, (theme) => {
   if (theme === 'llmAnime') void preloadAnimeCharacterAssets()
 }, { immediate: true })
+const replay = useReplayRecorder({ meta: () => ({
+  rulesetId: 'yaotong', rulesetName: '幺筒麻将', themeName: tableThemeName.value,
+  humanSeat: 0, yaotongMode: yaotongGame.local.mode.value,
+}) })
 const yaotongGame = useYaotongPort({
+  recorder: replay.hooks,
   playSound: playEffect,
   playSoundAndWait: playEffectAndWait,
   getCharacterId: () => animeCharacterId.value,
@@ -89,8 +101,22 @@ watch([rulesOpen, () => yaotongGame.openingActive.value], ([open, opening]) => {
   if (!opening) yaotongGame.local.paused.value = open
 })
 watch(result, (value) => { resultVisible.value = Boolean(value) })
-watch(showLobby, (lobby) => { if (lobby) resetTableReady() })
+watch(showLobby, (lobby) => { if (lobby) { resetTableReady(); replay.finishAuto() } })
+watch(matchFinished, (finished) => { if (finished) replay.finishAuto() })
+onBeforeUnmount(() => replay.finishAuto())
 onBeforeUnmount(resetTableReady)
+
+async function showReplayList() {
+  replayNotice.value = ''
+  await replay.flush()
+  replayOpen.value = true
+}
+async function openReplay(id: string) {
+  const [match, rounds] = await Promise.all([replay.storage.loadMatch(id), replay.storage.loadRounds(id)])
+  if (!match || !rounds.length) { replayNotice.value = '这场回放暂无可读取的牌局，请重新打开列表。'; return }
+  replayOpen.value = false
+  replayView.value = { match, rounds }
+}
 
 function startGameWithAudio() {
   resetTableReady()
@@ -121,7 +147,7 @@ function changeTableTheme(theme: TableThemeName) {
     :data-theme-loading="themePresentation.presentation.loading"
     :style="themePresentationStyle"
   >
-    <div :class="{ 'has-three-scene': players.length }">
+    <div v-if="!replayView" :class="{ 'has-three-scene': players.length }">
       <GameShellHeader game-mode="local" :phase="phase" :has-players="Boolean(players.length)"
         :match-name="matchName" :round-label="roundLabel" :honba="honba" :base-score="5"
         room-id="" :signal-quality="3" :theme-name="tableThemeName"
@@ -196,7 +222,7 @@ function changeTableTheme(theme: TableThemeName) {
       <LobbyView v-if="showLobby" v-model:yaotong-length="yaotongGame.length.value"
         v-model:yaotong-mode="yaotongGame.local.mode.value"
         v-model:anime-character-id="animeCharacterId" :table-theme-name="tableThemeName"
-        @start-local="startGameWithAudio" @open-rules="rulesOpen = true"
+        @start-local="startGameWithAudio" @open-rules="rulesOpen = true" @open-replay="showReplayList"
       />
       <SettlementOverlay
         v-model:result-visible="resultVisible"
@@ -223,5 +249,9 @@ function changeTableTheme(theme: TableThemeName) {
 
     </div>
     <RulesPanel :open="rulesOpen" @close="rulesOpen = false" />
+    <ReplayListView v-model:open="replayOpen" :storage="replay.storage" :available="replay.available.value"
+      :notice="replayNotice" @view="openReplay" />
+    <ReplayViewer v-if="replayView" :match="replayView.match" :rounds="replayView.rounds"
+      back-label="← 返回回放列表" @close="replayView = null; replayOpen = true" />
   </main>
 </template>

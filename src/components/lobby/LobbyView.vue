@@ -22,6 +22,7 @@ defineEmits<{
   'update:animeCharacterId': [value: CharacterId]
   startLocal: []
   openRules: []
+  openReplay: []
 }>()
 const dialog = ref<'match' | 'mode' | 'character' | null>(null)
 const mode = ref<'local' | 'multiplayer'>('local')
@@ -60,6 +61,7 @@ const matchOption = computed(() => ({
           <p>好友同桌功能正在开发，敬请期待。</p>
         </section>
         <div class="lobby-links">
+          <button class="text-button" data-action-role="light" @click="$emit('openReplay')">对局回放 →</button>
           <button class="text-button" data-action-role="light" @click="$emit('openRules')">游戏规则 →</button>
         </div>
       </section>

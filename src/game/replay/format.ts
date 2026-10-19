@@ -2,6 +2,7 @@
 import type { MatchType, TileType } from '../core/contracts/types'
 import { tileName } from '../core/rules/tiles'
 import type { ReplayMatch, ReplayMeldKind, ReplayPlayer, ReplayRound, ReplayRoundFinal, ReplayStep } from './types'
+import { settlementTitle } from '../variants/yaotong/presentation'
 import { REPLAY_SCHEMA_VERSION } from './types'
 
 const pad = (value: number) => String(value).padStart(2, '0')
@@ -79,6 +80,7 @@ export function meldLabel(kind?: ReplayMeldKind): string {
 
 /** 牌谱事件一句话文案（不含玩家名，玩家名由组件按座位拼）。 */
 export function stepSummary(step: ReplayStep): string {
+  if (step.text) return step.text
   const tile = step.tile ? tileName(step.tile) : ''
   switch (step.t) {
     case 'draw':
@@ -115,6 +117,11 @@ export function replayMatchSummary(
     undefined,
   )
   if (!last?.final) return ''
+  if (last.final.yaotongState?.result) {
+    const result = last.final.yaotongState.result
+    const names = result.winners.map((seat) => players[seat]?.name ?? '').join('、')
+    return `${last.roundLabel} ${names ? `${names} · ` : ''}${settlementTitle(result)}`
+  }
   if (last.final.draw) return `${last.roundLabel} 荒庄`
   const winner = last.final.winSeat
   if (winner == null) return `${last.roundLabel} 本局结束`

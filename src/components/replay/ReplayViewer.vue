@@ -4,6 +4,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import MahjongTable3D from '../MahjongTable3D.vue'
 import MahjongTile from '../MahjongTile.vue'
+import YaotongLedger from '../yaotong/YaotongLedger.vue'
+import YaotongSeatMarker from '../yaotong/YaotongSeatMarker.vue'
+import { settlementTitle } from '../../game/variants/yaotong/presentation'
+import { YAOTONG_MODES } from '../../game/variants/yaotong/mode'
 import ReplayEventLog from './ReplayEventLog.vue'
 import ReplayInfoBoard from './ReplayInfoBoard.vue'
 import ReplayTimeline from './ReplayTimeline.vue'
@@ -15,7 +19,7 @@ import { themePresentationByName, themePresentationCssVariables } from '../../th
 import type { ReplayMatch, ReplayRound } from '../../game/replay/types'
 import type { TileType } from '../../game/core/contracts/types'
 
-const props = defineProps<{ match: ReplayMatch; rounds: ReplayRound[] }>()
+const props = defineProps<{ match: ReplayMatch; rounds: ReplayRound[]; backLabel?: string }>()
 const emit = defineEmits<{ close: [] }>()
 
 const player = useReplayPlayer({
@@ -28,6 +32,10 @@ const themeStyle = computed(() => themePresentationCssVariables(themePresentatio
 const names = computed(() => props.match.players.map((entry) => entry.name))
 const round = player.round
 const frame = player.frame
+const infoExpanded = ref(false)
+const ledgerDialog = ref<HTMLDialogElement | null>(null)
+watch([player.frameIndex, player.roundIndex], () => ledgerDialog.value?.close())
+const ledgerPlayers = computed(() => [...(frame.value?.table.players ?? [])].sort((a, b) => a.seat - b.seat))
 
 /** 本家身份（头像/昵称）：与对局时一致的展示。 */
 const humanName = computed(() => props.match.players[props.match.humanSeat]?.name ?? '本家')
@@ -53,6 +61,11 @@ const resultBanner = computed(() => {
   if (!current?.settled || !activeRound?.final) return ''
   const final = activeRound.final
   const head = `${activeRound.roundLabel} · `
+  if (final.yaotongState?.result) {
+    const outcome = final.yaotongState.result
+    const winners = outcome.winners.map((seat) => props.match.players[seat]?.name ?? '').join('、')
+    return `${head}${winners ? `${winners} · ` : ''}${settlementTitle(outcome)}`
+  }
   if (final.draw) return `${head}荒庄`
   // 血流一局可能多次胡牌，没有单一赢家：只报「本局结束」，各家胡牌次数由结算帧分数与牌谱体现。
   if (final.winSeat == null) return `${head}本局结束`
@@ -67,6 +80,7 @@ function jokerTileList(): TileType[] {
 }
 
 function onKeydown(event: KeyboardEvent) {
+  if (ledgerDialog.value?.open) return
   const target = event.target as HTMLElement | null
   if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return
   switch (event.key) {
@@ -119,10 +133,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
     <header class="replay-topbar">
       <button type="button" class="replay-back" data-action-role="secondary" @click="emit('close')">
-        ← 返回大厅
+        {{ backLabel ?? '← 返回大厅' }}
       </button>
       <div class="replay-title">
         <strong>{{ match.rulesetName }}</strong>
+        <span v-if="match.yaotongMode">{{ YAOTONG_MODES[match.yaotongMode]?.name }}</span>
         <span>{{ match.matchName }} · {{ round?.roundLabel ?? '' }}</span>
         <i v-if="match.status === 'finished'" class="replay-rank" :class="`rank-${match.myRank}`">
           {{ formatRank(match.myRank) }}
@@ -130,6 +145,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <i v-else class="replay-rank aborted">未完成</i>
       </div>
       <div class="replay-view-mode">
+        <button v-if="frame?.settled && round?.final?.yaotongState" class="replay-view-toggle"
+          @click="player.pause(); ledgerDialog?.showModal()">结算明细</button>
         <span class="replay-theme-name" :title="`对局使用主题：${match.themeName}`">主题 {{ match.themeName }}</span>
         <button
           type="button" class="replay-view-toggle" data-action-role="secondary"
@@ -140,7 +157,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       </div>
     </header>
 
-    <ReplayInfoBoard :match="match" :round="round" :frame="frame" />
+    <ReplayInfoBoard :match="match" :round="round" :frame="frame" :result-label="resultBanner" @expanded="infoExpanded = $event" />
 
     <ReplayEventLog
       :frames="player.frames.value"
@@ -149,12 +166,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       :theme-name="match.themeName"
       :joker-tiles="jokerTileList()"
       :wildcard-tiles="round?.wildcardTiles ?? []"
+      :reveal-all="player.revealAll.value"
+      :laizi-only="match.rulesetId === 'yaotong'"
       @jump="player.seek"
       @action="player.jumpAction"
     />
 
     <Transition name="announce">
-      <p v-if="resultBanner" class="replay-result" data-testid="replay-result">{{ resultBanner }}</p>
+      <p v-if="resultBanner && !infoExpanded" class="replay-result" data-testid="replay-result">{{ resultBanner }}</p>
     </Transition>
 
     <section v-if="frame" class="replay-user">
@@ -164,6 +183,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <div class="player-info">
           <strong>{{ humanName }}</strong>
           <span>{{ frame.scores[match.humanSeat] ?? 0 }}</span>
+          <YaotongSeatMarker v-if="frame.yaotongSeats?.[match.humanSeat]" :name="humanName" :status="frame.yaotongSeats[match.humanSeat]!" />
         </div>
       </div>
       <div class="hand-rack replay-hand-rack">
@@ -174,11 +194,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <MahjongTile
             :tile="tile" :theme-name="match.themeName" disabled
             :joker-tiles="jokerTileList()" :wildcard-tiles="round?.wildcardTiles ?? []"
+            :laizi-only="match.rulesetId === 'yaotong'"
           />
         </div>
       </div>
     </section>
 
+    <dialog ref="ledgerDialog" class="replay-ledger-dialog" aria-label="回放结算明细">
+      <header><h2>结算明细</h2><button aria-label="关闭结算明细" @click="ledgerDialog?.close()">×</button></header>
+      <YaotongLedger v-if="round?.final?.yaotongState" :state="round.final.yaotongState" :players="ledgerPlayers" :theme-name="match.themeName" />
+    </dialog>
     <ReplayTimeline
       :rounds="rounds"
       :round-index="player.roundIndex.value"
@@ -198,6 +223,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </template>
 
 <style scoped>
+.replay-ledger-dialog { width: min(760px, 94vw); max-height: 90dvh; padding: 14px; margin: auto; border: 1px solid var(--theme-border); border-radius: 12px; background: var(--theme-panel); color: var(--theme-text); overflow: auto; }
+.replay-ledger-dialog::backdrop { background: #0009; }
+.replay-ledger-dialog header { display: flex; align-items: center; justify-content: space-between; }
+.replay-ledger-dialog h2 { margin: 0; font-size: 18px; }
+.replay-ledger-dialog header button { padding: 4px 12px; background: var(--theme-button); border: 1px solid var(--theme-border); color: var(--theme-button-text); font-size: 22px; }
 .replay-viewer {
   z-index: 200;
   /* 牌谱面板尺寸的单一来源：本家身份牌按它让位，避免两处各自写死而错位。 */
@@ -283,5 +313,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 @media (max-width: 900px) {
   .replay-viewer { --replay-log-width: 206px; }
   .replay-theme-name { display: none; }
+  .replay-user .user-identity { left: auto; right: calc(12px + var(--safe-right)); bottom: calc(130px + var(--safe-bottom)); }
 }
 </style>

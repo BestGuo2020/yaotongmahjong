@@ -26,6 +26,7 @@ import {
 
 /** 场次级元信息：由 App 层在开局时提供（玩法 / 主题 / 本家座位）。 */
 export interface ReplayMatchMeta {
+  yaotongMode?: ReplayMatch['yaotongMode']
   rulesetId: RuleVariant
   rulesetName: string
   themeName: TableThemeName
@@ -140,6 +141,7 @@ function seatState(player: GamePlayer): ReplaySeatState {
 
 function anchorOf(frame: ReplayFrameSource): ReplayAnchor {
   return {
+    ...(frame.yaotongSeats ? { yaotongSeats: toPlain(frame.yaotongSeats) } : {}),
     hands: frame.players.map((player) => [...player.hand]),
     melds: frame.players.map((player) => player.melds.map(cloneMeld)),
     discards: frame.players.map((player) => [...player.discards]),
@@ -191,7 +193,8 @@ export function createReplayRecorder(options: ReplayRecorderOptions): ReplayReco
       rulesetId: meta.rulesetId,
       rulesetName: meta.rulesetName,
       matchType: frame.matchType,
-      matchName: frame.matchType === 'hanchan' ? '半庄场' : '东风场',
+      matchName: frame.matchName ?? (frame.matchType === 'hanchan' ? '半庄场' : '东风场'),
+      ...(meta.yaotongMode ? { yaotongMode: meta.yaotongMode } : {}),
       gameMode: meta.gameMode ?? 'local',
       themeName: meta.themeName,
       players: matchPlayersOf(frame),
@@ -270,7 +273,8 @@ export function createReplayRecorder(options: ReplayRecorderOptions): ReplayReco
         matchId: active.id,
         roundIndex: rounds.length + 1,
         round: frame.round,
-        roundLabel: roundLabelFor(frame.round, frame.matchType),
+        roundLabel: frame.roundLabel ?? roundLabelFor(frame.round, frame.matchType),
+        ...(frame.wallTotal ? { wallTotal: frame.wallTotal } : {}),
         dealer: frame.dealer,
         honba: frame.honba,
         matchType: frame.matchType,
@@ -291,6 +295,10 @@ export function createReplayRecorder(options: ReplayRecorderOptions): ReplayReco
         landedAt: 0,
       }
       knownScores = round.scoresBefore
+    },
+
+    step(event, frame) {
+      pushStep({ ...event, snapshot: anchorOf(frame) }, frame)
     },
 
     draw(event, frame) {
@@ -347,6 +355,7 @@ export function createReplayRecorder(options: ReplayRecorderOptions): ReplayReco
         return
       }
       const final: ReplayRoundFinal = {
+        ...(frame.yaotongState ? { yaotongState: toPlain(frame.yaotongState) } : {}),
         hands: frame.players.map((player) => [...player.hand]),
         melds: frame.players.map((player) => player.melds.map(cloneMeld)),
         discards: frame.players.map((player) => [...player.discards]),
@@ -371,6 +380,16 @@ export function createReplayRecorder(options: ReplayRecorderOptions): ReplayReco
       rounds.push(record)
       match.roundCount = rounds.length
       safeSave(() => options.sink.saveRound(record))
+      // A completed Yaotong hand survives refresh even if the rest of the match is interrupted.
+      if (frame.yaotongState) {
+        const standings = computedStandings(match)
+        const mine = standings?.find((entry) => entry.seat === match!.humanSeat)
+        Object.assign(match, { endedAt: now(), status: frame.yaotongState.result?.finished ? 'finished' : 'aborted',
+          finalStandings: standings, myRank: mine?.rank, myScore: mine?.score,
+          summary: replayMatchSummary(rounds, match.players, match.humanSeat) })
+        const checkpoint = toPlain(match)
+        safeSave(() => options.sink.saveMatch(checkpoint))
+      }
       round = null
     },
   }
@@ -385,7 +404,9 @@ export function createReplayRecorder(options: ReplayRecorderOptions): ReplayReco
       if (!current) return null
       const last = rounds[rounds.length - 1]
       const matchLength = MATCH_HANDS[current.matchType]
-      const completed = Boolean(last && last.final && last.round >= matchLength)
+      const completed = last?.final?.yaotongState
+        ? last.final.yaotongState.result?.finished === true
+        : Boolean(last && last.final && last.round >= matchLength)
       return finalize(completed ? 'finished' : 'aborted', standings)
     },
     active() {

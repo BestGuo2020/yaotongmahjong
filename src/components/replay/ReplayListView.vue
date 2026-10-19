@@ -19,9 +19,11 @@ import type { ReplayStorage } from '../../game/replay/storage'
 import type { ReplayMatch } from '../../game/replay/types'
 import { tableThemeIdentity } from '../../theme/themeIdentity'
 import { themePresentationByName } from '../../theme/themePresentation'
+import { YAOTONG_MODES } from '../../game/variants/yaotong/mode'
 
 const props = defineProps<{
   open: boolean
+  notice?: string
   storage: ReplayStorage
   /** 本地存储可用（无 IndexedDB / 隐私模式 / 写入失败）。 */
   available: boolean
@@ -213,7 +215,7 @@ async function importReplayFromFile(event: Event) {
     }
     // 导入的牌谱没有分析记录 ⇒ 列表会显示「缺少决策分析记录」，提示里也说清
     const note = outcome.notes.length ? `（${outcome.notes.join('；')}）` : ''
-    flashHint(`已导入牌谱：${outcome.match?.rulesetName ?? ''} ${outcome.rounds.length} 局${note}；该场没有分析记录`)
+    flashHint(`已导入牌谱：${outcome.match?.rulesetName ?? ''} ${outcome.rounds.length} 局${note}${props.analysis ? '；该场没有分析记录' : ''}`)
   } finally {
     busy.value = false
   }
@@ -272,7 +274,7 @@ const analysisImportInput = ref<HTMLInputElement | null>(null)
       <section class="result-card settlement-card replay-list-card">
         <h2>对局回放</h2>
         <p class="replay-list-note">
-          仅保存在浏览器，不上传服务器。
+          每局结束后自动保存在本机浏览器，可逐步回看。不上传服务器。
         </p>
 
         <p v-if="!available" class="replay-list-empty" data-testid="replay-unavailable">
@@ -291,7 +293,7 @@ const analysisImportInput = ref<HTMLInputElement | null>(null)
                 <em class="replay-row-mode" :data-mode="match.gameMode">{{ gameModeLabel(match) }}</em>
                 {{ match.rulesetName }} · {{ match.matchName }}
               </strong>
-              <span class="replay-row-sub">{{ matchSubtitle(match) }}</span>
+              <span class="replay-row-sub">{{ match.yaotongMode ? `${YAOTONG_MODES[match.yaotongMode]?.name ?? ''} · ` : '' }}{{ matchSubtitle(match) }}</span>
             </div>
             <div class="replay-row-meta">
               <span class="replay-row-date">{{ formatMatchDate(match.startedAt) }}</span>
@@ -399,6 +401,7 @@ const analysisImportInput = ref<HTMLInputElement | null>(null)
         />
 
         <div class="result-actions replay-list-actions">
+          <p v-if="notice" role="status">{{ notice }}</p>
           <button v-if="hasMatches" type="button" data-action-role="danger" :disabled="busy" @click="clearAll">清空全部</button>
           <button type="button" @click="emit('update:open', false)">关闭</button>
         </div>

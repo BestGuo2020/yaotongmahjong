@@ -42,6 +42,8 @@ import {
 } from '../../shared/settlement/settlementTimeline'
 import { useYaotongGame } from './useYaotongGame'
 import { yaotongGuidance } from './guidance'
+import { recordYaotongRound } from './replay'
+import type { ReplayRecorderHooks } from '../../replay/types'
 import { countsOf } from './tiles'
 import {
   chickenMarks,
@@ -73,9 +75,20 @@ export function useYaotongPort(
     playSound?: (file: string, volume?: number) => unknown
     playSoundAndWait?: (file: string, volume?: number) => Promise<void>
     getCharacterId?: () => string
+    recorder?: ReplayRecorderHooks
   } = {},
 ) {
   const local = useYaotongGame()
+  let recordedState = local.state.value
+  let stopRecording: (() => void) | undefined
+  watch(local.state, (state) => {
+    if (state === recordedState) return
+    stopRecording?.()
+    recordedState = state
+    stopRecording = state && options.recorder
+      ? recordYaotongRound(state, options.recorder, options.getCharacterId?.()) : undefined
+  }, { flush: 'sync' })
+  onScopeDispose(() => stopRecording?.())
   const length = ref<4 | 8 | 16>(4)
   const openingStage = ref<OpeningStage | null>(null)
   const openingActive = ref(false)

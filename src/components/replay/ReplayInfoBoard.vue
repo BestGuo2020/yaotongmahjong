@@ -1,18 +1,22 @@
 <script setup lang="ts">
 // 中央信息盘（四家分数与名次）。**默认收起**：展开时面板会压住对家的牌面，
 // 而局数/巡目/牌山余张在底部控制条上已经有了，折叠态只留一枚小药丸（含本场数）。
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { formatTurn, rankTone } from '../../game/replay/format'
 import type { ReplayFrame } from '../../game/replay/projection'
 import type { ReplayMatch, ReplayRound } from '../../game/replay/types'
+import YaotongSeatMarker from '../yaotong/YaotongSeatMarker.vue'
 
 const props = defineProps<{
   match: ReplayMatch
   round: ReplayRound | null
   frame: ReplayFrame | null
+  resultLabel?: string
 }>()
+const emit = defineEmits<{ expanded: [value: boolean] }>()
 
 const expanded = ref(false)
+watch(expanded, (value) => emit('expanded', value))
 
 /** 分数排名（不依赖引擎，纯按当前帧分数排）。 */
 const standings = computed(() => {
@@ -51,13 +55,16 @@ const standings = computed(() => {
           <b>{{ entry.rank }}</b>
           <span class="name">{{ entry.name }}</span>
           <em>{{ entry.score }}</em>
+          <YaotongSeatMarker v-if="frame?.yaotongSeats?.[entry.seat]" :name="entry.name" :status="frame.yaotongSeats[entry.seat]!" />
         </li>
       </ul>
+      <p v-if="expanded && resultLabel" class="replay-info-result" data-testid="replay-result">{{ resultLabel }}</p>
     </div>
   </section>
 </template>
 
 <style scoped>
+.replay-info-result { margin: 7px 0 0; text-align: center; color: var(--theme-accent-text); font-size: 12px; }
 .replay-info {
   position: absolute;
   top: calc(var(--safe-top) + 50px);

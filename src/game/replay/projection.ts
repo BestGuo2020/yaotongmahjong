@@ -10,8 +10,10 @@ import { sortTilesWithJokers } from '../core/rules/tiles'
 import type { ReplayMatch, ReplayRound, ReplayStep } from './types'
 import type { WinPileBatch } from '../../components/table/three/bloodFlowWinPile'
 import type { Seat } from '../variants/lotus/bloodFlow/types'
+import type { SeatStatus } from '../variants/yaotong/presentation'
 
 export interface ReplayFrame {
+  yaotongSeats?: SeatStatus[]
   /** 直接喂给 <MahjongTable3D>。 */
   table: TableProps
   /** 本家手牌：3D 牌桌不画本家手牌（presenter 对座位 0 直接返回），由 DOM 手牌架绘制。 */
@@ -73,6 +75,7 @@ export function buildReplayFrames(
   let wallLeft = round.anchor.wallLeft
   let headDrawn = round.anchor.headDrawn
   let currentPlayer = round.anchor.currentPlayer
+  let yaotongSeats = round.anchor.yaotongSeats
   let lastDiscard: LastDiscard | null = null
   let discardCount = 0
 
@@ -136,7 +139,14 @@ export function buildReplayFrames(
 
     const localHand = [...frameHands[humanSeat]]
     frames.push({
+      ...(yaotongSeats ? { yaotongSeats: yaotongSeats.map((seat) => ({ ...seat })) } : {}),
       table: {
+        wallTotal: round.wallTotal ?? 136,
+        laiziOnly: match.rulesetId === 'yaotong',
+        settlementIndicator: input.settled && round.final?.yaotongState?.result?.indicator != null
+          ? { id: round.final.yaotongState.serial, seat: localOf(round.final.yaotongState.result.winners[0]),
+            tile: `${['m', 'p', 's'][Math.floor(round.final.yaotongState.result.indicator / 9)]}${round.final.yaotongState.result.indicator % 9 + 1}` as TileType }
+          : null,
         themeName: match.themeName,
         players,
         localSeat: humanSeat,
@@ -168,7 +178,7 @@ export function buildReplayFrames(
         // 血流牌堆（盖楼）：到当前帧为止已经胡过的楼
         ...(isBloodFlow ? { bloodFlowBatches: [...winPiles] } : {}),
       },
-      hand: options.revealAll ? sortTilesWithJokers(localHand, round.jokerTiles) : localHand,
+      hand: options.revealAll && match.rulesetId !== 'yaotong' ? sortTilesWithJokers(localHand, round.jokerTiles) : localHand,
       drawnTileIndex: frameDrawn[humanSeat] ?? -1,
       index: input.index,
       turn: input.turn,
@@ -189,6 +199,17 @@ export function buildReplayFrames(
   push({ index: 0, turn: 1, step: null })
 
   round.steps.forEach((step, stepIndex) => {
+    if (step.snapshot) {
+      for (let seat = 0; seat < 4; seat++) {
+        hands[seat] = [...step.snapshot.hands[seat]]
+        melds[seat] = step.snapshot.melds[seat].map(cloneMeld)
+        discards[seat] = [...step.snapshot.discards[seat]]
+        drawn[seat] = step.snapshot.drawnTileIndex[seat]
+        redCount[seat] = step.snapshot.redCount[seat]
+      }
+      scores = [...step.snapshot.scores]
+      yaotongSeats = step.snapshot.yaotongSeats
+    }
     if (step.state) {
       hands[step.seat] = [...step.state.hand]
       melds[step.seat] = step.state.melds.map(cloneMeld)
@@ -200,12 +221,13 @@ export function buildReplayFrames(
       discards[step.from] = [...step.sourceDiscards]
     }
     if (step.t === 'discard' && step.tile) {
-      if (!step.state?.discards) discards[step.seat] = [...discards[step.seat], step.tile]
+      if (!step.state?.discards && !step.snapshot) discards[step.seat] = [...discards[step.seat], step.tile]
       lastDiscard = { tile: step.tile, from: step.seat, id: step.lastDiscardId ?? stepIndex + 1 }
     } else if (step.t === 'meld' && step.from != null) {
       // 被碰/吃/杠的弃牌已离开牌河，旧的「最近弃牌」高亮必须失效。
       lastDiscard = null
     }
+    if (step.t === 'win' && step.snapshot) lastDiscard = null
     if (step.scores) scores = [...step.scores]
     wallLeft = step.wallLeft
     headDrawn = step.headDrawn
@@ -236,7 +258,7 @@ export function buildReplayFrames(
   if (final) {
     const winnerSeat = final.draw || final.winSeat == null ? -1 : final.winSeat
     const finalHands = final.hands.map((hand) => [...hand])
-    if (winnerSeat >= 0) finalHands[winnerSeat] = completeWinningHand(round, winnerSeat, final.winTile)
+    if (winnerSeat >= 0 && !final.yaotongState) finalHands[winnerSeat] = completeWinningHand(round, winnerSeat, final.winTile)
     push({
       index: round.steps.length + 1,
       turn: Math.floor(discardCount / 4) + 1,

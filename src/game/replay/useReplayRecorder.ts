@@ -31,6 +31,7 @@ export interface ReplayRecording {
   ensureMatchId(): string
   /** 当前内存记录与计数（诊断/测试用）。 */
   snapshot(): ReturnType<ReplayRecorder['snapshot']>
+  flush(): Promise<void>
 }
 
 export function useReplayRecorder(options: UseReplayRecorderOptions): ReplayRecording {
@@ -42,12 +43,17 @@ export function useReplayRecorder(options: UseReplayRecorderOptions): ReplayReco
   })
   if (!storage.available) available.value = false
 
+  let pending = Promise.resolve()
+  function enqueue(work: () => Promise<void>) {
+    pending = pending.then(work).catch(() => { available.value = false })
+    return pending
+  }
   const sink: ReplaySink = {
     // 存储失败不能影响对局：storage 内部已吞掉异常并降级；这里把 Promise 交回录制器统一兜底。
-    saveMatch: (match) => storage.saveMatch(match)
-      .then(() => { available.value = storage.available }),
-    saveRound: (round) => storage.saveRound(round)
-      .then(() => { available.value = storage.available }),
+    saveMatch: (match) => enqueue(() => storage.saveMatch(match)
+      .then(() => { available.value = storage.available })),
+    saveRound: (round) => enqueue(() => storage.saveRound(round)
+      .then(() => { available.value = storage.available })),
   }
   const recorder = createReplayRecorder({
     sink,
@@ -57,6 +63,7 @@ export function useReplayRecorder(options: UseReplayRecorderOptions): ReplayReco
 
   return {
     hooks: recorder.hooks,
+    flush: () => pending,
     storage,
     available,
     finish(status, standings) {
