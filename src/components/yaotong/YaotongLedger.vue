@@ -26,25 +26,6 @@ function inspect(value: { from: number; to: number; account?: Account }) {
   detailOpen.value = true
   if (entries.value.some((entry) => entry.account === '幺筒责任分')) playEffect?.('zerenji.wav', 0.35)
 }
-function download() {
-  const url = URL.createObjectURL(
-    new Blob(
-      [
-        JSON.stringify(
-          { rules: '幺筒-v1.0', hand: props.state.handNumber, dice: props.state.dice, result: result.value },
-          null,
-          2,
-        ),
-      ],
-      { type: 'application/json' },
-    ),
-  )
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `yaotong-${props.state.handNumber}.json`
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
 </script>
 <template>
   <section class="yaotong-ledger">
@@ -93,7 +74,6 @@ function download() {
           </tbody>
         </table>
       </div>
-      <button class="secondary" @click="download">导出账单</button>
     </details>
   </section>
 </template>
