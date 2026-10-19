@@ -178,6 +178,35 @@ describe('原版节奏与幺筒实时对局的边界', () => {
 })
 
 describe('共享开局、报牌与胡牌展示', () => {
+  it.each([0, 1, 2, 3].flatMap(seat => [[], [2], [2, 5, 8]].map(remaining => ({ seat, remaining }))))('翻鸡移到胡牌者$seat的牌河，保持到下一局：$remaining', async ({ seat, remaining }) => {
+    const port = setup(), state = fixture()
+    state.current = seat
+    state.players[seat].hand = tiles('234567m 234s 66p 789s')
+    state.players[seat].drawn = 26
+    state.wall = remaining
+    port.local.state.value = state
+    const before = [...port.wall.value]
+    const rivers = state.players.map(p => [...p.river])
+    port.local.dispatch({ type: 'hu' }, seat)
+    expect(port.tableView.value.settlementIndicator).toBeNull()
+    expect(port.wall.value).toEqual(before)
+    await vi.advanceTimersByTimeAsync(normalWinTime - WIN_REVEAL_DURATION)
+    const indicator = before.length ? { id: state.handNumber, seat, tile: before[0] } : null
+    expect(port.tableView.value.settlementIndicator).toEqual(indicator)
+    expect(port.wall.value).toEqual(before.slice(1))
+    expect(port.result.value).toBeNull()
+    await vi.advanceTimersByTimeAsync(WIN_REVEAL_DURATION)
+    expect(port.tableView.value.settlementIndicator).toEqual(indicator)
+    expect(port.wall.value).toEqual(before.slice(1))
+    expect(port.result.value).not.toBeNull()
+    expect(state.players.map(p => p.river)).toEqual(rivers)
+    void port.nextRound()
+    expect(port.tableView.value.settlementIndicator).toBeNull()
+    port.returnToLobby()
+    await vi.runAllTimersAsync()
+    expect(port.tableView.value.settlementIndicator).toBeNull()
+  })
+
   it('一炮多响仍等待所有合法响应，第一位点胡不会抢先结束', async () => {
     const port = setup(),
       state = fixture()
@@ -199,6 +228,7 @@ describe('共享开局、报牌与胡牌展示', () => {
     await vi.runAllTimersAsync()
     expect(port.result.value!.scoreChanges!.reduce((n, p) => n + p.delta, 0)).toBe(0)
     expect(state.result!.nextDealer).toBe(1)
+    expect(port.tableView.value.settlementIndicator?.seat).toBe(0)
   })
 
   it('发牌中离桌会结束旧开局Promise，不会在新局继续发旧牌', async () => {

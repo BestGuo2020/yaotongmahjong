@@ -1,5 +1,6 @@
 import type { Account, Declaration, GameEvent, GameState, HandValue, Settlement, Transfer } from './types'
 import type { TableDeclarationEvent } from '../../core/presentation/tableActionCue'
+import type { TileType } from '../../core/contracts/types'
 import type { ChickenPerformance } from './chickenPresentation'
 
 /** One wind per four dealer rounds; repeat hands keep the same label. */
@@ -27,6 +28,7 @@ export interface ChickenCue {
   strong: boolean
 }
 export interface YaotongTableView {
+  settlementIndicator?: { id: number; seat: number; tile: TileType } | null
   seats: SeatStatus[]
   chickenCue: ChickenCue | null
   declarationCues: TableDeclarationEvent[]

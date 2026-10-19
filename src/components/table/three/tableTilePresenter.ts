@@ -76,6 +76,12 @@ export function createTableTilePresenter(options: TableTilePresenterOptions) {
   let animatedDealSerial = -1
   let pendingDealAnimation = false
   let animatedFlipKey: string | null = null
+  let indicatorMotion: { key: string; startedAt: number; origin: THREE.Vector3; rotation: THREE.Quaternion } | null = null
+  let indicatorInstance: ReturnType<TileInstanceRenderer['add']> | null = null
+  let indicatorGlow: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null = null
+  const indicatorTarget = new THREE.Vector3()
+  const indicatorPickup = new THREE.Vector3()
+  const indicatorRotation = new THREE.Quaternion()
   const sourceTransforms=new Map<string,FlightPose>(),drawnTransforms=new Map<number,FlightPose>(),addedTransforms=new Map<string,FlightPose>()
   const ownDrawScreens = new Map<string,{x:number;y:number}>()
   let sourceEpoch=''
@@ -525,6 +531,62 @@ function addWall() {
   addFlipIndicator()
 }
 
+// The indicator occupies the next display slot in the winner's river, without mutating their discards.
+function addSettlementIndicator() {
+  indicatorInstance = null
+  indicatorGlow = null
+  const indicator = props.settlementIndicator
+  if (!indicator) {
+    indicatorMotion = null
+    return
+  }
+  const seat = (indicator.seat - (props.localSeat ?? 0) + 4) % 4
+  const destination = discardTransform(seat, props.players[seat]?.discards.length ?? 0)
+  indicatorTarget.set(destination.x, .38, destination.z + PLAY_AREA_OFFSET_Z)
+  indicatorRotation.setFromEuler(new THREE.Euler(0, destination.rotation, 0))
+  indicatorPickup.copy(discardSourcePos(seat))
+  indicatorPickup.y = 1.15
+  const key = `${indicator.id}:${indicator.seat}:${indicator.tile}`
+  if (indicatorMotion?.key !== key) {
+    // The public wall has just lost its head tile. Reconstruct that exact physical slot,
+    // including a final tile left in the lower layer after a tail draw.
+    const total = props.wallTotal ?? WALL_TOTAL
+    const head = Math.max(0, props.wallHeadDrawn - 1)
+    const { stackIndex, layer } = wallTilePlacement(0, (resolveBreakIndex() + head) % total, props.wall.length + 1, head, total)
+    const slot = wallStackSlot(stackIndex, total)
+    indicatorMotion = {
+      key, startedAt: performance.now(),
+      origin: new THREE.Vector3(slot.x, .41 + layer * .47, slot.z),
+      rotation: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, slot.rotationY, 0))
+        .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0))),
+    }
+  }
+  indicatorInstance = addTableTile(indicatorTarget, indicatorRotation, indicator.tile)
+  const frame = new THREE.Group()
+  const rimMaterial = ownDynamic(new THREE.MeshBasicMaterial({ color: 0xffce50, toneMapped: false }))
+  const horizontal = ownDynamic(new THREE.BoxGeometry(.75, .035, .045))
+  const vertical = ownDynamic(new THREE.BoxGeometry(.045, .035, 1.02))
+  for (const side of [-1, 1]) {
+    const topBottom = new THREE.Mesh(horizontal, rimMaterial)
+    topBottom.position.z = side * .49
+    frame.add(topBottom)
+    const leftRight = new THREE.Mesh(vertical, rimMaterial)
+    leftRight.position.x = side * .355
+    frame.add(leftRight)
+  }
+  frame.name = 'settlement-indicator-frame'
+  frame.position.set(indicatorTarget.x, .70, indicatorTarget.z)
+  frame.rotation.y = destination.rotation
+  scene.add(frame)
+  dynamicGroups.push(frame)
+  indicatorGlow = tableScene.makeGoldGlow()
+  indicatorGlow.name = 'settlement-indicator-glow'
+  indicatorGlow.position.set(indicatorTarget.x, .26, indicatorTarget.z)
+  indicatorGlow.scale.setScalar(1.12)
+  scene.add(indicatorGlow)
+  dynamicGroups.push(indicatorGlow)
+}
+
 // 买马：胡牌后把 8 张马牌显示到赢家牌河里（续接在赢家弃牌河之后）。
 // 中马按胡牌者相对庄家的座位判定；中马牌正常牌面 + 四周金光，未中使用清晰的低饱和哑光牌面。
 function addHorses() {
@@ -613,6 +675,7 @@ function rebuildTableTiles({ reuseInstances = false }: { reuseInstances?: boolea
     addMelds(playerIndex)
   }
   addWall()
+  addSettlementIndicator()
   addHorses()
   const liveSource=props.bloodFlowSourceEvent
   if(liveSource){
@@ -651,6 +714,21 @@ function rebuildTableTiles({ reuseInstances = false }: { reuseInstances?: boolea
 }
 
   function animate(time: number, scratchVector: THREE.Vector3) {
+    let indicatorMoving = false
+    if (indicatorMotion && indicatorInstance) {
+      // Finish within the existing hand-reveal stage; no extra settlement delay.
+      const progress = prefersReducedMotion() ? 1 : THREE.MathUtils.clamp((time - indicatorMotion.startedAt) / 820, 0, 1)
+      const placing = progress >= .42
+      const segment = placing ? (progress - .42) / .58 : progress / .42
+      const eased = segment * segment * (3 - 2 * segment)
+      scratchVector.lerpVectors(placing ? indicatorPickup : indicatorMotion.origin, placing ? indicatorTarget : indicatorPickup, eased)
+      scratchVector.y += Math.sin(segment * Math.PI) * .75
+      const rotation = new THREE.Quaternion().slerpQuaternions(indicatorMotion.rotation, indicatorRotation, placing ? eased : 0)
+      tileInstances.set(indicatorInstance.baseIndex, indicatorInstance.capMesh, indicatorInstance.capIndex,
+        scratchVector, rotation, 1)
+      if (indicatorGlow) indicatorGlow.material.opacity = placing ? .55 + .4 * eased : .25
+      indicatorMoving = progress < 1
+    }
     for(const flight of flights){
       const p=sampleBloodFlowFlight(flight.source,flight.target,flight.cue,time,prefersReducedMotion());flight.current=p
       const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(0,p.rotation,0)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(p.tilt??0,0,0)))
@@ -685,7 +763,7 @@ function rebuildTableTiles({ reuseInstances = false }: { reuseInstances?: boolea
       return progress < 1
     })
     discardTweens.splice(0, discardTweens.length, ...keepDiscard)
-    return dealTweens.length + meldTweens.length + discardTweens.length + flights.length > 0
+    return indicatorMoving || dealTweens.length + meldTweens.length + discardTweens.length + flights.length > 0
   }
 
   return { rebuild: rebuildTableTiles, animate, meldTransform, alignMeldBottom, sourceTileRotationOffset,

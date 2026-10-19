@@ -124,6 +124,14 @@ export function useYaotongPort(
     }
   }
   const tableView = computed<YaotongTableView>(() => ({
+    settlementIndicator:
+      revealHands.value && local.state.value?.result?.indicator != null
+        ? {
+            id: local.state.value.handNumber,
+            seat: local.state.value.result.winners[0],
+            tile: toSharedTile(local.state.value.result.indicator),
+          }
+        : null,
     seats:
       local.state.value?.players.map((player, seat) => ({
         ...visibleChickenMarks(seat),
@@ -255,7 +263,7 @@ export function useYaotongPort(
         .slice(visibleCount.value)
         .map(toSharedTile)
     const indicator = state.result?.indicator
-    return [...(!scoresReleased.value && indicator != null ? [indicator] : []), ...state.wall].map(
+    return [...(!revealHands.value && indicator != null ? [indicator] : []), ...state.wall].map(
       toSharedTile,
     )
   })

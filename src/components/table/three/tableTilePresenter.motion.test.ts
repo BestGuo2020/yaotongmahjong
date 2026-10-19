@@ -4,6 +4,8 @@ import { createTableTilePresenter } from './tableTilePresenter'
 import type { TileInstanceRenderer } from './tileInstanceRenderer'
 import type { ResolvedTableProps } from './tableRenderTypes'
 import type { GamePlayer, Meld, TableActionType, TileType } from '../../../game/core/contracts/types'
+import * as winEffect from '../../../game/core/presentation/winEffect'
+import { discardTileLayout } from '../../../game/core/presentation/tableLayout'
 
 function setup(meld?: Meld, action?: TableActionType) {
   let now = 0
@@ -11,16 +13,16 @@ function setup(meld?: Meld, action?: TableActionType) {
   const scene = new THREE.Scene()
   scene.userData.tileImages = {}
   scene.userData.highlightMaterial = new THREE.MeshBasicMaterial()
-  const rendered: { face: TileType | null; position: THREE.Vector3; scale: number }[] = []
+  const rendered: { face: TileType | null; position: THREE.Vector3; rotation: THREE.Quaternion; scale: number }[] = []
   const instances = {
     begin: () => { rendered.length = 0 }, finish: () => {}, canReuse: () => false,
     add: (position: THREE.Vector3, _q: THREE.Quaternion, face: TileType | null, _opacity = 1, origin = position, scale = 1) => {
       const index = rendered.length
-      rendered.push({ face, position: origin.clone(), scale })
+      rendered.push({ face, position: origin.clone(), rotation: _q.clone(), scale })
       return { baseIndex: index, capIndex: index, capMesh: {} }
     },
     set: (index: number, _mesh: unknown, _cap: number, position: THREE.Vector3, _q: THREE.Quaternion, scale: number) => {
-      rendered[index].position.copy(position); rendered[index].scale = scale
+      rendered[index].position.copy(position); rendered[index].rotation.copy(_q); rendered[index].scale = scale
     },
   } as unknown as TileInstanceRenderer
   const players: GamePlayer[] = [0, 1, 2, 3].map(seat => ({ seat, name: `${seat}`, avatar: '', score: 2000,
@@ -41,12 +43,58 @@ function setup(meld?: Meld, action?: TableActionType) {
     pointGapOffset: .965, wallDealOriginY: 1,
     addWinEffect: () => {}, addWinningDisplayTile: () => {},
   })
-  return { props, rendered, presenter, setNow: (t: number) => { now = t } }
+  return { props, rendered, presenter, dynamicGroups, setNow: (t: number) => { now = t } }
 }
 
 afterEach(() => vi.restoreAllMocks())
 
 describe('shared normal tile animations survive state refreshes', () => {
+  it.each([0, 1, 2, 3].flatMap(seat => [0, 2].map(remaining => ({ seat, remaining }))))('retains the indicator in winner $seat river with $remaining wall tiles left, without replay on refresh', ({ seat, remaining }) => {
+    const s = setup()
+    s.props.wallTotal = 108
+    s.props.wallHeadDrawn = 108 - remaining
+    s.props.wall = Array(remaining).fill('m1')
+    s.props.revealHands = true
+    s.props.players[seat].discards = Array(8).fill('m3')
+    s.props.settlementIndicator = { id: 1, seat, tile: 'p9' }
+    const river = discardTileLayout(seat, 8)
+    const target = new THREE.Vector3(river.x, .38, river.z - 1.65)
+    const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, river.rotation, 0))
+    s.presenter.rebuild()
+    expect(s.rendered.filter(tile => tile.face === 'p9')).toHaveLength(1)
+    expect(s.rendered.filter(tile => tile.face === null)).toHaveLength(remaining)
+    s.setNow(300)
+    expect(s.presenter.animate(300, new THREE.Vector3())).toBe(true)
+    const before = s.rendered.find(tile => tile.face === 'p9')!.position.clone()
+    s.presenter.rebuild()
+    expect(s.rendered.find(tile => tile.face === 'p9')!.position.distanceTo(before)).toBeLessThan(.00001)
+    s.setNow(900)
+    expect(s.presenter.animate(900, new THREE.Vector3())).toBe(false)
+    const tile = s.rendered.find(tile => tile.face === 'p9')!
+    expect(tile.position.distanceTo(target)).toBeLessThan(.00001)
+    expect(tile.rotation.angleTo(rotation)).toBeCloseTo(0)
+    expect(tile.scale).toBe(1)
+    s.presenter.rebuild()
+    expect(s.rendered.find(tile => tile.face === 'p9')!.position.distanceTo(target)).toBeLessThan(.00001)
+    expect(s.dynamicGroups.filter(group => group.name === 'settlement-indicator-glow')).toHaveLength(1)
+    s.props.settlementIndicator = null
+    s.presenter.rebuild()
+    expect(s.rendered.some(tile => tile.face === 'p9')).toBe(false)
+    expect(s.dynamicGroups.some(group => group.name.startsWith('settlement-indicator'))).toBe(false)
+  })
+
+  it('places the indicator face-up immediately with reduced motion and keeps the highlight', () => {
+    vi.spyOn(winEffect, 'prefersReducedMotion').mockReturnValue(true)
+    const s = setup()
+    s.props.settlementIndicator = { id: 1, seat: 0, tile: 'm1' }
+    s.presenter.rebuild()
+    expect(s.presenter.animate(0, new THREE.Vector3())).toBe(false)
+    const river = discardTileLayout(0, 0)
+    expect(s.rendered[0].position.distanceTo(new THREE.Vector3(river.x, .38, river.z - 1.65))).toBeLessThan(.00001)
+    expect(s.rendered[0].rotation.angleTo(new THREE.Quaternion())).toBeCloseTo(0)
+    expect(s.dynamicGroups.some(group => group.name === 'settlement-indicator-glow')).toBe(true)
+  })
+
   it('does not carry an unfinished discard into a restored blood-flow view', () => {
     const s = setup()
     s.props.bloodFlowPresentationKey = 'live'

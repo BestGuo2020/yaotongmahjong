@@ -38,7 +38,7 @@ const props = withDefaults(defineProps<TableProps>(), {
   wildcardTiles: () => [],
   dealAnimation: () => ({ playerIndex: -1, count: 0, serial: 0 }),
   openingStage: null, diceValues: () => [1, 1], dealerIndex: 0, diceThrowerIndex: 0,
-  tableActionEvent: null,
+  tableActionEvent: null, settlementIndicator: null,
 })
 const emit = defineEmits<{
   ready: []
@@ -627,6 +627,9 @@ watch(
     props.wildcardTiles?.join(','),
     props.flipStack,
     props.flipTile,
+    props.settlementIndicator?.id,
+    props.settlementIndicator?.seat,
+    props.settlementIndicator?.tile,
     props.wallBreakIndex,
     props.bloodFlowBatches?.map(b => b.batchId).join(','),
     props.bloodFlowCompact,
