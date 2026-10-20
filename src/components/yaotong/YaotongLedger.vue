@@ -12,6 +12,7 @@ const props = defineProps<{ state: GameState; players: GamePlayer[]; themeName?:
 const result = computed(() => props.state.result!)
 const detailOpen = ref(false)
 const selectedSeat = ref(0)
+const selectedValue = computed(() => result.value.values[selectedSeat.value])
 const pair = ref<{ from: number; to: number; account?: Account } | null>(null)
 const entries = computed(() =>
   result.value.transfers.filter(
@@ -45,9 +46,10 @@ function inspect(value: { from: number; to: number; account?: Account }) {
         >→ 翻鸡</span
       ><MahjongTile :theme-name="themeName" :tile="toSharedTile(result.chicken!)" small disabled />
     </div>
-    <p v-for="(value, seat) in result.values" :key="seat">
-      <b>{{ state.players[Number(seat)].name }}</b> ·
-      单份胡分：{{ handScoreFormula(value) }} = {{ value.h }}分
+    <p class="yaotong-hand-score">
+      <b>{{ players[selectedSeat].name }}</b> ·
+      <template v-if="selectedValue">单份胡分：{{ handScoreFormula(selectedValue) }} = {{ selectedValue.h }}分</template>
+      <template v-else>本局未胡牌</template>
     </p>
     <YaotongPaymentMap
       :transfers="result.transfers"

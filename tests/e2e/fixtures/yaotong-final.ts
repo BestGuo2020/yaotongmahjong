@@ -16,7 +16,8 @@ import type { TableThemeName } from '../../../src/components/table/three/tableTh
 const params = new URLSearchParams(location.search)
 const theme = (params.get('theme') ?? 'jade') as TableThemeName
 const roundView = params.has('round')
-const winner = params.has('self') ? 0 : 3
+const multiWin = params.has('multi')
+const winner = multiWin ? 1 : params.has('self') ? 0 : 3
 const reportWin = params.has('report')
 const state = table()
 if (params.has('double')) state.dice = [2, 2]
@@ -26,14 +27,18 @@ state.players[winner] = player(reportWin ? '23456m 567s 122p 789p' : '234567m 56
   drawn: 16, declaration: reportWin ? 'ready' : 'none',
 })
 state.players.forEach((p, seat) => { p.name = ['你', '听风', '观山', '望月'][seat]; p.score = scoresBefore[seat] })
-if (reportWin) {
-  state.result = settle(state, { kind: 'win', winKind: 'discard', winners: [winner], source: 1, tile: 16 })
+if (reportWin || multiWin) {
+  if (multiWin) {
+    state.players[1] = player('23456m 567s 122p 789p', { name: '听风', score: scoresBefore[1], declaration: 'ready' })
+    state.players[2] = player('234567m 567s 22p 789p', { name: '观山', score: scoresBefore[2], declaration: 'ready' })
+  }
+  state.result = settle(state, { kind: 'win', winKind: 'discard', winners: multiWin ? [1, 2] : [winner], source: multiWin ? 0 : 1, tile: 16 })
   state.players.forEach((p, seat) => { p.score += state.result!.deltas[seat]! })
 } else act(state, winner, { type: 'hu' })
 const players: GamePlayer[] = state.players.map((p, seat) => ({ name: p.name, seat, score: p.score,
   hand: p.hand.map(toSharedTile), melds: [], discards: [], drawnTileIndex: -1, redCount: 0, avatar: defaultAvatarForSeat(seat) }))
 const result = makeRoundResult({ players, roundLabel: '东4局', honba: 0 },
-  { draw: false, winnerIndex: winner, winner: players[winner].name, winType: reportWin ? 'discard' : 'self-draw', points: state.result!.values[winner].h }, scoresBefore)
+  { draw: false, winnerIndex: winner, winner: players[winner].name, winType: reportWin || multiWin ? 'discard' : 'self-draw', points: state.result!.values[winner].h }, scoresBefore)
 const standings = players.map((p, playerIndex) => ({ ...p, playerIndex, rank: 0 }))
   .sort((a, b) => b.score - a.score).map((p, i) => ({ ...p, rank: i + 1 }))
 

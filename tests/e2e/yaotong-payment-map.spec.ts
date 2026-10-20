@@ -1,11 +1,31 @@
 import { expect, test } from '@playwright/test'
 
 for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
+  test(`多家胡牌的单份胡分只展示下方玩家，并随头像切换：${viewport.width}`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.goto('/tests/e2e/fixtures/yaotong-final.html?round&multi')
+    await page.getByRole('tab', { name: '分数明细', exact: true }).click()
+    const score = page.locator('.yaotong-hand-score')
+    await expect(score).toHaveCount(1)
+    await expect(score).toHaveText('你 · 本局未胡牌')
+    await page.getByRole('button', { name: '查看听风的分数流向', exact: true }).click()
+    await expect(score).toHaveText('听风 · 单份胡分：基础 5 + 报听 20 = 25分')
+    await page.getByRole('button', { name: '查看观山的分数流向', exact: true }).click()
+    await expect(score).toHaveText('观山 · 单份胡分：基础 5 + 硬胡 10 + 报听 20 = 35分')
+    await page.screenshot({ path: `tmp/selected-hand-score-${viewport.width}.png` })
+    await page.getByRole('button', { name: '查看望月的分数流向', exact: true }).click()
+    await expect(score).toHaveText('望月 · 本局未胡牌')
+    await page.getByRole('button', { name: '查看听风的分数流向', exact: true }).click()
+    await expect(score).toHaveText('听风 · 单份胡分：基础 5 + 报听 20 = 25分')
+  })
+
   test(`点击头像交换收付视角，其他头像保持原位：${viewport.width}`, async ({ page }) => {
     await page.setViewportSize(viewport)
     await page.goto('/tests/e2e/fixtures/yaotong-final.html?round&self')
     await page.getByRole('tab', { name: '分数明细', exact: true }).click()
     const ledger = page.locator('.yaotong-ledger')
+    const handScore = ledger.locator('.yaotong-hand-score')
+    await expect(handScore).toHaveText('你 · 单份胡分：基础 5 + 硬胡 10 = 15分')
     const map = page.getByRole('region', { name: '本局分数流向', exact: true })
     const avatars = ['你', '听风', '观山', '望月'].map(name =>
       map.getByRole('button', { name: `查看${name}的分数流向`, exact: true }))
@@ -25,6 +45,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 
     await expect(map.getByRole('group', { name: '望月的本局收付', exact: true })).toBeVisible()
     await expect(avatars[3]).toHaveAttribute('aria-pressed', 'true')
     await expect(avatars[0]).toHaveAttribute('aria-pressed', 'false')
+    await expect(handScore).toHaveText('望月 · 本局未胡牌')
     await expect(ledger.locator('summary')).toHaveText('分项账单 · 2 笔')
     await expect(payment).not.toHaveClass(/incoming/)
     await expect(payment.locator('text')).toHaveText(`−${amount}`)
@@ -40,14 +61,17 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 
     }
 
     await avatars[1].click()
+    await expect(handScore).toHaveText('听风 · 本局未胡牌')
     await expectPositions(['515,30', '300,139', '300,30', '85,30'])
     await expect(ledger.getByRole('button', { name: '查看该玩家全部收付' })).toHaveCount(0)
     await expect(ledger.locator('tbody tr td:first-child')).toHaveText(['听风 → 你', '听风 → 你'])
     await avatars[2].focus()
     await avatars[2].press('Enter')
+    await expect(handScore).toHaveText('观山 · 本局未胡牌')
     await expectPositions(['515,30', '300,30', '300,139', '85,30'])
     await avatars[0].focus()
     await avatars[0].press('Space')
+    await expect(handScore).toHaveText('你 · 单份胡分：基础 5 + 硬胡 10 = 15分')
     await expectPositions(['300,139', '300,30', '515,30', '85,30'])
     await expect(map.getByRole('group', { name: '你的本局收付', exact: true })).toBeVisible()
     await expect(ledger.locator('summary')).toHaveText('分项账单 · 6 笔')
