@@ -3696,6 +3696,27 @@ button { font: inherit; }
 }
 
 /* Yaotong keeps pairwise payments and all four score rows readable above the footer. */
+.game-app :is(.settlement-card, .final-board, .settlement-card [role="tabpanel"], .yaotong-ledger-scroll) {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--theme-accent) 55%, var(--theme-panel)) transparent;
+}
+.game-app :is(.settlement-card, .final-board, .settlement-card [role="tabpanel"], .yaotong-ledger-scroll)::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.game-app :is(.settlement-card, .final-board, .settlement-card [role="tabpanel"], .yaotong-ledger-scroll)::-webkit-scrollbar-track,
+.game-app :is(.settlement-card, .final-board, .settlement-card [role="tabpanel"], .yaotong-ledger-scroll)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.game-app :is(.settlement-card, .final-board, .settlement-card [role="tabpanel"], .yaotong-ledger-scroll)::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--theme-accent) 55%, var(--theme-panel));
+}
+.game-app :is(.settlement-card, .final-board, .settlement-card [role="tabpanel"], .yaotong-ledger-scroll)::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
 .game-app .final-board.has-final-summary {
   max-height: 94%;
   padding: clamp(12px, 3cqh, 24px) clamp(16px, 3cqw, 36px) 0;
