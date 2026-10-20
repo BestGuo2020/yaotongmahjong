@@ -30,6 +30,7 @@ import type { TableProps } from './table/three/tableRenderTypes'
 import { bloodFlowPileAnchor } from './table/three/bloodFlowWinPile'
 import { createBloodFlowWinEffects } from './table/three/bloodFlowWinEffects'
 import { createYaotongKongWeather } from './table/three/yaotongKongWeather'
+import { preloadWeatherAssets } from './table/three/yaotongWeatherAssets'
 import { cuePhase } from '../game/variants/lotus/bloodFlow/presentation'
 
 const props = withDefaults(defineProps<TableProps>(), {
@@ -553,7 +554,6 @@ onMounted(async () => {
   winEffectPresenter = createWinEffectPresenter(winEffectOptions)
   bloodFlowWinEffects = createBloodFlowWinEffects(winEffectOptions)
   bloodFlowWinEffects.sync()
-  kongWeather = createYaotongKongWeather({ scene, cues: () => props.kongWeather ?? [], localSeat: () => props.localSeat })
   dicePresenter = createDicePresenter({
     scene,
     own,
@@ -565,8 +565,12 @@ onMounted(async () => {
   })
 
   // 所有牌面必须下载并完成图片解码，之后才能创建 3D 图集。
-  await preloadTileImages(activeThemeName)
+  const [, weatherAssets] = await Promise.all([
+    preloadTileImages(activeThemeName),
+    props.kongWeather ? preloadWeatherAssets().catch(error => { console.warn('开杠特效素材加载失败', error); return null }) : Promise.resolve(null),
+  ])
   if (destroyed) return
+  kongWeather = createYaotongKongWeather({ scene, assets: weatherAssets, camera, cues: () => props.kongWeather ?? [], localSeat: () => props.localSeat })
   scene.userData.tileImages = preloadedTileImages(activeThemeName)
   tableScene.addTable()
   tableTiles.rebuild()
