@@ -86,15 +86,18 @@ const resultKindLab = ref(resultKindLabCandidate && resultKindLabValues.has(resu
 const finalRankingLab = ref(import.meta.env.DEV && new URLSearchParams(window.location.search).has('finalRankLab'))
 const restoredSettlement = ref(false)
 const activeTab = ref<'overview' | 'details'>('overview')
+const activeFinalTab = ref<'overview' | 'details'>('overview')
 const tabId = useId()
-function onTabKeydown(event: KeyboardEvent) {
+function onTabKeydown(event: KeyboardEvent, final = false) {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
-  activeTab.value = event.key === 'Home' ? 'overview' : event.key === 'End' ? 'details'
-    : activeTab.value === 'overview' ? 'details' : 'overview'
+  const tab = final ? activeFinalTab : activeTab
+  tab.value = event.key === 'Home' ? 'overview' : event.key === 'End' ? 'details'
+    : tab.value === 'overview' ? 'details' : 'overview'
   const tabs = (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('[role="tab"]')
-  tabs[activeTab.value === 'overview' ? 0 : 1]?.focus()
+  tabs[tab.value === 'overview' ? 0 : 1]?.focus()
 }
+watch([() => props.matchFinished, finalRankingLab], () => { activeFinalTab.value = 'overview' })
 let trackedResult: RoundResult | null = null
 let trackedResultWasOpened = false
 
@@ -104,6 +107,7 @@ watch([() => props.result, () => props.resultVisible], ([result, visible]) => {
     trackedResultWasOpened = false
     restoredSettlement.value = false
     activeTab.value = 'overview'
+    activeFinalTab.value = 'overview'
   }
   if (!result || !visible) return
   restoredSettlement.value = trackedResultWasOpened
@@ -222,26 +226,38 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
     <div v-if="matchFinished || finalRankingLab" class="result-backdrop final-backdrop" data-result-kind="final" data-result-strength="climax">
       <section class="final-board" :class="{ 'has-final-summary': Boolean($slots.summary) }" data-result-kind="final" data-result-strength="climax" :data-result-source="finalRankingLab ? 'lab' : 'game'">
         <p>{{ matchName }} · 对局结束</p>
-        <h2>最终排名</h2>
-        <div class="final-rankings">
-          <article v-for="entry in standings" :key="entry.playerIndex" :class="[`rank-${entry.rank}`, { self: entry.playerIndex === 0 }]" :style="animeEntryStyle(entry)">
-            <div class="final-rank"><b>{{ entry.rank }}</b><span>位</span></div>
-            <img :src="displayedAvatar(entry)" :alt="`${entry.name}头像`" @error="onAvatarError(entry)" />
-            <div class="final-name">
-              <strong>{{ entry.name }}</strong>
-              <small v-if="entry.playerIndex === 0 && entry.name !== '你'">你</small>
-              <button
-                v-if="gameMode === 'remote' && entry.playerIndex !== 0 && playerId && humanSeats?.includes(entry.playerIndex)"
-                class="report-link" @click="$emit('report', entry.name)"
-              >举报</button>
-            </div>
-            <em title="本场累计积分" :aria-label="`累计${entry.score}分`">{{ entry.score }}</em>
-          </article>
+        <h2>{{ $slots.summary ? '对局结算' : '最终排名' }}</h2>
+        <div v-if="$slots.summary" class="settlement-tabs" role="tablist" aria-label="对局结算内容" @keydown="onTabKeydown($event, true)">
+          <button :id="`${tabId}-final-overview-tab`" type="button" role="tab" :aria-selected="activeFinalTab === 'overview'" :aria-controls="`${tabId}-final-overview`" :tabindex="activeFinalTab === 'overview' ? 0 : -1" @click="activeFinalTab = 'overview'">最终排名</button>
+          <button :id="`${tabId}-final-details-tab`" type="button" role="tab" :aria-selected="activeFinalTab === 'details'" :aria-controls="`${tabId}-final-details`" :tabindex="activeFinalTab === 'details' ? 0 : -1" @click="activeFinalTab = 'details'">末局明细</button>
         </div>
-        <details v-if="$slots.summary" class="final-round-details">
-          <summary>末局明细</summary>
+        <div
+          v-show="!$slots.summary || activeFinalTab === 'overview'"
+          :id="`${tabId}-final-overview`"
+          :role="$slots.summary ? 'tabpanel' : undefined"
+          :aria-labelledby="$slots.summary ? `${tabId}-final-overview-tab` : undefined"
+          :tabindex="$slots.summary ? 0 : undefined"
+          class="final-ranking-panel"
+        >
+          <div class="final-rankings">
+            <article v-for="entry in standings" :key="entry.playerIndex" :class="[`rank-${entry.rank}`, { self: entry.playerIndex === 0 }]" :style="animeEntryStyle(entry)">
+              <div class="final-rank"><b>{{ entry.rank }}</b><span>位</span></div>
+              <img :src="displayedAvatar(entry)" :alt="`${entry.name}头像`" @error="onAvatarError(entry)" />
+              <div class="final-name">
+                <strong>{{ entry.name }}</strong>
+                <small v-if="entry.playerIndex === 0 && entry.name !== '你'">你</small>
+                <button
+                  v-if="gameMode === 'remote' && entry.playerIndex !== 0 && playerId && humanSeats?.includes(entry.playerIndex)"
+                  class="report-link" @click="$emit('report', entry.name)"
+                >举报</button>
+              </div>
+              <em title="本场累计积分" :aria-label="`累计${entry.score}分`">{{ entry.score }}</em>
+            </article>
+          </div>
+        </div>
+        <div v-if="$slots.summary" v-show="activeFinalTab === 'details'" :id="`${tabId}-final-details`" role="tabpanel" :aria-labelledby="`${tabId}-final-details-tab`" tabindex="0" class="final-round-details">
           <slot name="summary" />
-        </details>
+        </div>
         <div class="settlement-footer final-footer">
           <button @click="$emit('returnToLobby')">返回大厅</button>
           <p class="result-disclaimer-note">游戏结果禁止用于赌博行为</p>
