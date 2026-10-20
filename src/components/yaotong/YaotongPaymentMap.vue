@@ -23,7 +23,14 @@ const props = defineProps<{
   burnedSeats?: number[]
 }>()
 const emit = defineEmits<{ inspect: [pair: { from: number; to: number; account?: Account }] }>()
-const selected = ref(0)
+const seatOrder = ref([1, 2, 3, 0])
+const selected = computed(() => seatOrder.value[3])
+function selectPlayer(seat: number) {
+  const index = seatOrder.value.indexOf(seat)
+  if (index < 0 || index === 3) return
+  seatOrder.value[index] = selected.value
+  seatOrder.value[3] = seat
+}
 const mode = ref<'net' | 'gift' | 'kill' | 'responsibility'>('net')
 const responsibilities = computed(() => responsibilityPayments(props.transfers))
 const gifts = computed(() => giftAwards(props.transfers))
@@ -43,15 +50,15 @@ const edges = computed(() =>
 )
 function showGift() {
   mode.value = 'gift'
-  selected.value = gifts.value[0]?.seat ?? selected.value
+  selectPlayer(gifts.value[0]?.seat ?? selected.value)
 }
 function showKill() {
   mode.value = 'kill'
-  selected.value = killFocusSeat(props.transfers)
+  selectPlayer(killFocusSeat(props.transfers))
 }
 function showResponsibility() {
   mode.value = 'responsibility'
-  selected.value = responsibilities.value[0]?.from ?? selected.value
+  selectPlayer(responsibilities.value[0]?.from ?? selected.value)
 }
 function inspect(from: number, to: number) {
   emit('inspect', {
@@ -67,9 +74,8 @@ function inspect(from: number, to: number) {
             : undefined,
   })
 }
-const others = computed(() => [0, 1, 2, 3].filter((seat) => seat !== selected.value))
 const position = (seat: number) =>
-  seat === selected.value ? { x: 300, y: 139 } : { x: [85, 300, 515][others.value.indexOf(seat)], y: 30 }
+  seat === selected.value ? { x: 300, y: 139 } : { x: [85, 300, 515][seatOrder.value.indexOf(seat)], y: 30 }
 function path(from: number, to: number) {
   const a = position(from),
     b = position(to),
@@ -126,18 +132,7 @@ const label = (from: number, to: number, amount: number) =>
           责任款
         </button>
       </span>
-      <span v-else>本局净收付</span
-      ><span class="payment-viewers" role="group" aria-label="查看玩家收付"
-        ><button
-          v-for="(p, seat) in players"
-          :key="seat"
-          :class="{ selected: selected === seat }"
-          :aria-pressed="selected === seat"
-          @click="selected = seat"
-        >
-          {{ p.name }}
-        </button></span
-      >
+      <span v-else>本局净收付</span>
     </header>
     <svg viewBox="0 0 600 180" role="group" :aria-label="`${players[selected]?.name}的本局收付`">
       <defs>
@@ -194,6 +189,13 @@ const label = (from: number, to: number, amount: number) =>
         :key="seat"
         :transform="`translate(${position(seat).x},${position(seat).y})`"
         class="payment-player"
+        role="button"
+        tabindex="0"
+        :aria-label="`查看${p.name}的分数流向`"
+        :aria-pressed="seat === selected"
+        @click="selectPlayer(seat)"
+        @keydown.enter="selectPlayer(seat)"
+        @keydown.space.prevent="selectPlayer(seat)"
         :class="{
           selected: seat === selected,
           burned: burnedSeats?.includes(seat),
@@ -265,10 +267,6 @@ const label = (from: number, to: number, amount: number) =>
   justify-content: space-between;
   gap: 10px;
   font-size: 12px;
-}
-.payment-viewers {
-  display: flex;
-  gap: 5px;
 }
 .payment-modes {
   display: flex;
@@ -348,19 +346,6 @@ const label = (from: number, to: number, amount: number) =>
     filter: none;
   }
 }
-.payment-viewers button {
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--theme-text-muted);
-  font-size: 10px;
-  padding: 4px 8px;
-  border-radius: 20px;
-}
-.payment-viewers button.selected {
-  border-color: var(--theme-border);
-  color: var(--theme-accent-text);
-  background: var(--theme-surface);
-}
 svg {
   display: block;
   width: 100%;
@@ -400,6 +385,16 @@ svg {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+.payment-player {
+  cursor: pointer;
+}
+.payment-player:focus-visible {
+  outline: none;
+}
+.payment-player:focus-visible > circle {
+  stroke: var(--theme-accent);
+  stroke-width: 4;
+}
 .payment-player circle {
   fill: var(--theme-surface);
   stroke: var(--theme-border);
@@ -433,10 +428,6 @@ svg {
   }
   .yaotong-payment-map header {
     font-size: 10px;
-  }
-  .payment-viewers button {
-    padding: 3px 6px;
-    font-size: 9px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
