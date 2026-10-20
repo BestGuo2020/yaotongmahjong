@@ -22,6 +22,8 @@ describe('updated WAV library', () => {
     }
   })
   it.each([
+    ['game_start.mp3', 'sounds/game_start.wav'],
+    ['game_start.wav', 'sounds/game_start.wav'],
     ['1p.mp3', 'sounds/1p.wav'],
     ['peng.wav', 'sounds/peng.wav'],
     ['dice.mp3', 'sounds/touzi.wav'],
@@ -32,7 +34,7 @@ describe('updated WAV library', () => {
     ['HuMusic.ogg', 'bgm/ting_bgm.wav'],
   ])('legacy %s resolves to actual %s', (logical, file) => expect(resolveAudioAsset(logical)).toBe(file))
   it('missing old sounds do not produce broken URLs or masquerade as a BGM track', () => {
-    for (const file of ['click.mp3', 'game_start.mp3', '1z.mp3', '../secret.wav', 'unknown.wav'])
+    for (const file of ['click.mp3', '1z.mp3', '../secret.wav', 'unknown.wav'])
       expect(resolveAudioAsset(file)).toBeNull()
     expect(resolveBgmAsset('peng.wav')).toBeNull()
     expect(resolveBgmAsset('bg.ogg')).toBe('bgm/bgm.wav')

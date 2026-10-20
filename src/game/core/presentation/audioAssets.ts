@@ -4,6 +4,7 @@ export const READY_BGM_ASSET = 'bgm/ting_bgm.wav'
 export const EFFECT_AUDIO_ASSETS = [
   ...['m', 'p', 's'].flatMap((suit) => Array.from({ length: 9 }, (_, i) => `sounds/${i + 1}${suit}.wav`)),
   ...[
+    'game_start',
     'peng',
     'gang',
     'zimo',
@@ -36,7 +37,7 @@ const aliases: Readonly<Record<string, string>> = {
   'chihushandian.ogg': 'sounds/chihushandian.wav',
 }
 
-/** No fabricated URL for removed click/honor/intro sounds; missing sounds never hold a game timer. */
+/** No fabricated URL for removed click/honor sounds; missing sounds never hold a game timer. */
 export function resolveAudioAsset(name: string): string | null {
   if (available.has(name)) return name
   if (aliases[name]) return aliases[name]

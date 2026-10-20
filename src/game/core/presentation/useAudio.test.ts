@@ -74,19 +74,23 @@ describe('useAudio LLM 语音播放', () => {
     first.emit('ended')
     expect(audio.playEffect('deal.mp3')).not.toBeNull()
   })
-  it('legacy effect names use WAV and completion still waits for ended; removed sounds finish immediately', async () => {
+  it.each([
+    ['hu.mp3', 'chihu.wav'],
+    ['game_start.mp3', 'game_start.wav'],
+  ])('%s uses its WAV and waits for ended; removed sounds finish immediately', async (name, file) => {
     const audio = useAudio()
     let completed = false
-    const pending = audio.playEffectAndWait('hu.mp3').then(() => { completed = true })
-    const sound = MockAudio.instances.find((item) => item.src.endsWith('/sounds/chihu.wav'))!
+    const pending = audio.playEffectAndWait(name).then(() => { completed = true })
+    const sound = MockAudio.instances.find((item) => item.src.endsWith(`/sounds/${file}`))!
     expect(sound).toBeDefined()
     await Promise.resolve()
     expect(completed).toBe(false)
     sound.emit('ended')
     await pending
     expect(completed).toBe(true)
-    await expect(audio.playEffectAndWait('game_start.mp3')).resolves.toBeUndefined()
-    expect(MockAudio.instances.some((item) => item.src.endsWith('game_start.mp3'))).toBe(false)
+    const count = MockAudio.instances.length
+    await expect(audio.playEffectAndWait('click.mp3')).resolves.toBeUndefined()
+    expect(MockAudio.instances).toHaveLength(count)
   })
   it('一炮多响组播：多条语音同时创建互不打断，全部结束后 resolve，静音时直接拒绝', async () => {
     const audio = useAudio()
