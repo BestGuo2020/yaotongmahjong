@@ -32,7 +32,7 @@ export function seatTableLayout(seat: number) {
   const outward = [ {x:0,z:1}, {x:1,z:0}, {x:0,z:-1}, {x:-1,z:0} ][index]
   const rotation = [0, Math.PI/2, Math.PI, -Math.PI/2][index]
   // 对家副露与手牌共用深度基线；其余三家的副露保留原有向外退让。
-  const start = [{x:9,z:6.79},{x:8.9,z:-8.45},{x:-9,z:OPPOSITE_HAND_Z},{x:-9.24,z:7.3}][index]
+  const start = [{x:9,z:6.79},{x:8.9,z:-8.45},{x:-9-2*TABLE_LAYOUT.tilePitch,z:OPPOSITE_HAND_Z},{x:-9.24,z:7.3}][index]
   const retreat = index === 2 ? 0 : TABLE_LAYOUT.meldRetreat
   const meld = {x:start.x + outward.x*retreat,
     z:start.z + outward.z*retreat, rotation}
