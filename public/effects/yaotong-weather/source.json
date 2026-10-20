@@ -70,6 +70,16 @@
       "file": "Fx_mesh_wenli.obj",
       "source": "01_刮风\\网格\\Fx_mesh_wenli.obj",
       "sha256": "67270e89bca292c5731f2062e1e56713c3ef5cb136b51c45f39709d99c0cdddd"
+    },
+    {
+      "file": "effect_jinbi.png",
+      "source": "02_下雨\\贴图\\effect_jinbi.png",
+      "sha256": "d6a4631bedd0f362656e43d3673b1d5c166d8d759fd021d78ab5f880c12f94a4"
+    },
+    {
+      "file": "golden_majiangzi.png",
+      "source": "02_下雨\\贴图\\golden_majiangzi.png",
+      "sha256": "72a7c7ce2fb6cbbf2ce481644a62382d2ac5a6678cd3a13141f3a284b9e31927"
     }
   ],
   "source": "用户提供：欢乐麻将 HLMJ_Data/_刮风下雨特效"

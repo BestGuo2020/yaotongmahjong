@@ -6,6 +6,7 @@ export const WEATHER_TEXTURE_FILES = {
   pattern: 'effect_wenli_00.png', mask: 'effect_mask_03.png', glow: 'effect_glow_03.png',
   star: 'shanguang_bai.png', rain: 'rain.png', smoke: 'effect_smike_01.png',
   ripple: 'water_ripple.png', splash: 'water_splash_4x4_blue.png',
+  coin: 'effect_jinbi.png', goldenTile: 'golden_majiangzi.png',
 } as const
 export const WEATHER_MESH_FILES = { ring: 'mesh_wind.obj', storm: 'fx_mesh_storm.obj', ground: 'Fx_mesh_wenli.obj' } as const
 export interface WeatherAssets {

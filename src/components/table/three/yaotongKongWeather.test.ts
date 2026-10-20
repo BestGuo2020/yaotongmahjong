@@ -18,6 +18,28 @@ const assets: WeatherAssets = {
 
 const cue = (kind: KongWeatherCue['kind'], seat = 0): KongWeatherCue => ({ id: seat + 1, seat, kind, startedAt: 100, duration: 2200, reducedMotion: false })
 describe('3D开杠天气', () => {
+  it.each(['tornado', 'rain'] as const)('%s使用两款金色粒子，分批飞散后淡出，不改变原始事件', kind => {
+    const input = [cue(kind)], before = structuredClone(input), scene = new THREE.Scene()
+    const weather = createYaotongKongWeather({ scene, assets, cues: () => input, localSeat: () => 0 })
+    weather.animate(100)
+    const layer = kind === 'rain' ? weather.screenScene : scene
+    const tokens = layer.children[0].children.filter(object => object.name === 'kong-gold-particle') as THREE.Sprite[]
+    expect(tokens).toHaveLength(16)
+    expect(tokens.every(token => !token.visible)).toBe(true)
+    expect(new Set(tokens.map(token => token.material.map!.name))).toEqual(new Set(['effect_jinbi.png', 'golden_majiangzi.png']))
+    for (const token of tokens) expect(token.material.map!.repeat.toArray()).toEqual([.5, 1])
+    weather.animate(600)
+    expect(tokens.filter(token => token.visible).length).toBeGreaterThan(0)
+    const positions = tokens.map(token => token.position.clone())
+    weather.animate(1100)
+    expect(tokens.some((token, i) => token.visible && token.position.distanceTo(positions[i]) > .1)).toBe(true)
+    weather.animate(2250)
+    expect(tokens.every(token => !token.visible)).toBe(true)
+    expect(input).toEqual(before)
+    weather.dispose()
+    expect(layer.children).toHaveLength(0)
+  })
+
   it.each(['tornado', 'rain'] as const)('%s只建一次，牌桌刷新不重播，到期释放GPU资源', kind => {
     const scene = new THREE.Scene(), input = [cue(kind)]
     const weather = createYaotongKongWeather({ scene, assets, cues: () => input, localSeat: () => 0 })
@@ -72,9 +94,13 @@ describe('3D开杠天气', () => {
     const scene = new THREE.Scene(), input = [{ ...cue('rain'), reducedMotion: true, duration: 600 }]
     const weather = createYaotongKongWeather({ scene, assets, cues: () => input, localSeat: () => 0 })
     weather.animate(200)
+    const tokens = weather.screenScene.children[0].children.filter(object => object.name === 'kong-gold-particle') as THREE.Sprite[]
+    expect(tokens).toHaveLength(4)
+    const tokenPositions = tokens.map(token => token.position.toArray())
     const matrices: number[][] = []
     weather.screenScene.traverse(object => { if (object instanceof THREE.InstancedMesh) matrices.push([...object.instanceMatrix.array]) })
     weather.animate(500)
+    expect(tokens.map(token => token.position.toArray())).toEqual(tokenPositions)
     const after: number[][] = []
     weather.screenScene.traverse(object => { if (object instanceof THREE.InstancedMesh) after.push([...object.instanceMatrix.array]) })
     expect(matrices).toHaveLength(1)

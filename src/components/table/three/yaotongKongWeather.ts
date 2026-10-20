@@ -164,6 +164,42 @@ function buildWeather(scene: THREE.Scene, cue: KongWeatherCue, localSeat: number
       })
     }
   }
+  // Both supplied 2×1 atlases are decorative tokens; they never generate score transfers.
+  const wind = cue.kind === 'tornado'
+  for (let i = 0; i < (cue.reducedMotion ? 4 : 16); i++) {
+    const coin = wind ? i % 3 === 0 : i % 3 !== 0
+    const map = texture(coin ? 'coin' : 'goldenTile')
+    setWeatherFrame(map, i % 2, 2, 1)
+    const token = sprite(map, 0xffd18a, .9, true)
+    token.name = 'kong-gold-particle'
+    token.renderOrder = 4
+    const delay = .16 + (i >= 8 ? .32 : 0) + (i % 8) * .018
+    const lifetime = 1.05 + (i % 4) * .12
+    const angle = i * 2.39996
+    updates.push(seconds => {
+      const age = seconds - delay
+      token.visible = age >= 0 && age < lifetime
+      if (!token.visible) return
+      const progress = age / lifetime
+      const spread = 1 - Math.exp(-age * 2.2)
+      if (wind) {
+        // Released pieces trail the moving wind instead of remaining glued to its core.
+        const origin = kongWindPosition(cue.seat, localSeat, cue.reducedMotion ? .5 : delay * 1000 / cue.duration)
+        token.position.set(origin.x - root.position.x + Math.cos(angle) * spread * 2,
+          .4 + (2.1 + i % 3 * .3) * age - 1.6 * age * age,
+          origin.z - root.position.z + Math.sin(angle) * spread * 1.2)
+      } else {
+        token.position.set(Math.cos(angle) * spread * viewAspect() * .7,
+          -.25 + Math.sin(angle) * spread * .4 + 1.15 * age - .65 * age * age, 0)
+      }
+      // The source frames have wide transparent margins; size for the visible glyph, not the atlas cell.
+      const size = wind ? .72 + i % 3 * .14 : .12 + i % 3 * .02
+      const turn = .45 + .55 * Math.abs(Math.cos(age * (7 + i % 3) + i))
+      token.scale.set(size * turn, size, 1)
+      token.material.rotation = angle + age * (i % 2 ? 2.8 : -2.8)
+      token.material.opacity *= Math.min(1, progress / .12, (1 - progress) / .3)
+    })
+  }
   scene.add(root)
   return {
     cue, root,

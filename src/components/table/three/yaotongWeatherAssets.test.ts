@@ -32,4 +32,12 @@ describe('用户提供的原始风雨素材', () => {
       expect(texture.repeat.toArray()).toEqual([.25, .25])
     }
   })
+  it('金币与金色麻将子按2×1图集取单枚图案', () => {
+    const texture = new THREE.Texture()
+    setWeatherFrame(texture, 0, 2, 1)
+    expect(texture.repeat.toArray()).toEqual([.5, 1])
+    expect(texture.offset.toArray()).toEqual([0, 0])
+    setWeatherFrame(texture, 1, 2, 1)
+    expect(texture.offset.toArray()).toEqual([.5, 0])
+  })
 })
