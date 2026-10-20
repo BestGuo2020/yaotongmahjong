@@ -83,7 +83,8 @@ it('原报窗口、报听开关和锁手分别给出下一步提示', () => insp
   state.players[0].drawn = 8
   triggerRef(port.local.state)
   expect(port.guidance.value[0].id).toBe('locked-hand')
-  expect(port.guidance.value[0].action).toContain('只能打出刚摸到的那张牌')
+  expect(port.guidance.value[0].action).toContain('无需点击出牌')
+  expect(port.guidance.value[0].action).toContain('请点击「胡」确认')
 }))
 
 it('老手模式、托管、开场及终局期间不显示新手模式教学提示', () => inspect((port) => {

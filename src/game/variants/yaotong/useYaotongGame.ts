@@ -38,6 +38,11 @@ export function useYaotongGame() {
   )
   const self = computed(() => (state.value ? selfOptions(state.value, 0) : null))
   const kongs = computed(() => (state.value ? kongOptions(state.value, 0) : []))
+  const autoDiscard = computed(() =>
+    ownTurn.value && user.value?.declaration !== 'none' && user.value?.drawn != null &&
+    (!self.value?.hu || self.value.restrictedHu) &&
+    !protection.value.discards.includes(user.value.hand.length - 1),
+  )
   const waiting = computed(() => (user.value ? waits(user.value) : []))
   const discardOptions = computed(() =>
     ownTurn.value && user.value?.declaration === 'none'
@@ -137,6 +142,14 @@ export function useYaotongGame() {
       return
     }
     if (game.phase === 'transition') return
+    if (!autoplay.value && autoDiscard.value) {
+      timer = setTimeout(() => {
+        if (state.value === game && !paused.value && !autoplay.value && autoDiscard.value)
+          dispatch({ type: 'discard', index: game.players[0].hand.length - 1 })
+      }, AI_DELAYS.turn)
+      cleanup(() => clearTimeout(timer))
+      return
+    }
     const seats = autoplay.value ? [0, 1, 2, 3] : [1, 2, 3]
     // Resolve the original-report window together. Humans without a legal declaration need no confirmation.
     if (game.phase === 'original') {
@@ -189,6 +202,7 @@ export function useYaotongGame() {
     selected,
     error,
     ownTurn,
+    autoDiscard,
     response,
     self,
     kongs,

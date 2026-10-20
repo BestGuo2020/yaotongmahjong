@@ -730,7 +730,7 @@ export function useYaotongPort(
     round: computed(() => local.state.value?.dealerRound ?? 1),
     dealer: computed(() => local.state.value?.dealer ?? 0),
     user: computed(() => players.value[0]),
-    isUserTurn: computed(() => local.ownTurn.value && !local.paused.value && !local.autoplay.value),
+    isUserTurn: computed(() => local.ownTurn.value && !local.autoDiscard.value && !local.paused.value && !local.autoplay.value),
     userCanHu: computed(() => Boolean(local.self.value?.hu && !local.protection.value.hu && !local.paused.value && !local.autoplay.value)),
     matchType: computed<MatchType>(() => (length.value === 4 ? 'east' : 'hanchan')),
     matchName,

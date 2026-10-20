@@ -62,7 +62,7 @@ export function yaotongGuidance(
   if (options.original) hints.push({
     id: 'original', protection: false, summary: '起手已听，可选择原报',
     reason: '你的起手牌已经听牌，现在是庄家第一次摸牌前的原报窗口。',
-    action: '选择「原报」可获得原报计分，但此后只能摸切，不能碰杠；也可以选择「不原报」继续正常出牌。',
+    action: '选择「原报」可获得原报计分，此后系统自动摸切，不能碰杠；也可以选择「不原报」继续正常出牌。',
   })
   if (options.canDeclare && !protection.pass) hints.push({
     id: options.declarationArmed ? 'declare-armed' : 'can-declare', protection: false,
@@ -71,12 +71,12 @@ export function yaotongGuidance(
     action: options.declarationArmed
       ? '请打出带听牌箭头的牌完成报听；想正常出牌，可先点「取消报听」。'
       : '想报听时，先点「报听」，再打出带听牌箭头的牌。直接出牌不会自动替你报听。',
-    release: '声明后只能摸切，不能碰杠；本局结束后恢复。',
+    release: '声明后系统自动摸切，不能碰杠；本局结束后恢复。',
   })
   if (ownTurn && player.declaration !== 'none' && !protection.pass) hints.push({
-    id: 'locked-hand', protection: false, summary: '已声明听牌，只能打刚摸的牌',
+    id: 'locked-hand', protection: false, summary: '已声明听牌，系统自动摸切',
     reason: `你已${player.declaration === 'original' ? '原报' : '报听'}，手牌和听口已经锁定，不能再碰杠或换牌。`,
-    action: '需要出牌时，只能打出刚摸到的那张牌；出现合法胡牌机会时仍可胡牌。',
+    action: '系统会自动摸牌并打出刚摸到的那张牌，无需点击出牌；出现合法胡牌机会时会暂停摸切，请点击「胡」确认。',
     release: '本局结束后恢复。',
   })
   return hints
