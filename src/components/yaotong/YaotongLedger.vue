@@ -48,7 +48,10 @@ function inspect(value: { from: number; to: number; account?: Account }) {
     </div>
     <p class="yaotong-hand-score">
       <b>{{ players[selectedSeat].name }}</b> ·
-      <template v-if="selectedValue">单份胡分：{{ handScoreFormula(selectedValue) }} = {{ selectedValue.h }}分</template>
+      <template v-if="selectedValue">
+        单份胡分：<template v-if="selectedValue.patterns.length">{{ handScoreFormula(selectedValue) }} = {{ selectedValue.h }}分</template>
+        <template v-else>{{ selectedValue.h }}分（仅基础分）</template>
+      </template>
       <template v-else>本局未胡牌</template>
     </p>
     <YaotongPaymentMap
