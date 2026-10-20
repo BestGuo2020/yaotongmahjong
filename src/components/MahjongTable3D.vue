@@ -29,6 +29,7 @@ import { tileMarkerFor } from './table/three/tileMarker'
 import type { TableProps } from './table/three/tableRenderTypes'
 import { bloodFlowPileAnchor } from './table/three/bloodFlowWinPile'
 import { createBloodFlowWinEffects } from './table/three/bloodFlowWinEffects'
+import { createYaotongKongWeather } from './table/three/yaotongKongWeather'
 import { cuePhase } from '../game/variants/lotus/bloodFlow/presentation'
 
 const props = withDefaults(defineProps<TableProps>(), {
@@ -69,6 +70,7 @@ let lastPileAnchors = ''
 let dynamicGroups = []
 let winEffectPresenter: ReturnType<typeof createWinEffectPresenter> | null = null
 let bloodFlowWinEffects: ReturnType<typeof createBloodFlowWinEffects> | null = null
+let kongWeather: ReturnType<typeof createYaotongKongWeather> | null = null
 let dicePresenter: ReturnType<typeof createDicePresenter> | null = null
 let perfHud: ReturnType<typeof createPerfHud> | null = null
 const staticResources = []
@@ -317,6 +319,8 @@ function render(time = 0) {
     let exposure = renderProfile.exposure
     const diceActive = dicePresenter?.animate(time) ?? false
     const tilesActive = tableTiles.animate(time, scratchVector)
+    const weatherActive = kongWeather?.animate(time) ?? false
+    if (canvas.value && props.kongWeather) canvas.value.dataset.kongWeather = JSON.stringify(kongWeather?.visibleCues ?? [])
     const winFrame = winEffectPresenter?.animate(time)
     const bloodFlowFrame = bloodFlowWinEffects?.animate(time)
     const bloodFlowActive = bloodFlowFrame?.active ?? false
@@ -364,7 +368,7 @@ function render(time = 0) {
     if (outlineEffect) outlineEffect.render(scene, camera)
     else renderer.render(scene, camera)
     renderedFrames += 1
-    keepGoing = diceActive || tilesActive || Boolean(winFrame) || bloodFlowActive || dirty
+    keepGoing = diceActive || tilesActive || weatherActive || Boolean(winFrame) || bloodFlowActive || dirty
   } finally {
     rendering = false
   }
@@ -549,6 +553,7 @@ onMounted(async () => {
   winEffectPresenter = createWinEffectPresenter(winEffectOptions)
   bloodFlowWinEffects = createBloodFlowWinEffects(winEffectOptions)
   bloodFlowWinEffects.sync()
+  kongWeather = createYaotongKongWeather({ scene, cues: () => props.kongWeather ?? [], localSeat: () => props.localSeat })
   dicePresenter = createDicePresenter({
     scene,
     own,
@@ -656,6 +661,8 @@ watch(() => props.openingStage, (stage) => {
   invalidate()
 })
 
+watch(() => props.kongWeather, () => invalidate())
+
 // 骰子值/掷骰者变化（莲花麻将二次掷骰）只影响骰子动画，单独监听并请求重绘。
 watch(() => props.diceValues.join(',') + '|' + props.diceThrowerIndex, () => invalidate())
 
@@ -696,6 +703,7 @@ onBeforeUnmount(() => {
    */
   const teardown = () => {
     bloodFlowWinEffects?.dispose()
+    kongWeather?.dispose()
     if (scene) clearDynamicScene()
     staticResources.forEach((resource) => resource.dispose?.())
     target?.dispose()

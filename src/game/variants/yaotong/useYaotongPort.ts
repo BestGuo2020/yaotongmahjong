@@ -46,6 +46,7 @@ import { yaotongGuidance } from './guidance'
 import { recordYaotongRound } from './replay'
 import type { ReplayRecorderHooks } from '../../replay/types'
 import { countsOf } from './tiles'
+import { kongWeatherKind, KONG_WEATHER_DURATION, REDUCED_KONG_WEATHER_DURATION, type KongWeatherCue } from './kongPresentation'
 import {
   chickenMarks,
   chickenPerformance,
@@ -112,6 +113,7 @@ export function useYaotongPort(
   const tailDrawn = ref(0)
   const seatCue = shallowRef<ChickenCue | null>(null)
   const chickenPerformances = shallowRef<ChickenPerformance[]>([])
+  const kongWeather = shallowRef<KongWeatherCue[]>([])
   const pendingChickens = shallowRef<ChickenPerformance[]>([])
   const declarationCues = shallowRef<TableDeclarationEvent[]>([])
   const settlementCue = shallowRef<SettlementCue | null>(null)
@@ -140,6 +142,7 @@ export function useYaotongPort(
     }
   }
   const tableView = computed<YaotongTableView>(() => ({
+    kongWeather: kongWeather.value,
     multiWinIntro: multiWinIntro.value,
     winPatterns: winPatternCue(local.state.value?.result, winEffect.value),
     settlementIndicator:
@@ -518,11 +521,19 @@ export function useYaotongPort(
       )
     }
     if (performance?.kind === 'rush') void lastDiscardSound.value?.then(showChicken, showChicken)
-    if (event.kind === 'kong')
-      playSound(
-        event.text === '转弯杠' || event.text === '存杠' ? 'angang_rainy.wav' : 'mingang_windy.wav',
-        0.28,
-      )
+    const weatherKind = kongWeatherKind(event)
+    if (weatherKind && !game?.result) {
+      const reducedMotion = prefersReducedMotion()
+      const weather: KongWeatherCue = {
+        id: ++eventSequence, seat: event.seat, kind: weatherKind, startedAt: globalThis.performance.now(),
+        duration: reducedMotion ? REDUCED_KONG_WEATHER_DURATION : KONG_WEATHER_DURATION, reducedMotion,
+      }
+      kongWeather.value = [...kongWeather.value.filter(c => c.seat !== event.seat), weather]
+      playSound(weatherKind === 'rain' ? 'angang_rainy.wav' : 'mingang_windy.wav', 0.28)
+      scheduler.later(() => {
+        kongWeather.value = kongWeather.value.filter(c => c.id !== weather.id)
+      }, weather.duration)
+    }
     const kongKey = `${event.seat}/${event.tile}`
     if (event.kind === 'kong-intent') declaredKongs.add(kongKey)
     if (event.kind === 'kong' && event.text === '补杠' && declaredKongs.delete(kongKey)) return
@@ -564,6 +575,7 @@ export function useYaotongPort(
       for (const event of state.events.filter((e) => e.id > seenSerial)) present(event)
       seenSerial = state.serial
       if (!state.result || result.value || presentationPhase.value) return
+      kongWeather.value = []
       announcement.value = null
       seatCue.value = null
       chickenPerformances.value = []
@@ -587,6 +599,7 @@ export function useYaotongPort(
   )
 
   function resetPresentation() {
+    kongWeather.value = []
     settlementGeneration++
     scheduler.clear()
     openingStage.value = null
@@ -791,6 +804,7 @@ export function useYaotongPort(
       return opening()
     },
     returnToLobby() {
+      kongWeather.value = []
       settlementGeneration++
       scheduler.clear()
       announcement.value = null
@@ -811,6 +825,7 @@ export function useYaotongPort(
     tileName: sharedTileName,
   })
   onScopeDispose(() => {
+    kongWeather.value = []
     settlementGeneration++
     scheduler.clear()
   })

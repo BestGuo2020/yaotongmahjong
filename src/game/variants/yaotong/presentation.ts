@@ -2,6 +2,7 @@ import type { Account, Declaration, GameEvent, GameState, HandValue, Settlement,
 import type { TableDeclarationEvent } from '../../core/presentation/tableActionCue'
 import type { TileType } from '../../core/contracts/types'
 import type { ChickenPerformance } from './chickenPresentation'
+import type { KongWeatherCue } from './kongPresentation'
 
 /** One wind per four dealer rounds; repeat hands keep the same label. */
 export function yaotongRoundLabel(dealerRound: number): string {
@@ -28,6 +29,7 @@ export interface ChickenCue {
   strong: boolean
 }
 export interface YaotongTableView {
+  kongWeather?: KongWeatherCue[]
   multiWinIntro?: { id: number; sourceIndex: number } | null
   winPatterns?: YaotongWinPatternCue | null
   settlementIndicator?: { id: number; seat: number; tile: TileType } | null

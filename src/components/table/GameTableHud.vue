@@ -542,6 +542,7 @@ function onAvatarError(entry: GamePlayer) {
       :wall-break-index="wallBreakIndex"
       :flip-tile="flipTile"
       :settlement-indicator="yaotongView?.settlementIndicator"
+      :kong-weather="yaotongView?.kongWeather"
       :flip-stack="flipStack"
       :blood-flow-batches="bloodFlow?.batches"
       :blood-flow-compact="compactPiles"
