@@ -72,8 +72,8 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
 .positive { color: var(--theme-positive); }
 .negative { color: var(--theme-negative); }
 .overview-chicken { display: flex; align-items: center; justify-content: center; gap: 12px; width: fit-content; margin: 0 auto; padding: 8px 20px; border: 1px solid var(--theme-border); border-radius: 6px; background: color-mix(in srgb, var(--theme-accent) 4%, transparent); color: var(--theme-text-muted); font-size: 12px; }
-.overview-chicken .mahjong-tile { --tile-width: 33px; flex: none; }
-.overview-chicken .flipped-chicken { box-shadow: 0 0 0 2px var(--theme-accent), 0 0 16px color-mix(in srgb, var(--theme-accent) 25%, transparent); }
+.overview-chicken .mahjong-tile { --tile-width: 33px; flex: none; top: 0; margin-bottom: 6px; transform: none; filter: none; background-origin: border-box; background-position: center; }
+.overview-chicken .flipped-chicken { outline: 2px solid var(--theme-accent); outline-offset: 1px; }
 .chicken-arrow { color: var(--theme-accent-text); }
 .overview-double { margin-left: 4px; color: var(--theme-accent-text); font-size: 12px; }
 @container game (max-height: 600px) {
@@ -85,7 +85,7 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
   .self-score-breakdown > span { padding: 3px 8px; font-size: 11px; }
   .self-score-breakdown b { font-size: 13px; }
   .overview-chicken { padding: 4px 14px; gap: 9px; font-size: 11px; }
-  .overview-chicken .mahjong-tile { --tile-width: 25px; }
+  .overview-chicken .mahjong-tile { --tile-width: 27px; }
 }
 @container game (max-height: 450px) and (min-width: 620px) {
   .yaotong-round-overview { display: grid; grid-template-columns: minmax(110px, .7fr) minmax(0, 1.5fr) auto; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--theme-accent) 4%, transparent); }
@@ -98,7 +98,7 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
   .self-score-breakdown b { font-size: 14px; }
   .hu-score-parts { display: none; }
   .overview-chicken { flex-wrap: wrap; gap: 6px; max-width: 170px; margin: 0; padding: 4px 0 4px 12px; border: 0; border-left: 1px solid var(--theme-border); border-radius: 0; background: transparent; font-size: 10px; }
-  .overview-chicken .mahjong-tile { --tile-width: 23px; }
+  .overview-chicken .mahjong-tile { --tile-width: 24px; }
   .overview-double { width: 100%; margin: 0; text-align: right; font-size: 10px; }
 }
 </style>

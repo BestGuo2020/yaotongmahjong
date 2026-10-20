@@ -116,6 +116,18 @@ function inspect(value: { from: number; to: number; account?: Account }) {
   margin: 12px 0;
   font-size: 12px;
 }
+.yaotong-flip .mahjong-tile {
+  --tile-width: 33px;
+  top: 0;
+  margin-bottom: 6px;
+  transform: none;
+  filter: none;
+  background-origin: border-box;
+  background-position: center;
+}
+@container game (max-height: 600px) {
+  .yaotong-flip .mahjong-tile { --tile-width: 27px; }
+}
 .yaotong-ledger details {
   margin: 12px 0;
   border: 1px solid var(--theme-border);
