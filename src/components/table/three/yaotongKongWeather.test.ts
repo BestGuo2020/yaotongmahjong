@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { describe, expect, it, vi } from 'vitest'
-import { createYaotongKongWeather, kongWeatherAnchor } from './yaotongKongWeather'
+import { createYaotongKongWeather, kongWindPosition } from './yaotongKongWeather'
 import type { KongWeatherCue } from '../../../game/variants/yaotong/kongPresentation'
 import { parseWeatherMesh, WEATHER_MESH_FILES, WEATHER_TEXTURE_FILES, type WeatherAssets } from './yaotongWeatherAssets'
 // @ts-expect-error Node APIs are used only by Vitest, not the browser application.
@@ -23,8 +23,10 @@ describe('3D开杠天气', () => {
     const weather = createYaotongKongWeather({ scene, assets, cues: () => input, localSeat: () => 0 })
     expect(weather.animate(0)).toBe(false)
     expect(weather.animate(600)).toBe(true)
-    const root = scene.children[0]
-    expect(root.position.toArray()).toEqual(Object.values(kongWeatherAnchor(0)))
+    const layer = kind === 'rain' ? weather.screenScene : scene
+    const root = layer.children[0]
+    expect(root.userData.layer).toBe(kind === 'rain' ? 'screen' : 'table')
+    if (kind === 'rain') expect(scene.children).toHaveLength(0)
     expect(weather.visibleCues).toEqual([{ seat: 0, kind }])
     const resources = new Set<THREE.BufferGeometry | THREE.Material | THREE.Texture>()
     root.traverse(object => {
@@ -42,12 +44,12 @@ describe('3D开杠天气', () => {
     expect([...resources].some(resource => resource instanceof THREE.Texture && resource.name === (kind === 'rain' ? 'water_splash_4x4_blue.png' : 'wind_trail.png'))).toBe(true)
     expect([...resources].every(resource => !Object.values(assets.textures).includes(resource as THREE.Texture))).toBe(true)
     expect(weather.animate(700)).toBe(true)
-    expect(scene.children).toEqual([root])
+    expect(layer.children).toEqual([root])
     expect(weather.animate(2300)).toBe(false)
-    expect(scene.children).toHaveLength(0)
+    expect(layer.children).toHaveLength(0)
     spies.forEach(spy => expect(spy).toHaveBeenCalledOnce())
     expect(weather.animate(2400)).toBe(false)
-    expect(scene.children).toHaveLength(0)
+    expect(layer.children).toHaveLength(0)
   })
 
   it('不同玩家可同时开杠；取消提示立即清理对应效果', () => {
@@ -55,10 +57,13 @@ describe('3D开杠天气', () => {
     let input = [cue('rain', 1), cue('tornado', 2)]
     const weather = createYaotongKongWeather({ scene, assets, cues: () => input, localSeat: () => 1 })
     weather.animate(600)
-    expect(scene.children.map(group => group.position.toArray())).toEqual([Object.values(kongWeatherAnchor(1, 1)), Object.values(kongWeatherAnchor(2, 1))])
+    expect(scene.children).toHaveLength(1)
+    expect(scene.children[0].userData.seat).toBe(2)
+    expect(weather.screenScene.children[0].userData.seat).toBe(1)
     input = [input[1]]
     weather.animate(700)
     expect(weather.visibleCues).toEqual([{ seat: 2, kind: 'tornado' }])
+    expect(weather.screenScene.children).toHaveLength(0)
     weather.dispose()
     expect(scene.children).toHaveLength(0)
   })
@@ -68,13 +73,60 @@ describe('3D开杠天气', () => {
     const weather = createYaotongKongWeather({ scene, assets, cues: () => input, localSeat: () => 0 })
     weather.animate(200)
     const matrices: number[][] = []
-    scene.traverse(object => { if (object instanceof THREE.InstancedMesh) matrices.push([...object.instanceMatrix.array]) })
+    weather.screenScene.traverse(object => { if (object instanceof THREE.InstancedMesh) matrices.push([...object.instanceMatrix.array]) })
     weather.animate(500)
     const after: number[][] = []
-    scene.traverse(object => { if (object instanceof THREE.InstancedMesh) after.push([...object.instanceMatrix.array]) })
+    weather.screenScene.traverse(object => { if (object instanceof THREE.InstancedMesh) after.push([...object.instanceMatrix.array]) })
+    expect(matrices).toHaveLength(1)
     expect(after).toEqual(matrices)
     weather.animate(700)
-    expect(scene.children).toHaveLength(0)
+    expect(weather.screenScene.children).toHaveLength(0)
+  })
+
+  it('本家风从右向左连续平移，并按开杠者座位旋转方向', () => {
+    const scene = new THREE.Scene(), weather = createYaotongKongWeather({ scene, assets, cues: () => [cue('tornado')], localSeat: () => 0 })
+    const positions = [320, 980, 1860].map(now => { weather.animate(now); return scene.children[0].position.clone() })
+    expect(positions[0].x).toBeGreaterThan(0)
+    expect(positions[2].x).toBeLessThan(0)
+    expect(positions[0].x).toBeGreaterThan(positions[1].x)
+    expect(positions[1].x).toBeGreaterThan(positions[2].x)
+    expect(positions[0].z).toBe(positions[2].z)
+    expect(kongWindPosition(2, 2, .1).x).toBeGreaterThan(kongWindPosition(2, 2, .9).x)
+    expect(kongWindPosition(1, 0, .1).z).toBeLessThan(kongWindPosition(1, 0, .9).z)
+    weather.dispose()
+  })
+
+  it('雨幕独立叠加在画面上，适应宽高比，保留主画面清屏设置', () => {
+    const scene = new THREE.Scene(), weather = createYaotongKongWeather({ scene, assets, cues: () => [cue('rain')], localSeat: () => 0 })
+    weather.setAspect(2)
+    weather.animate(600)
+    const renderer = { autoClear: true, info: { autoReset: true }, clearDepth: vi.fn(), render: vi.fn() }
+    weather.renderOverlay(renderer)
+    const [layer, camera] = renderer.render.mock.calls[0]
+    expect(layer).toBe(weather.screenScene)
+    expect(camera.isOrthographicCamera).toBe(true)
+    expect([camera.left, camera.right, camera.top, camera.bottom]).toEqual([-2, 2, 1, -1])
+    expect(renderer.clearDepth).toHaveBeenCalledOnce()
+    expect(renderer.autoClear).toBe(true)
+    expect(renderer.info.autoReset).toBe(true)
+    weather.setAspect(.75)
+    expect([camera.left, camera.right]).toEqual([-.75, .75])
+    renderer.render.mockImplementationOnce(() => { throw new Error('renderer lost') })
+    expect(() => weather.renderOverlay(renderer)).toThrow('renderer lost')
+    expect(renderer.autoClear).toBe(true)
+    expect(renderer.info.autoReset).toBe(true)
+    weather.animate(2300)
+    renderer.render.mockClear()
+    weather.renderOverlay(renderer)
+    expect(renderer.render).not.toHaveBeenCalled()
+  })
+
+  it('连续暗杠只保留最新雨幕，避免多层雨叠加遮挡画面', () => {
+    const scene = new THREE.Scene(), weather = createYaotongKongWeather({ scene, assets, cues: () => [cue('rain', 1), cue('rain', 2)], localSeat: () => 0 })
+    weather.animate(600)
+    expect(weather.screenScene.children).toHaveLength(1)
+    expect(weather.visibleCues).toEqual([{ seat: 2, kind: 'rain' }])
+    weather.dispose()
   })
 
   it('素材不可用时跳过装饰，不显示白色方块或阻塞对局', () => {

@@ -320,8 +320,10 @@ function render(time = 0) {
     let exposure = renderProfile.exposure
     const diceActive = dicePresenter?.animate(time) ?? false
     const tilesActive = tableTiles.animate(time, scratchVector)
+    kongWeather?.setAspect(camera.aspect)
     const weatherActive = kongWeather?.animate(time) ?? false
     if (canvas.value && props.kongWeather) canvas.value.dataset.kongWeather = JSON.stringify(kongWeather?.visibleCues ?? [])
+    if (import.meta.env.DEV && canvas.value && props.kongWeather) canvas.value.dataset.kongWeatherLayout = JSON.stringify(kongWeather?.visibleLayouts ?? [])
     const winFrame = winEffectPresenter?.animate(time)
     const bloodFlowFrame = bloodFlowWinEffects?.animate(time)
     const bloodFlowActive = bloodFlowFrame?.active ?? false
@@ -368,6 +370,7 @@ function render(time = 0) {
     }
     if (outlineEffect) outlineEffect.render(scene, camera)
     else renderer.render(scene, camera)
+    kongWeather?.renderOverlay(renderer)
     renderedFrames += 1
     keepGoing = diceActive || tilesActive || weatherActive || Boolean(winFrame) || bloodFlowActive || dirty
   } finally {
@@ -570,7 +573,7 @@ onMounted(async () => {
     props.kongWeather ? preloadWeatherAssets().catch(error => { console.warn('开杠特效素材加载失败', error); return null }) : Promise.resolve(null),
   ])
   if (destroyed) return
-  kongWeather = createYaotongKongWeather({ scene, assets: weatherAssets, camera, cues: () => props.kongWeather ?? [], localSeat: () => props.localSeat })
+  kongWeather = createYaotongKongWeather({ scene, assets: weatherAssets, cues: () => props.kongWeather ?? [], localSeat: () => props.localSeat })
   scene.userData.tileImages = preloadedTileImages(activeThemeName)
   tableScene.addTable()
   tableTiles.rebuild()

@@ -1,4 +1,4 @@
-import { createApp, h, ref, shallowRef, watch } from 'vue'
+import { createApp, h, ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
 import '../../../src/style.css'
 import GameTableHud from '../../../src/components/table/GameTableHud.vue'
 import { useYaotongPort } from '../../../src/game/variants/yaotong/useYaotongPort'
@@ -12,6 +12,14 @@ createApp({ setup() {
   const game = useYaotongPort()
   const hold = ref(false), seat = ref(0), ready = ref(false)
   const captured = shallowRef<KongWeatherCue[]>([])
+  const previewTime = ref(performance.now()), previewProgress = ref(35)
+  let previewFrame = 0
+  function tick(now: number) {
+    if (captured.value.length) previewTime.value = now
+    previewFrame = requestAnimationFrame(tick)
+  }
+  onMounted(() => { previewFrame = requestAnimationFrame(tick) })
+  onBeforeUnmount(() => cancelAnimationFrame(previewFrame))
   let hand = 0
   function prepare(kind: string) {
     game.returnToLobby()
@@ -45,7 +53,7 @@ createApp({ setup() {
   }
   watch(() => game.tableView.value.kongWeather, cues => {
     if (hold.value && cues?.length) {
-      captured.value = cues.map(cue => ({ ...cue, startedAt: performance.now() - 10000, duration: 60000 }))
+      captured.value = cues.map(cue => ({ ...cue }))
       game.local.paused.value = true
     }
   })
@@ -56,6 +64,8 @@ createApp({ setup() {
         ['你', '听风', '观山', '望月'].map((name, value) => h('option', { value }, name))),
       ...['明杠', '补杠', '转弯杠', '存杠', '抢杠'].map(kind => h('button', { disabled: !ready.value, onClick: () => prepare(kind) }, kind)),
       h('label', [h('input', { type: 'checkbox', checked: hold.value, onChange: (event: Event) => { hold.value = (event.target as HTMLInputElement).checked; if (!hold.value) captured.value = [] } }), '保留验收画面']),
+      h('input', { type: 'range', 'aria-label': '动画进度', min: 10, max: 90, value: previewProgress.value,
+        style: 'width:90px', onInput: (event: Event) => { previewProgress.value = Number((event.target as HTMLInputElement).value) } }),
       h('button', { onClick: () => prepare('idle') }, '清除'),
     ]),
     h('div', { class: 'has-three-scene' }, [h(GameTableHud, {
@@ -70,7 +80,9 @@ createApp({ setup() {
       matchName: '东风场', roundLabel: '东1局', dealAnimation: game.dealAnimation.value, openingStage: null,
       diceValues: [2, 3], diceThrowerIndex: 0, userCurrentWaits: null, userTingOptions: [], userDiscardWaits: null,
       userKongs: [], userHasWindKong: false, rulesetId: 'yaotong', wallTotal: 108, jokerTiles: ['p1'],
-      yaotongView: { ...game.tableView.value, kongWeather: captured.value.length ? captured.value : game.tableView.value.kongWeather },
+      yaotongView: { ...game.tableView.value, kongWeather: captured.value.length
+        ? captured.value.map(cue => ({ ...cue, startedAt: previewTime.value - cue.duration * previewProgress.value / 100 }))
+        : game.tableView.value.kongWeather },
       onReady: () => { ready.value = true },
     })]),
   ])
