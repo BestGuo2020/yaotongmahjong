@@ -23,13 +23,12 @@ const outcome = computed(() => {
   if (settlement.source === 0) return '放炮'
   return settlement.ready[0] ? '已听牌' : '未听牌'
 })
-const patterns = computed(() => result.value.values[0]?.patterns.map(pattern => pattern.name).join(' · '))
 const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''}${Math.abs(amount)}`
 </script>
 
 <template>
   <section class="yaotong-round-overview" aria-label="本家分数概览">
-    <p class="self-result-label">本家 · {{ outcome }}<span v-if="patterns">{{ patterns }}</span></p>
+    <p class="self-result-label">本家 · {{ outcome }}</p>
     <div class="self-round-score" :class="{ positive: delta > 0, negative: delta < 0 }">
       <span>本局净得分</span><strong>{{ signed(delta) }}</strong><span>分</span>
     </div>
@@ -61,7 +60,6 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
 <style scoped>
 .yaotong-round-overview { color: var(--theme-text); padding: 8px 0 14px; }
 .self-result-label { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; margin: 0 0 4px; color: var(--theme-accent-text); font-size: 14px; font-weight: 700; }
-.self-result-label > span { color: var(--theme-text-muted); font-size: 12px; font-weight: 400; }
 .self-round-score { display: flex; align-items: baseline; justify-content: center; gap: 12px; color: var(--theme-text-muted); }
 .self-round-score > span { font-size: 13px; color: var(--theme-text-muted); }
 .self-round-score strong { font: 800 clamp(48px, 8cqh, 72px)/1.15 Georgia, serif; font-variant-numeric: tabular-nums; }
