@@ -87,6 +87,7 @@ const finalRankingLab = ref(import.meta.env.DEV && new URLSearchParams(window.lo
 const restoredSettlement = ref(false)
 const activeTab = ref<'overview' | 'details'>('overview')
 const activeFinalTab = ref<'overview' | 'details'>('overview')
+const rankedScoreChanges = computed(() => [...(props.result?.scoreChanges ?? [])].sort((a, b) => a.rank - b.rank))
 const tabId = useId()
 function onTabKeydown(event: KeyboardEvent, final = false) {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -165,11 +166,14 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
         :data-result-strength="resultPresentation.strength"
         :data-result-source="resultKindLab ? 'lab' : 'game'"
       >
-        <h2>{{ result.roundLabel }} · {{ resultTitle ?? resultPresentation.label }}</h2>
-        <div v-if="$slots.overview" class="settlement-tabs" role="tablist" aria-label="结算内容" @keydown="onTabKeydown">
-          <button :id="`${tabId}-overview-tab`" type="button" role="tab" :aria-selected="activeTab === 'overview'" :aria-controls="`${tabId}-overview`" :tabindex="activeTab === 'overview' ? 0 : -1" @click="activeTab = 'overview'">概览</button>
-          <button :id="`${tabId}-details-tab`" type="button" role="tab" :aria-selected="activeTab === 'details'" :aria-controls="`${tabId}-details`" :tabindex="activeTab === 'details' ? 0 : -1" @click="activeTab = 'details'">分数明细</button>
-        </div>
+        <header v-if="$slots.overview" class="settlement-header">
+          <h2>{{ result.roundLabel }} · {{ resultTitle ?? resultPresentation.label }}</h2>
+          <div class="settlement-tabs" role="tablist" aria-label="结算内容" @keydown="onTabKeydown">
+            <button :id="`${tabId}-overview-tab`" type="button" role="tab" :aria-selected="activeTab === 'overview'" :aria-controls="`${tabId}-overview`" :tabindex="activeTab === 'overview' ? 0 : -1" @click="activeTab = 'overview'">概览</button>
+            <button :id="`${tabId}-details-tab`" type="button" role="tab" :aria-selected="activeTab === 'details'" :aria-controls="`${tabId}-details`" :tabindex="activeTab === 'details' ? 0 : -1" @click="activeTab = 'details'">分数明细</button>
+          </div>
+        </header>
+        <h2 v-else>{{ result.roundLabel }} · {{ resultTitle ?? resultPresentation.label }}</h2>
         <div
           v-show="!$slots.overview || activeTab === 'overview'"
           :id="`${tabId}-overview`"
@@ -191,7 +195,7 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
             </div>
           </div>
           <div class="round-rankings">
-            <article v-for="entry in result.scoreChanges" :key="entry.playerIndex" :class="{ winner: entry.playerIndex === result.winnerIndex, self: Boolean($slots.overview) && entry.playerIndex === 0 }" :style="animeEntryStyle(entry)">
+            <article v-for="entry in $slots.overview ? rankedScoreChanges : result.scoreChanges" :key="entry.playerIndex" :class="{ winner: entry.playerIndex === result.winnerIndex, self: Boolean($slots.overview) && entry.playerIndex === 0 }" :style="animeEntryStyle(entry)">
               <strong class="rank-number">{{ entry.rank }}<small>位</small></strong>
               <img :src="displayedAvatar(entry)" :alt="`${entry.name}头像`" @error="onAvatarError(entry)" />
               <span class="player-line">
@@ -200,8 +204,8 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
                 <i v-if="entry.playerIndex === dealer" class="mark dealer">庄</i>
                 <i v-if="result.draw && result.tenpai?.includes(entry.playerIndex)" class="mark tenpai">听</i>
               </span>
-              <em :class="{ positive: entry.delta > 0, negative: entry.delta < 0 }">{{ entry.delta > 0 ? '+' : '' }}{{ entry.delta }}</em>
-              <b>{{ entry.score }}</b>
+              <em :class="{ positive: entry.delta > 0, negative: entry.delta < 0 }"><small v-if="$slots.overview" class="rank-score-label">本局</small>{{ entry.delta > 0 ? '+' : '' }}{{ entry.delta }}</em>
+              <b><small v-if="$slots.overview" class="rank-score-label">累计</small>{{ entry.score }}</b>
             </article>
           </div>
         </div>

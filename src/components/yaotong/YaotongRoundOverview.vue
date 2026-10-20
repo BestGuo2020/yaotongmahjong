@@ -28,9 +28,11 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
 
 <template>
   <section class="yaotong-round-overview" aria-label="本家分数概览">
-    <p class="self-result-label">本家 · {{ outcome }}</p>
-    <div class="self-round-score" :class="{ positive: delta > 0, negative: delta < 0 }">
-      <span>本局净得分</span><strong>{{ signed(delta) }}</strong><span>分</span>
+    <div class="self-score-summary">
+      <p class="self-result-label">本家 · {{ outcome }}</p>
+      <div class="self-round-score" :class="{ positive: delta > 0, negative: delta < 0 }" :aria-label="`本局净得分${signed(delta)}分`">
+        <span>本局净得分</span><strong>{{ signed(delta) }}</strong><span>分</span>
+      </div>
     </div>
     <div class="self-score-breakdown" aria-label="本家分项净得分">
       <span v-for="item in breakdown" :key="item.account">
@@ -86,9 +88,17 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
   .overview-chicken .mahjong-tile { --tile-width: 25px; }
 }
 @container game (max-height: 450px) and (min-width: 620px) {
-  .yaotong-round-overview { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 20px; align-items: center; padding: 4px 12px 8px; }
-  .self-result-label, .self-round-score, .self-score-breakdown { grid-column: 1; }
-  .self-score-breakdown { margin-bottom: 0; }
-  .overview-chicken { grid-column: 2; grid-row: 1 / 4; }
+  .yaotong-round-overview { display: grid; grid-template-columns: minmax(110px, .7fr) minmax(0, 1.5fr) auto; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--theme-accent) 4%, transparent); }
+  .self-result-label { justify-content: flex-start; font-size: 11px; }
+  .self-round-score { justify-content: flex-start; gap: 6px; }
+  .self-round-score > span:first-child { display: none; }
+  .self-round-score strong { font-size: clamp(30px, 10cqh, 42px); }
+  .self-score-breakdown { justify-content: flex-start; margin: 0; gap: 5px; }
+  .self-score-breakdown > span { padding: 4px 7px; gap: 6px; border: 0; background: color-mix(in srgb, var(--theme-accent) 9%, transparent); font-size: 11px; }
+  .self-score-breakdown b { font-size: 14px; }
+  .hu-score-parts { display: none; }
+  .overview-chicken { flex-wrap: wrap; gap: 6px; max-width: 170px; margin: 0; padding: 4px 0 4px 12px; border: 0; border-left: 1px solid var(--theme-border); border-radius: 0; background: transparent; font-size: 10px; }
+  .overview-chicken .mahjong-tile { --tile-width: 23px; }
+  .overview-double { width: 100%; margin: 0; text-align: right; font-size: 10px; }
 }
 </style>
