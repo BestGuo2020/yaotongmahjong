@@ -22,7 +22,10 @@ const props = defineProps<{
   handNumber: number
   burnedSeats?: number[]
 }>()
-const emit = defineEmits<{ inspect: [pair: { from: number; to: number; account?: Account }] }>()
+const emit = defineEmits<{
+  inspect: [pair: { from: number; to: number; account?: Account }]
+  select: [seat: number]
+}>()
 const seatOrder = ref([1, 2, 3, 0])
 const selected = computed(() => seatOrder.value[3])
 function selectPlayer(seat: number) {
@@ -30,6 +33,7 @@ function selectPlayer(seat: number) {
   if (index < 0 || index === 3) return
   seatOrder.value[index] = selected.value
   seatOrder.value[3] = seat
+  emit('select', seat)
 }
 const mode = ref<'net' | 'gift' | 'kill' | 'responsibility'>('net')
 const responsibilities = computed(() => responsibilityPayments(props.transfers))

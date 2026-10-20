@@ -11,19 +11,24 @@ import { handScoreFormula } from './huScoreBreakdown'
 const props = defineProps<{ state: GameState; players: GamePlayer[]; themeName?: TableThemeName }>()
 const result = computed(() => props.state.result!)
 const detailOpen = ref(false)
+const selectedSeat = ref(0)
 const pair = ref<{ from: number; to: number; account?: Account } | null>(null)
 const entries = computed(() =>
   result.value.transfers.filter(
     (entry) =>
-      !pair.value ||
-      ((!pair.value.account || entry.account === pair.value.account) &&
-        ((entry.from === pair.value.from && entry.to === pair.value.to) ||
-          (entry.from === pair.value.to && entry.to === pair.value.from))),
+      (entry.from === selectedSeat.value || entry.to === selectedSeat.value) &&
+      (!pair.value ||
+        ((!pair.value.account || entry.account === pair.value.account) &&
+          ((entry.from === pair.value.from && entry.to === pair.value.to) ||
+            (entry.from === pair.value.to && entry.to === pair.value.from)))),
   ),
 )
 const playEffect = useEffectPlayer()
-// The local human occupies seat 0; inspecting another player's flow does not change this perspective.
-const transferSign = (entry: Transfer) => (entry.to === 0 ? '+' : entry.from === 0 ? '−' : '')
+const transferSign = (entry: Transfer) => (entry.to === selectedSeat.value ? '+' : '−')
+function selectPlayer(seat: number) {
+  selectedSeat.value = seat
+  pair.value = null
+}
 function inspect(value: { from: number; to: number; account?: Account }) {
   pair.value = value
   detailOpen.value = true
@@ -53,17 +58,18 @@ function inspect(value: { from: number; to: number; account?: Account }) {
         result.kind === 'win' ? state.players.flatMap((player, seat) => (player.burned ? [seat] : [])) : []
       "
       @inspect="inspect"
+      @select="selectPlayer"
     />
     <details :open="detailOpen" @toggle="detailOpen = ($event.target as HTMLDetailsElement).open">
-      <summary>分项账单 · {{ result.transfers.length }} 笔</summary>
-      <button v-if="pair" class="secondary" @click="pair = null">查看全部收付</button>
+      <summary>分项账单 · {{ entries.length }} 笔</summary>
+      <button v-if="pair" class="secondary" @click="pair = null">查看该玩家全部收付</button>
       <div class="yaotong-ledger-scroll">
         <table>
           <thead>
             <tr>
               <th>付款 → 收款</th>
               <th>分项 / 依据</th>
-              <th title="正负号以你的收付为准">分数</th>
+              <th :title="`正负号以${players[selectedSeat].name}的收付为准`">分数</th>
             </tr>
           </thead>
           <tbody>
@@ -74,8 +80,8 @@ function inspect(value: { from: number; to: number; account?: Account }) {
               </td>
               <td
                 class="ledger-amount"
-                :class="{ income: entry.to === 0, expense: entry.from === 0 }"
-                :title="entry.to === 0 ? '你的收入' : entry.from === 0 ? '你的支出' : undefined"
+                :class="{ income: entry.to === selectedSeat, expense: entry.from === selectedSeat }"
+                :title="`${players[selectedSeat].name}的${entry.to === selectedSeat ? '收入' : '支出'}`"
               >
                 <template v-if="entry.multiplier === 2">{{ transferSign(entry) }}{{ entry.base }} × 2 = </template>{{ transferSign(entry) }}{{ entry.amount }}分
               </td>

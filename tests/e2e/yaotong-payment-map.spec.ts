@@ -5,6 +5,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 
     await page.setViewportSize(viewport)
     await page.goto('/tests/e2e/fixtures/yaotong-final.html?round&self')
     await page.getByRole('tab', { name: '分数明细', exact: true }).click()
+    const ledger = page.locator('.yaotong-ledger')
     const map = page.getByRole('region', { name: '本局分数流向', exact: true })
     const avatars = ['你', '听风', '观山', '望月'].map(name =>
       map.getByRole('button', { name: `查看${name}的分数流向`, exact: true }))
@@ -24,6 +25,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 
     await expect(map.getByRole('group', { name: '望月的本局收付', exact: true })).toBeVisible()
     await expect(avatars[3]).toHaveAttribute('aria-pressed', 'true')
     await expect(avatars[0]).toHaveAttribute('aria-pressed', 'false')
+    await expect(ledger.locator('summary')).toHaveText('分项账单 · 2 笔')
     await expect(payment).not.toHaveClass(/incoming/)
     await expect(payment.locator('text')).toHaveText(`−${amount}`)
     await expect(payment.locator('.payment-line')).toHaveAttribute('d', 'M 300 116 Q 407.5 85 515 53')
@@ -31,9 +33,16 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 
     await expect(page.locator('.yaotong-ledger details')).toHaveAttribute('open', '')
     for (const row of await page.locator('.yaotong-ledger tbody tr').all())
       await expect(row.locator('td').first()).toHaveText(/^(望月 → 你|你 → 望月)$/)
+    await expect(ledger.locator('.ledger-amount.expense')).toHaveCount(2)
+    for (const amount of await ledger.locator('.ledger-amount').all()) {
+      await expect(amount).toHaveAttribute('title', '望月的支出')
+      await expect(amount).toHaveText(/^−\d+分\s*$/)
+    }
 
     await avatars[1].click()
     await expectPositions(['515,30', '300,139', '300,30', '85,30'])
+    await expect(ledger.getByRole('button', { name: '查看该玩家全部收付' })).toHaveCount(0)
+    await expect(ledger.locator('tbody tr td:first-child')).toHaveText(['听风 → 你', '听风 → 你'])
     await avatars[2].focus()
     await avatars[2].press('Enter')
     await expectPositions(['515,30', '300,30', '300,139', '85,30'])
@@ -41,8 +50,44 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 
     await avatars[0].press('Space')
     await expectPositions(['300,139', '300,30', '515,30', '85,30'])
     await expect(map.getByRole('group', { name: '你的本局收付', exact: true })).toBeVisible()
+    await expect(ledger.locator('summary')).toHaveText('分项账单 · 6 笔')
+    await expect(ledger.locator('.ledger-amount.income')).toHaveCount(6)
     await avatars[0].click()
     await expectPositions(['300,139', '300,30', '515,30', '85,30'])
     await page.screenshot({ path: `tmp/yaotong-payment-avatars-${viewport.width}.png` })
+  })
+
+  test(`账单跟随下方玩家，清除连线筛选后仍只看该玩家：${viewport.width}`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.goto('/tests/e2e/fixtures/yaotong-final.html?round&double')
+    await page.getByRole('tab', { name: '分数明细', exact: true }).click()
+    const ledger = page.locator('.yaotong-ledger')
+    const map = page.getByRole('region', { name: '本局分数流向', exact: true })
+    await expect(ledger.locator('summary')).toHaveText('分项账单 · 2 笔')
+    await ledger.locator('summary').click()
+    await expect(ledger.locator('tbody tr td:first-child')).toHaveText(['你 → 望月', '你 → 望月'])
+    await expect(ledger.locator('.ledger-amount.expense')).toHaveCount(2)
+    for (const amount of await ledger.locator('.ledger-amount').all())
+      await expect(amount).toHaveText(/^−\d+ × 2 = −\d+分\s*$/)
+
+    await map.getByRole('button', { name: '查看望月的分数流向' }).click()
+    await expect(ledger.locator('summary')).toHaveText('分项账单 · 6 笔')
+    await expect(ledger.locator('.ledger-amount.income')).toHaveCount(6)
+    for (const row of await ledger.locator('tbody tr').all()) {
+      await expect(row.locator('td').first()).toHaveText(/ → 望月$/)
+      await expect(row.locator('.ledger-amount')).toHaveAttribute('title', '望月的收入')
+      await expect(row.locator('.ledger-amount')).toHaveText(/^\+\d+ × 2 = \+\d+分\s*$/)
+    }
+    await map.locator('.payment-edge').filter({ hasText: '听风向望月净付' }).click()
+    await expect(ledger.locator('summary')).toHaveText('分项账单 · 2 笔')
+    await expect(ledger.locator('tbody tr td:first-child')).toHaveText(['听风 → 望月', '听风 → 望月'])
+    await ledger.getByRole('button', { name: '查看该玩家全部收付' }).click()
+    await expect(ledger.locator('summary')).toHaveText('分项账单 · 6 笔')
+
+    await map.getByRole('button', { name: '查看你的分数流向' }).click()
+    await map.locator('.payment-edge').click()
+    await ledger.getByRole('button', { name: '查看该玩家全部收付' }).click()
+    await expect(ledger.locator('summary')).toHaveText('分项账单 · 2 笔')
+    await expect(ledger.locator('tbody tr td:first-child')).toHaveText(['你 → 望月', '你 → 望月'])
   })
 }
