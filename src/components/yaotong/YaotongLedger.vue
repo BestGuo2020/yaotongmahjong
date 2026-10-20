@@ -140,9 +140,10 @@ function inspect(value: { from: number; to: number; account?: Account }) {
   padding: 8px 6px;
   border-bottom: 1px solid var(--theme-border);
 }
+.yaotong-ledger th:last-child,
 .yaotong-ledger td:last-child {
   white-space: nowrap;
-  text-align: right;
+  text-align: left;
 }
 .ledger-amount {
   font-variant-numeric: tabular-nums;
