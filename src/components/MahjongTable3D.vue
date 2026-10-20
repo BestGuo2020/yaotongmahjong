@@ -23,7 +23,7 @@ import {
 import { tableThemeByName, type TableTheme } from './table/three/tableTheme'
 import { createTileInstanceRenderer } from './table/three/tileInstanceRenderer'
 import { TABLE_LAYOUT } from '../game/core/presentation/tableLayout'
-import { createWinEffectPresenter } from './table/three/winEffectPresenter'
+import { createMultiWinEffectPresenter } from './table/three/multiWinEffectPresenter'
 import { createTableTilePresenter } from './table/three/tableTilePresenter'
 import { tileMarkerFor } from './table/three/tileMarker'
 import type { TableProps } from './table/three/tableRenderTypes'
@@ -69,7 +69,7 @@ let destroyed = false
 let compilingShaders: Promise<unknown> | null = null
 let lastPileAnchors = ''
 let dynamicGroups = []
-let winEffectPresenter: ReturnType<typeof createWinEffectPresenter> | null = null
+let winEffectPresenter: ReturnType<typeof createMultiWinEffectPresenter> | null = null
 let bloodFlowWinEffects: ReturnType<typeof createBloodFlowWinEffects> | null = null
 let kongWeather: ReturnType<typeof createYaotongKongWeather> | null = null
 let dicePresenter: ReturnType<typeof createDicePresenter> | null = null
@@ -325,6 +325,10 @@ function render(time = 0) {
     if (canvas.value && props.kongWeather) canvas.value.dataset.kongWeather = JSON.stringify(kongWeather?.visibleCues ?? [])
     if (import.meta.env.DEV && canvas.value && props.kongWeather) canvas.value.dataset.kongWeatherLayout = JSON.stringify(kongWeather?.visibleLayouts ?? [])
     const winFrame = winEffectPresenter?.animate(time)
+    if (import.meta.env.DEV && canvas.value) {
+      canvas.value.dataset.winEffectSeats = JSON.stringify(dynamicGroups.filter(group => group.name === 'win-effect').map(group => group.userData.winnerIndex))
+      canvas.value.dataset.winDisplaySeats = JSON.stringify(dynamicGroups.filter(group => group.name === 'winning-display-tile').map(group => group.userData.winnerIndex))
+    }
     const bloodFlowFrame = bloodFlowWinEffects?.animate(time)
     const bloodFlowActive = bloodFlowFrame?.active ?? false
     if (props.bloodFlowBatches && canvas.value) canvas.value.dataset.bloodFlowEffects = String(bloodFlowWinEffects?.activeCount ?? 0)
@@ -554,7 +558,7 @@ onMounted(async () => {
     alignMeldBottom: tableTiles.alignMeldBottom,
     sourceTileRotationOffset: tableTiles.sourceTileRotationOffset,
   }
-  winEffectPresenter = createWinEffectPresenter(winEffectOptions)
+  winEffectPresenter = createMultiWinEffectPresenter(winEffectOptions)
   bloodFlowWinEffects = createBloodFlowWinEffects(winEffectOptions)
   bloodFlowWinEffects.sync()
   dicePresenter = createDicePresenter({
@@ -629,7 +633,9 @@ watch(
     props.revealHands,
     props.winnerIndex,
     props.winEffect?.id,
+    props.winEffect?.winnerIndices?.join(','),
     props.winPresentation?.winnerIndex,
+    props.winPresentation?.winnerIndices?.join(','),
     props.winPresentation?.tile,
     props.winPresentation?.robbedKong,
     props.dealAnimation.serial,

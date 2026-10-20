@@ -85,6 +85,8 @@ function addWinningDisplayTile() {
   if (isFourRedWin()) return
   const layout = winDisplayLayout(props.winPresentation.winnerIndex)
   const group = new THREE.Group()
+  group.name = 'winning-display-tile'
+  group.userData.winnerIndex = props.winPresentation.winnerIndex
   const tile = makeFaceTile(props.winPresentation.tile)
   tile.position.set(layout.x, layout.y, layout.z + TILE_LAYER_Z)
   tile.rotation.y = layout.rotation
@@ -288,7 +290,7 @@ function getDiamondGeometry() {
   return diamondGeometry
 }
 
-function addWinEffect() {
+function addWinEffect(startedAt = options.startedAt ?? performance.now()) {
   if (!props.winEffect?.tile) return
   const animeEffect = props.themeName === 'llmAnime'
   const anchor = winEffectAnchor(props.winEffect.winnerIndex)
@@ -297,6 +299,8 @@ function addWinEffect() {
   const burstAnchor = cameraAlignedPoint(faceCenter, .38)
   const outward = new THREE.Vector3(anchor.x, 0, anchor.z - TILE_LAYER_Z).normalize()
   const group = new THREE.Group()
+  group.name = 'win-effect'
+  group.userData.winnerIndex = props.winEffect.winnerIndex
 
   // 信标式竖直光束：从胡牌牌垂直射向天空（垂直于牌面），带光晕
   const beamMaterial = ownDynamic(new THREE.MeshBasicMaterial({
@@ -413,7 +417,7 @@ function addWinEffect() {
   scene.add(group)
   dynamicGroups.push(group)
   winEffectAnimation = {
-    startedAt: options.startedAt ?? performance.now(), anchor, burstAnchor, outward,
+    startedAt, anchor, burstAnchor, outward,
     beam, beamGlow, starburst, glow, diamonds, winningTile,
     startPosition, startRotation, seatRotation,
     duration: props.winEffect.duration ?? WIN_EFFECT_DURATION,

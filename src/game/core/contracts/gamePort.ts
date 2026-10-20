@@ -108,6 +108,8 @@ export interface RoundResult {
 
 export interface WinEffect {
   winnerIndex: number
+  /** Multiple winners share the same effect window, with one effect at each seat. */
+  winnerIndices?: number[]
   tile: TileType
   robbedKong: boolean
   robbedKongPlayerIndex: number

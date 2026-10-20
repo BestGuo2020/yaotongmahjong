@@ -22,9 +22,16 @@ for (const [index, theme] of themes.entries()) {
       for (const stage of ['action', 'effect', 'reveal', 'result']) await expect(root).toHaveAttribute(`data-${stage}`, 'false')
       await page.screenshot({ path: `tmp/yaotong-multi-${theme}-${viewport.width}.png` })
       await expect(intro).toHaveCount(0, { timeout: 4_000 })
+      const seats = [0, 1, 2, 3].filter(seat => seat !== source).slice(0, winners)
       const action = page.locator('[data-action-type="discard-win"]')
-      await expect(action).toContainText('胡')
-      await expect(action).not.toContainText('清一色')
+      await expect(action).toHaveCount(winners)
+      for (const seat of seats) {
+        const actor = page.locator(`[data-action-type="discard-win"][data-action-seat="${seat}"]`)
+        await expect(actor).toBeVisible()
+        await expect(actor).toContainText('胡')
+        await expect(actor).not.toContainText('清一色')
+        await expect(actor).toBeInViewport({ ratio: 1 })
+      }
       const titles = page.locator('.yaotong-win-patterns [data-title-seat]')
       await expect(titles).toHaveCount(0)
       await expect(titles).toHaveCount(winners, { timeout: 4_000 })
@@ -32,7 +39,7 @@ for (const [index, theme] of themes.entries()) {
       // Sample the readable title window instead of waiting for that node's removal.
       await expect(root).toHaveAttribute('data-action', 'false')
       await expect(titles.first()).toHaveCSS('opacity', '1')
-      const seats = [0, 1, 2, 3].filter(seat => seat !== source).slice(0, winners)
+      await expect(page.locator('canvas.mahjong-scene')).toHaveAttribute('data-win-effect-seats', JSON.stringify(seats))
       expect(await titles.evaluateAll(elements => elements.map(element => Number(element.getAttribute('data-title-seat'))))).toEqual(seats)
       for (const [i, label] of ['清一色', '七小对', '碰碰胡'].slice(0, winners).entries()) {
         await expect(titles.nth(i).getByRole('img', { name: label, exact: true })).toBeVisible()
@@ -43,6 +50,8 @@ for (const [index, theme] of themes.entries()) {
       await expect(root).toHaveAttribute('data-result', 'true', { timeout: 5_000 })
       await expect(titles).toHaveCount(0)
       await expect(action).toHaveCount(0)
+      await expect(page.locator('canvas.mahjong-scene')).toHaveAttribute('data-win-effect-seats', '[]')
+      await expect(page.locator('canvas.mahjong-scene')).toHaveAttribute('data-win-display-seats', JSON.stringify(seats))
       expect(errors).toEqual([])
     })
   }

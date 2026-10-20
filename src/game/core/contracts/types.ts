@@ -69,6 +69,7 @@ export interface ScoreFlowEvent {
 
 export interface WinPresentation {
   winnerIndex: number
+  winnerIndices?: number[]
   tile: TileType
   sourceIndex: number
   robbedKong: boolean

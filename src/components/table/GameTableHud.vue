@@ -230,6 +230,17 @@ const presentedTableActionEvent = computed(() => {
   const event = props.tableActionEvent ?? actionCueLabEvent.value
   return props.bloodFlow && event && winActionTypes.has(event.type) ? null : event
 })
+const winWinnerIndices = computed(() => props.yaotongView?.seats.flatMap((seat, index) => seat.winner ? [index] : []) ?? [])
+const additionalWinActions = computed(() => {
+  const event = presentedTableActionEvent.value
+  return event && winActionTypes.has(event.type)
+    ? winWinnerIndices.value.filter(seat => seat !== event.actorIndex).map(actorIndex => ({ ...event, actorIndex }))
+    : []
+})
+const presentedWinEffect = computed(() => props.winEffect && winWinnerIndices.value.length > 1
+  ? { ...props.winEffect, winnerIndices: winWinnerIndices.value } : props.winEffect)
+const presentedWinPresentation = computed(() => props.winPresentation && winWinnerIndices.value.length > 1
+  ? { ...props.winPresentation, winnerIndices: winWinnerIndices.value } : props.winPresentation)
 const presentedLlmBubbles = computed(() => props.bloodFlow
   ? ['llm','llmAnime'].includes(props.themeName)?props.bloodFlow.roundResult?(settlementVisible.value?undefined:props.bloodFlow.roundBubbles):props.bloodFlow.actionBubbles:undefined
   : bubbleLabEnabled
@@ -536,7 +547,7 @@ function onAvatarError(entry: GamePlayer) {
       :wall-total="wallTotal" :laizi-only="rulesetId === 'yaotong'"
       :horses="result?.horses" :reveal-hands="tableRevealHands" :winner-index="winningPlayerIndex"
       :joker-tiles="jokerTiles" :wildcard-tiles="wildcardTiles"
-      :win-effect="winEffect" :win-presentation="winPresentation" :deal-animation="dealAnimation"
+      :win-effect="presentedWinEffect" :win-presentation="presentedWinPresentation" :deal-animation="dealAnimation"
       :opening-stage="openingStage" :dice-values="diceValues" :dealer-index="dealer" :dice-thrower-index="diceThrowerIndex"
       :table-action-event="tableActionEvent"
       :wall-break-index="wallBreakIndex"
@@ -630,8 +641,14 @@ function onAvatarError(entry: GamePlayer) {
     <Transition name="table-action" mode="out-in">
       <TableActionCue v-if="presentedTableActionEvent" :key="presentedTableActionEvent.id"
         :event="presentedTableActionEvent" :player="players[presentedTableActionEvent.actorIndex]"
+        :data-action-seat="presentedTableActionEvent.actorIndex"
         :position="seatPosition[presentedTableActionEvent.actorIndex]" :theme-name="themeName" />
     </Transition>
+    <TransitionGroup name="table-action">
+      <TableActionCue v-for="event in additionalWinActions" :key="`${event.id}-${event.actorIndex}`"
+        :event="event" :player="players[event.actorIndex]" :data-action-seat="event.actorIndex"
+        :position="seatPosition[event.actorIndex]" :theme-name="themeName" />
+    </TransitionGroup>
     <MultiWinIntro v-if="yaotongView?.multiWinIntro" :key="`multi-${yaotongView.multiWinIntro.id}`"
       :source-index="yaotongView.multiWinIntro.sourceIndex" :theme-name="themeName"
       :compact="compactBloodFlowEffects" :reduced="prefersReducedMotion()" />
