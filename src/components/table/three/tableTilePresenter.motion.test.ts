@@ -49,6 +49,32 @@ function setup(meld?: Meld, action?: TableActionType) {
 afterEach(() => vi.restoreAllMocks())
 
 describe('shared normal tile animations survive state refreshes', () => {
+  it.each([1, 2, 3, 4])('对家亮牌与%d组副露在画面中保持水平，且横向不重叠', count => {
+    const s = setup()
+    s.props.revealHands = true
+    const hand: TileType[] = ['m1', 'm2', 'm3', 'm4', 'm6', 'm8', 'm9', 'p1', 'p2', 'p3']
+    const meldFaces: TileType[] = ['m5', 'p5', 's5', 's7']
+    s.props.players[2].hand = hand.slice(0, 13 - count * 3)
+    s.props.players[2].melds = meldFaces.slice(0, count).map(tile => ({ type: 'peng', tile, tiles: [tile, tile, tile], from: 1 }))
+    s.presenter.rebuild()
+    const concealed = s.rendered.filter(tile => tile.face && hand.includes(tile.face))
+    const exposed = s.rendered.filter(tile => tile.face && meldFaces.includes(tile.face))
+    const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0))
+    const upright = exposed.filter(tile => tile.rotation.angleTo(rotation) < .00001)
+    expect(concealed).toHaveLength(13 - count * 3)
+    expect(upright).toHaveLength(count * 2)
+    expect(Math.max(...exposed.map(tile => tile.position.x)) + .51)
+      .toBeLessThan(Math.min(...concealed.map(tile => tile.position.x)) - .34)
+    for (const aspect of [1280 / 720, 844 / 390]) {
+      const camera = new THREE.PerspectiveCamera(45, aspect, .1, 100)
+      camera.position.set(0, 16, 19)
+      camera.lookAt(0, 0, -1)
+      camera.updateMatrixWorld()
+      const baseline = concealed[0].position.clone().project(camera).y
+      for (const tile of [...concealed, ...upright])
+        expect(tile.position.clone().project(camera).y).toBeCloseTo(baseline, 6)
+    }
+  })
   it.each([0, 1, 2, 3].flatMap(seat => [0, 2].map(remaining => ({ seat, remaining }))))('retains the indicator in winner $seat river with $remaining wall tiles left, without replay on refresh', ({ seat, remaining }) => {
     const s = setup()
     s.props.wallTotal = 108

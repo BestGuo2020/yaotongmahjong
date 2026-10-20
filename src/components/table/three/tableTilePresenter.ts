@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { isHorseForSeat, sortTilesWithJokers } from '../../../game/core/rules/tiles'
 import { meldDisplayTiles, meldSourceTileIndex } from '../../../game/core/rules/rules'
-import { addedKongTileOffset, TABLE_LAYOUT, meldTileCenter, discardTileLayout, meldTrackTransform, concealedMeldClear, concealedSideX } from '../../../game/core/presentation/tableLayout'
+import { addedKongTileOffset, TABLE_LAYOUT, OPPOSITE_HAND_Z, meldTileCenter, discardTileLayout, meldTrackTransform, concealedMeldClear, concealedSideX } from '../../../game/core/presentation/tableLayout'
 import { wallBreakIndexForDealer, wallStackSlot, wallTilePlacement, WALL_TOTAL } from '../../../game/core/rules/wallLayout'
 import { splitWinningTile } from '../../../game/core/presentation/winEffect'
 import type { TableActionEvent, TileType } from '../../../game/core/contracts/types'
@@ -158,8 +158,8 @@ function addConcealedHand(playerIndex) {
         x = (index - (arrangedTotal - 1) / 2) * gap
       }
       // 对家固定使用远端后场，避免中后局牌河向后扩展时覆盖暗牌。
-      // 对家手牌离远墙 1.21（与上家/下家手牌离墙距离一致）；副露在手牌前方（墙侧），副露时手牌变短、x 向不重叠。
-      z = -9.53
+      // 副露与手牌保持同一水平带，横向让位保证两者不重叠。
+      z = OPPOSITE_HAND_Z
       rotationY = props.revealHands ? Math.PI : 0
     } else {
       rotationY = props.revealHands
