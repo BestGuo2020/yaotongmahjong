@@ -149,6 +149,8 @@ export function winningPattern(value?: HandValue): string | undefined {
         '双地龙',
         '三地龙',
         '素胡',
+        '天胡',
+        '地胡',
       ].includes(pattern.name),
     )
     .sort((a, b) => b.points - a.points)[0]?.name

@@ -13,7 +13,7 @@ import {
 import { AI_DELAYS } from '../../core/controllers/playerController'
 import { PACE_MS } from '../../core/local/localGameConfig'
 import { OPENING_PACE_MS } from '../../shared/runtime/localOpening'
-import { discardWaits, waits } from './hands'
+import { discardWaits, waits, isUntouchedFirstDraw } from './hands'
 import type { Command, GameState } from './types'
 import { actionProtection, NO_PROTECTION, protectionReason, type YaotongMode } from './mode'
 
@@ -56,9 +56,7 @@ export function useYaotongGame() {
   const canDeclare = computed(
     () =>
       ownTurn.value &&
-      user.value?.draws === 1 &&
-      user.value?.discards === 0 && user.value?.melds.length === 0 &&
-      user.value?.drawn !== null &&
+      Boolean(user.value && isUntouchedFirstDraw(user.value)) &&
       user.value?.declaration === 'none' &&
       selectedWaits.value.length > 0,
   )

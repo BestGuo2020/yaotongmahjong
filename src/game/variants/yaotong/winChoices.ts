@@ -13,6 +13,7 @@ export function winChoices(state: GameState, seat: number): HandValue[] {
   const player = self ? state.players[seat] : { ...state.players[seat], hand: [...state.players[seat].hand, tile] }
   const candidates = evaluateHand(player, {
     kind: self ? 'self' : pending!.kind, tile,
+    isDealer: seat === state.dealer,
     killsReport: self ? state.players.some((p, i) => i !== seat && p.declaration !== 'none')
       : state.players[pending!.from].declaration !== 'none',
   }).filter(v => passAllows(player, v.h, v))

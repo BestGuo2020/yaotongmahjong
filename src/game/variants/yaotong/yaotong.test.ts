@@ -102,10 +102,11 @@ describe('幺筒：牌墙和资格', () => {
       values(p, { kind: 'self', chicken: 1 }).some((v) => v.patterns.some((p) => p.name === '素胡')),
     ).toBe(false)
   })
-  it('第一次实际摸牌天/地胡；碰不计摸牌，补摸计次', () => {
-    const p = player('234567m 234s 66p 789s', { draws: 1 })
-    expect(values(p, { kind: 'self' })[0].h).toBe(55)
-    expect(values({ ...p, draws: 2 }, { kind: 'self' })[0].h).toBe(25)
+  it('未碰杠出牌的第一次摸牌区分天胡、地胡；第二次摸牌不计', () => {
+    const p = player('234567m 234s 66p 789s', { draws: 1, drawn: 26 })
+    expect(values(p, { kind: 'self', isDealer: true })[0].patterns).toContainEqual({ name: '天胡', points: 40 })
+    expect(values(p, { kind: 'self', isDealer: false })[0].patterns).toContainEqual({ name: '地胡', points: 40 })
+    expect(values({ ...p, draws: 2 }, { kind: 'self', isDealer: true })[0].h).toBe(25)
   })
 })
 

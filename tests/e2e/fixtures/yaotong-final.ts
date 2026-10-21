@@ -5,7 +5,7 @@ import YaotongLedger from '../../../src/components/yaotong/YaotongLedger.vue'
 import YaotongRoundOverview from '../../../src/components/yaotong/YaotongRoundOverview.vue'
 import { act } from '../../../src/game/variants/yaotong/engine'
 import { settle } from '../../../src/game/variants/yaotong/settlement'
-import { table, player } from '../../../src/game/variants/yaotong/auditFixtures'
+import { table, player, meld } from '../../../src/game/variants/yaotong/auditFixtures'
 import { toSharedTile } from '../../../src/game/variants/yaotong/useYaotongPort'
 import { makeRoundResult } from '../../../src/game/shared/settlement/roundResult'
 import { defaultAvatarForSeat } from '../../../src/game/core/presentation/avatar'
@@ -26,6 +26,13 @@ state.current = winner
 state.players[winner] = player(reportWin ? '23456m 567s 122p 789p' : '234567m 567s 22p 789p', {
   drawn: 16, declaration: reportWin ? 'ready' : 'none',
 })
+const opening = params.get('opening')
+if (opening) {
+  state.dealer = opening === 'heaven' ? winner : (winner + 1) % 4
+  state.players[winner] = opening === 'after-peng'
+    ? player('234m 66p 789s', { draws: 1, drawn: 26, discards: 2, melds: [meld(4), meld(12)] })
+    : player('234567m 234s 66p 789s', { draws: 1, drawn: 26 })
+}
 state.players.forEach((p, seat) => { p.name = ['你', '听风', '观山', '望月'][seat]; p.score = scoresBefore[seat] })
 if (reportWin || multiWin) {
   if (multiWin) {

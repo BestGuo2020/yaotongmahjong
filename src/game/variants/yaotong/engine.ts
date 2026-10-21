@@ -1,4 +1,4 @@
-import { discardWaits, huOpportunity, waits } from './hands'
+import { discardWaits, huOpportunity, waits, isUntouchedFirstDraw } from './hands'
 import { settle, type Ending } from './settlement'
 import { huChoiceKey, winChoices } from './winChoices'
 import { breakWall, countsOf, isChicken, isFixed, shuffledWall, sortHand, tileName, YAO } from './tiles'
@@ -188,7 +188,7 @@ export function selfOptions(state: GameState, seat: Seat): ActionOptions {
   // A peng creates a discard turn, not a self-draw win opportunity.
   if (p.drawn === null) return empty
   const killsReport = state.players.some((other, i) => i !== seat && other.declaration !== 'none')
-  const opportunity = huOpportunity(p, { kind: 'self', tile: p.drawn, killsReport })
+  const opportunity = huOpportunity(p, { kind: 'self', tile: p.drawn, killsReport, isDealer: seat === state.dealer })
   return {
     ...empty,
     hu: opportunity.hu,
@@ -442,9 +442,7 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
   if (
     command.declare &&
     (p.declaration !== 'none' ||
-      p.draws !== 1 ||
-      p.discards !== 0 || p.melds.length !== 0 ||
-      p.drawn === null ||
+      !isUntouchedFirstDraw(p) ||
       !discardWaits(p).some((o) => o.index === command.index))
   )
     return false

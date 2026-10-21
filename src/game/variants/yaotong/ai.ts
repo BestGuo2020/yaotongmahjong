@@ -1,5 +1,5 @@
 import { kongOptions, selfOptions } from './engine'
-import { discardWaits, waits } from './hands'
+import { discardWaits, waits, isUntouchedFirstDraw } from './hands'
 import { countsOf, isChicken, YAO } from './tiles'
 import type { Command, GameState, Seat } from './types'
 
@@ -48,7 +48,7 @@ export function chooseAction(state: GameState, seat: Seat): Command | null {
         a.waits.reduce((n, w) => n + Math.max(0, 4 - publicCounts[w.tile]), 0),
     )
     return { type: 'discard', index: listening[0].index,
-      declare: p.draws === 1 && p.drawn !== null && p.discards === 0 && p.melds.length === 0 }
+      declare: isUntouchedFirstDraw(p) }
   }
   const counts = countsOf(p.hand)
   const keep = (tile: number) => {

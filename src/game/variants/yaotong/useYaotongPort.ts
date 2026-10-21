@@ -45,6 +45,7 @@ import { useYaotongGame } from './useYaotongGame'
 import { yaotongGuidance } from './guidance'
 import { winChoices, huChoiceKey } from './winChoices'
 import { chickenValue } from './settlement'
+import { isUntouchedFirstDraw } from './hands'
 import { recordYaotongRound } from './replay'
 import type { ReplayRecorderHooks } from '../../replay/types'
 import { countsOf } from './tiles'
@@ -834,8 +835,7 @@ export function useYaotongPort(
   })
   const canArmDeclaration = computed(() =>
     local.ownTurn.value && !local.protection.value.pass &&
-    local.user.value?.draws === 1 && local.user.value.drawn !== null &&
-    local.user.value.discards === 0 && local.user.value.melds.length === 0 &&
+    Boolean(local.user.value && isUntouchedFirstDraw(local.user.value)) &&
     local.user.value.declaration === 'none' && local.discardOptions.value.length > 0,
   )
   const choosingHu = ref(false)

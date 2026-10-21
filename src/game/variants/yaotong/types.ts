@@ -61,6 +61,8 @@ export interface WinContext {
   tile: Tile
   chicken?: Tile | null
   killsReport?: boolean
+  /** Required to distinguish first-draw 天胡 (dealer) from 地胡 (non-dealer). */
+  isDealer?: boolean
 }
 export interface Wait {
   tile: Tile

@@ -11,6 +11,11 @@ const suitBit = (tile: Tile) => 1 << Math.floor(tile / 9)
 const oneSuit = (bits: number) => bits !== 0 && (bits & (bits - 1)) === 0
 const shapeCache = new Map<string, Shape[]>()
 
+/** Shared eligibility for first-discard reporting and an untouched first-draw win. */
+export const isUntouchedFirstDraw = (player: Player) =>
+  player.draws === 1 && player.drawn !== null && player.discards === 0 &&
+  player.melds.length === 0 && !player.afterKong
+
 function unique(shapes: Shape[]) {
   const map = new Map<string, Shape>()
   for (const s of shapes) map.set(`${s.suits}/${+s.pungs}/${s.dragons}/${countsOf(s.groups.flat())}`, s)
@@ -149,7 +154,8 @@ function structuralValues(player: Player, ctx: WinContext): HandValue[] {
       })
     if (ctx.kind === 'rob' || ctx.kind === 'hot')
       patterns.push({ name: ctx.kind === 'rob' ? '抢杠' : '热炮', points: 20 })
-    if (ctx.kind === 'self' && player.draws === 1) patterns.push({ name: '天胡／地胡', points: 40 })
+    if (ctx.kind === 'self' && ctx.isDealer !== undefined && isUntouchedFirstDraw(player))
+      patterns.push({ name: ctx.isDealer ? '天胡' : '地胡', points: 40 })
     const hasKong = player.melds.some((m) => m.kind !== 'peng')
     if (ctx.kind === 'discard' && !big && !hasKong && player.declaration === 'none') return
     const patternPoints = patterns.reduce((sum, p) => sum + p.points, 0)
@@ -263,7 +269,7 @@ export function discardWaits(player: Player): Array<{ index: number; waits: Wait
     .filter((entry) => entry.waits.length)
 }
 
-const SCENE_PATTERNS = new Set(['抢杠', '热炮', '天胡／地胡', '报听', '原报', '素胡'])
+const SCENE_PATTERNS = new Set(['抢杠', '热炮', '天胡', '地胡', '天胡／地胡', '报听', '原报', '素胡'])
 export const shapePoints = (value: HandValue) =>
   value.patterns
     .filter((pattern) => !SCENE_PATTERNS.has(pattern.name))

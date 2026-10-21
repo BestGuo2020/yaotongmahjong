@@ -183,6 +183,7 @@ export function settle(state: GameState, ending: Ending): Settlement {
       let candidates = evaluateHand(players[winner], {
         kind: ending.winKind!,
         tile: ending.tile!,
+        isDealer: winner === state.dealer,
         chicken,
         killsReport: (ending.winKind === 'self' ? others(winner) : [source!]).some(
           (seat) => players[seat].declaration !== 'none',
