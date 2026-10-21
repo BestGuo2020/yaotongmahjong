@@ -136,7 +136,7 @@ describe('v1.0 clause audit — explicit tariffs and payer matrices', () => {
     expect(r.values[0]).toMatchObject({ h: 15, naturalYaos: 3, wildcards: 0 })
     expect(amount(r, 1, 0, '鸡分')).toBe(36)
   })
-  it('§7.1 fixed chicken first-peng and first-discard counters are shared across all three tile types', () => {
+  it('§7.1 fixed chicken rush counters are per tile; first-peng is still shared', () => {
     const s = table()
     s.players[0] = player('147m 258p 369s 2468s 1s', { discards: 1 })
     s.players[1] = player('11s 147m 258p 369s 24s')
@@ -151,7 +151,7 @@ describe('v1.0 clause audit — explicit tariffs and payer matrices', () => {
     s.players[0] = player('147m 258p 369s 2468s 8p', { discards: 2 })
     s.players[2] = player('88p 147m 258p 369s 24s')
     act(s, 0, { type: 'discard', index: 13 })
-    expect(s.players[0].river[0].chicken).toBe(2)
+    expect(s.players[0].river[0].chicken).toBe(4)
     act(s, 2, { type: 'respond', action: 'peng' })
     expect(s.players[2].melds[0].chicken).toBe(6)
   })

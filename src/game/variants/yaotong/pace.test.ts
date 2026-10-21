@@ -17,6 +17,7 @@ import {
 } from '../../core/presentation/winEffect'
 import { createGame, makePlayer } from './engine'
 import { chooseAction } from './ai'
+import { YAOTONG_AI_DISCARD_MS } from './useYaotongGame'
 import { countsOf } from './tiles'
 import { ownedTiles } from './settlement'
 import { fromSharedTile, useYaotongPort } from './useYaotongPort'
@@ -62,7 +63,7 @@ afterEach(() => {
 })
 
 describe('原版节奏与幺筒实时对局的边界', () => {
-  it('无人响应：落牌450ms后摸牌，AI再思考650ms，不同一帧摸打', async () => {
+  it('无人响应：落牌450ms后摸牌，AI再思考1000ms，不同一帧摸打', async () => {
     const port = setup(),
       state = fixture()
     state.players[0].hand.push(4)
@@ -79,13 +80,13 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(state.players[1].hand).toHaveLength(14)
     expect(state.players[1].river).toHaveLength(0)
-    await vi.advanceTimersByTimeAsync(AI_DELAYS.turn - 1)
+    await vi.advanceTimersByTimeAsync(YAOTONG_AI_DISCARD_MS - 1)
     expect(state.players[1].river).toHaveLength(0)
     await vi.advanceTimersByTimeAsync(1)
     expect(state.players[1].river).toHaveLength(1)
   })
 
-  it('碰牌响应500ms，AI碰后650ms再出牌', async () => {
+  it('碰牌响应500ms，AI碰后1000ms再出牌', async () => {
     const port = setup(),
       state = fixture()
     state.players[0].hand.push(4)
@@ -96,13 +97,13 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     expect(state.players[1].melds).toHaveLength(0)
     await vi.advanceTimersByTimeAsync(1)
     expect(state.players[1].melds[0]?.kind).toBe('peng')
-    await vi.advanceTimersByTimeAsync(PACE_MS.afterClaimPeng - 1)
+    await vi.advanceTimersByTimeAsync(YAOTONG_AI_DISCARD_MS - 1)
     expect(state.players[1].river).toHaveLength(0)
     await vi.advanceTimersByTimeAsync(1)
     expect(state.players[1].river).toHaveLength(1)
   })
 
-  it('真人碰后350ms才开放出牌；明杠补牌550ms，补摸AI思考550ms', async () => {
+  it('真人碰后350ms才开放出牌；明杠补牌550ms，补摸AI思考1000ms', async () => {
     const human = setup(),
       s = fixture()
     s.current = 1
@@ -129,7 +130,7 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(state.wall).toHaveLength(wallCount - 1)
     expect(state.players[1].afterKong).toBe(true)
-    await vi.advanceTimersByTimeAsync(AI_DELAYS.afterKong - 1)
+    await vi.advanceTimersByTimeAsync(YAOTONG_AI_DISCARD_MS - 1)
     expect(state.players[1].river).toHaveLength(0)
     await vi.advanceTimersByTimeAsync(1)
     expect(state.players[1].river).toHaveLength(1)

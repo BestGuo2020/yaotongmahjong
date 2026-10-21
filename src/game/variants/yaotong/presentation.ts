@@ -133,9 +133,9 @@ export function settlementCue(state: GameState | null, id: number): SettlementCu
     : null
 }
 
-/** Announce the selected structural pattern before the shared hand-reveal stage. */
+/** Prefer the selected structure, then a real bonus; only a zero-bonus hand is 鸡胡. */
 export function winningPattern(value?: HandValue): string | undefined {
-  return value?.patterns
+  const structural = value?.patterns
     .filter((pattern) =>
       [
         '碰碰胡',
@@ -152,6 +152,7 @@ export function winningPattern(value?: HandValue): string | undefined {
       ].includes(pattern.name),
     )
     .sort((a, b) => b.points - a.points)[0]?.name
+  return structural ?? value?.patterns.find(p => p.name === '硬胡')?.name ?? value?.patterns.slice().sort((a, b) => b.points - a.points)[0]?.name
 }
 
 /** Separate pattern lettering follows the action cue, during the existing win effect. */

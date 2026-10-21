@@ -118,7 +118,7 @@ it('杠掉刚摸的第四张牌后，补摸前不能把另一张牌误标为刚�
 
 it('包牌保留真实原因和账本，列表摘要不会误写荒庄', () => {
   const state = table()
-  state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: true })
+  state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: [9] })
   const recorded = recording()
   const stop = recordYaotongRound(state, recorded.hooks)
   act(state, 0, { type: 'discard', index: 13 })

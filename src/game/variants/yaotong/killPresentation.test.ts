@@ -112,18 +112,14 @@ describe('杀报只展示额外付款及真实双方', () => {
   it('被杀报者仍收见面礼时，双向款项保持各自类别和金额', () => {
     const state = table()
     state.current = 1
-    state.players[1] = player('234m 567s 22p 45s 6p', {
-      drawn: 14,
-      draws: 1,
-      afterKong: true,
-      melds: [meld(9, { kind: 'open', from: 3, pre: true, chicken: 120, responsibility: 30 })],
+    state.players[1] = player('234m 567s 22p 345s 45s 6p', {
+      drawn: 14, declaration: 'ready',
+      river: [0, 1, 2, 3].map(id => ({ tile: 9, chicken: 30, stage: 'pre' as const, id })),
     })
-    state.players[0] = player('234m 456789s 6p 345p')
-    act(state, 1, { type: 'discard', index: 10, declare: true })
+    state.players[0] = player('222m 333p 444555s 6p')
+    act(state, 1, { type: 'discard', index: 13 })
     act(state, 0, { type: 'respond', action: 'hu' })
-    const cue = settlementCue(state, 10)!,
-      flights = settlementFlights(cue)
-    expect(cue.burned).toEqual([1])
+    const cue = settlementCue(state, 10)!, flights = settlementFlights(cue)
     expect(cue.gifts).toEqual([{ seat: 1, amount: 300 }])
     expect(flights).toContainEqual(expect.objectContaining({ kind: 'kill', from: 1, to: 0, amount: 20 }))
     expect(flights).toContainEqual(expect.objectContaining({ kind: 'gift', from: 0, to: 1, amount: 100 }))

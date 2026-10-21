@@ -13,7 +13,7 @@ const shapeCache = new Map<string, Shape[]>()
 
 function unique(shapes: Shape[]) {
   const map = new Map<string, Shape>()
-  for (const s of shapes) map.set(`${s.suits}/${+s.pungs}/${s.dragons}`, s)
+  for (const s of shapes) map.set(`${s.suits}/${+s.pungs}/${s.dragons}/${countsOf(s.groups.flat())}`, s)
   return [...map.values()]
 }
 
@@ -26,7 +26,7 @@ function standard(counts: number[], wild: number, melds: number, pair: boolean):
   if (first < 0) {
     if (wild !== melds * 3 + (pair ? 2 : 0)) return []
     if (!wild) return [{ suits: 0, pungs: true, dragons: 0, groups: [] }]
-    return [0, 9, 18].map((t) => ({
+    return TILES.map((t) => ({
       suits: suitBit(t),
       pungs: true,
       dragons: 0,
@@ -79,31 +79,29 @@ function standard(counts: number[], wild: number, melds: number, pair: boolean):
 }
 
 function pairs(counts: number[], wild: number): Shape[] {
-  let needed = 0,
-    suits = 0,
-    dragons = 0
+  let needed = 0
   const groups: Tile[][] = []
   for (const t of TILES) {
     if (!counts[t]) continue
-    suits |= suitBit(t)
     needed += counts[t] % 2
-    if (counts[t] >= 3) dragons++
     for (let n = 0; n < Math.ceil(counts[t] / 2); n++) groups.push([t, t])
   }
   if (needed > wild || (wild - needed) % 2) return []
   const extra = (wild - needed) / 2
-  const singles = groups.filter((g) => counts[g[0]] < 3).map((g) => g[0])
-  const upgrades = Math.min(extra, singles.length)
-  const remaining = extra - upgrades
-  const completed = [...groups, ...singles.slice(0, upgrades).map((t) => [t, t])]
-  const base = { pungs: false, dragons: dragons + upgrades + Math.floor(remaining / 2) }
-  return remaining === 0
-    ? [{ ...base, suits, groups: completed }]
-    : [0, 9, 18].map((t) => ({
-        ...base,
-        suits: suits | suitBit(t),
-        groups: [...completed, ...Array.from({ length: remaining }, () => [t, t])],
-      }))
+  const result: Shape[] = []
+  function complete(current: Tile[][], left: number, start = 0) {
+    const resolved = countsOf(current.flat())
+    if (!left) {
+      result.push({ pungs: false, suits: current.reduce((bits, g) => bits | suitBit(g[0]), 0),
+        dragons: resolved.filter(n => n === 4).length, groups: current })
+      return
+    }
+    for (let t = start; t < 27; t++) {
+      if (resolved[t] <= 2) complete([...current, [t, t]], left - 1, t)
+    }
+  }
+  complete(groups, extra)
+  return result
 }
 
 function structuralValues(player: Player, ctx: WinContext): HandValue[] {
@@ -172,11 +170,13 @@ function structuralValues(player: Player, ctx: WinContext): HandValue[] {
         big,
         structure,
         groups: shape.groups,
+        resolvedHand: [...shape.groups.flat(), ...(structure === 'earth' ? [player.melds[0].tile] : [])],
       }
       result.push(value)
       const used = [...hand, ...player.melds.flatMap((m) => Array(3).fill(m.tile))]
       if (
         ctx.kind === 'self' &&
+        player.melds.length === 0 &&
         !hasKong &&
         !ctx.killsReport &&
         !used.some((t) => isChicken(t) || t === ctx.chicken)
@@ -221,11 +221,16 @@ function structuralValues(player: Player, ctx: WinContext): HandValue[] {
   }
   const dedup = new Map<string, HandValue>()
   for (const v of result)
-    dedup.set(`${v.h}/${v.naturalYaos}/${+v.winningYaoNatural}/${v.patterns.map((p) => p.name)}`, v)
+    dedup.set(`${v.h}/${v.naturalYaos}/${+v.winningYaoNatural}/${v.patterns.map((p) => p.name)}/${countsOf(v.resolvedHand!)}`, v)
   return [...dedup.values()].sort((a, b) => b.h - a.h || b.naturalYaos - a.naturalYaos)
 }
 
 export const evaluateHand = structuralValues
+
+/** Fix pattern and natural/joker use without fixing the score-maximizing substitution. */
+export const huChoiceKey = (value: HandValue) => JSON.stringify([
+  value.patterns.map(p => p.name), value.naturalYaos, value.winningYaoNatural,
+])
 
 const waitCache = new Map<string, Wait[]>()
 export function waits(player: Player): Wait[] {

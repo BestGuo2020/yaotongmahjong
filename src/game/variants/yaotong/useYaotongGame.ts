@@ -17,6 +17,8 @@ import { discardWaits, waits } from './hands'
 import type { Command, GameState } from './types'
 import { actionProtection, NO_PROTECTION, protectionReason, type YaotongMode } from './mode'
 
+export const YAOTONG_AI_DISCARD_MS = 1000
+
 export function useYaotongGame() {
   const state = shallowRef<GameState | null>(null)
   const paused = ref(false)
@@ -55,13 +57,14 @@ export function useYaotongGame() {
     () =>
       ownTurn.value &&
       user.value?.draws === 1 &&
+      user.value?.discards === 0 && user.value?.melds.length === 0 &&
       user.value?.drawn !== null &&
       user.value?.declaration === 'none' &&
       selectedWaits.value.length > 0,
   )
 
   const flow: EngineFlow = (step, resume) => {
-    // AI peng already has its single 650ms discard delay; do not insert another turn/timer before it.
+    // AI peng uses the same one-second decision buffer as a normal discard.
     if (step === 'after-peng' && (state.value!.current !== 0 || autoplay.value)) {
       resume()
       return
@@ -181,11 +184,7 @@ export function useYaotongGame() {
         ? game.pending?.kind === 'rob'
           ? 0
           : AI_DELAYS.claim
-        : game.players[nextSeat].afterKong
-          ? AI_DELAYS.afterKong
-          : game.players[nextSeat].drawn === null
-            ? PACE_MS.afterClaimPeng
-            : AI_DELAYS.turn,
+        : YAOTONG_AI_DISCARD_MS,
     )
     cleanup(() => clearTimeout(timer))
   })

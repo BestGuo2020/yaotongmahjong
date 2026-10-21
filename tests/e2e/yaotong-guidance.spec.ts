@@ -11,7 +11,7 @@ for (const theme of ['jade', 'rosewood', 'happyMahjong', 'llm', 'llmAnime']) {
       await page.emulateMedia({ reducedMotion: 'reduce' })
       await page.goto(`/tests/e2e/fixtures/yaotong-guidance.html?theme=${theme}`)
       const trigger = page.getByRole('button', { name: /系统防护/ })
-      await expect(trigger).toContainText('本巡已碰鸡，请打非鸡牌')
+      await expect(trigger).toContainText('本巡已碰鸡，请打其他牌')
       await expect(trigger).toBeInViewport({ ratio: 1 })
       await trigger.click()
       const help = page.getByRole('dialog', { name: '系统防护' })

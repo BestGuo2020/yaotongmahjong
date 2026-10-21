@@ -57,7 +57,7 @@ describe('幺筒复用原版GamePort与3D表现', () => {
         await vi.advanceTimersByTimeAsync(reduced ? 450 : 2000)
         expect(port.winEffect.value?.winnerIndex).toBe(0)
         expect(port.tableActionEvent.value).toBeNull()
-        expect(port.tableView.value.winPatterns?.winners).toEqual(winners.map(seat => ({ seat, label: '鸡胡', tier: 0 })))
+        expect(port.tableView.value.winPatterns?.winners).toEqual(winners.map(seat => ({ seat, label: '硬胡', tier: 0 })))
         await vi.advanceTimersByTimeAsync(reduced ? 420 : 2600)
         expect(port.revealHands.value).toBe(true)
         expect(port.tableView.value.winPatterns).toBeNull()

@@ -3868,3 +3868,20 @@ button { font: inherit; }
   .game-app .settlement-card.has-round-overview .result-actions button { min-width: 120px; min-height: 44px; padding: 6px 16px; }
   .has-round-overview .result-disclaimer-note { margin: 0; font-size: 9px; letter-spacing: 0; text-align: left; }
 }
+
+/* 幺筒：压缩头像卡，保留碰杠的操作优先级。 */
+.game-app .yaotong-table .player-seat .avatar-wrap,
+.game-app .yaotong-table .user-identity { padding: 3px 5px; gap: 3px; }
+.game-app .yaotong-table .avatar-wrap .avatar,
+.game-app .yaotong-table .user-identity .avatar { width: clamp(28px, 3.6cqw, 44px); height: clamp(28px, 3.6cqw, 44px); }
+.game-app .yaotong-table .player-info strong { font-size: clamp(11px, 1.1cqw, 14px); }
+.game-app .yaotong-table .player-info > span { font-size: 11px; }
+.game-app .yaotong-table .action.autoplay-action { min-width: 44px; height: 44px; padding: 3px 7px; border-radius: 9px; }
+.game-app .yaotong-table .autoplay-action b { font-size: 13px; }
+.game-app .yaotong-table .action-bar .action.primary { min-width: 54px; height: 50px; border: 2px solid var(--theme-accent-text); background: var(--theme-button); color: var(--theme-button-text); box-shadow: 0 3px 12px #0008, 0 0 10px color-mix(in srgb, var(--theme-accent) 30%, transparent); }
+.game-app .yaotong-table .action-bar .action.primary b { font-size: 24px; }
+@container game (max-height: 450px) {
+  .game-app .yaotong-table .action-bar .action.primary { min-width: 48px; height: 46px; }
+  .game-app .yaotong-table .avatar-wrap .avatar,
+  .game-app .yaotong-table .user-identity .avatar { width: 30px; height: 30px; }
+}

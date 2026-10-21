@@ -210,14 +210,14 @@ describe('幺筒：文档计分算例', () => {
 })
 
 describe('幺筒：操作、判罚、末张、轮庄', () => {
-  it('同巡跨鸡种碰打、打碰留按钮后判包牌', () => {
+  it('同巡同鸡种碰打、打碰留按钮后判包牌', () => {
     const s = table()
-    s.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: true })
+    s.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: [9] })
     expect(act(s, 0, { type: 'discard', index: 13 })).toBe(true)
     expect(s.result).toMatchObject({ kind: 'penalty', offender: 0 })
     const q = table()
     q.players[0] = player('147m 258p 369s 2468s 1s')
-    q.players[1] = player('11s 147m 258p 369s 24s', { chickenDiscard: true })
+    q.players[1] = player('11s 147m 258p 369s 24s', { chickenDiscard: [18] })
     act(q, 0, { type: 'discard', index: 13 })
     expect(q.pending?.options[1]).toMatchObject({ peng: true, restrictedPeng: true })
     act(q, 1, { type: 'respond', action: 'peng' })
@@ -308,7 +308,7 @@ describe('幺筒：操作、判罚、末张、轮庄', () => {
       dealerRound: 4,
       repeats: 1,
       handNumber: 2,
-      firstFixedDiscard: false,
+      firstFixedDiscard: [],
       firstFixedPeng: false,
       firstYaoDiscard: false,
     })

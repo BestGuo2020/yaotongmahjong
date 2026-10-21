@@ -511,7 +511,7 @@ function onAvatarError(entry: GamePlayer) {
   <div
     ref="tableHudElement"
     class="game-table-hud"
-    :class="{ 'blood-flow-table': Boolean(bloodFlow) }"
+    :class="{ 'blood-flow-table': Boolean(bloodFlow), 'yaotong-table': rulesetId === 'yaotong' }"
     :data-table-theme="themeName"
     :data-phase="phase"
     :data-opening-stage="openingStage ?? ''"

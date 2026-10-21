@@ -18,7 +18,7 @@ export function chooseAction(state: GameState, seat: Seat): Command | null {
       // Do not knowingly peng into an unavoidable chicken-discard penalty.
       const rest = [...p.hand]
       for (let n = 0; n < 2; n++) rest.splice(rest.indexOf(pending.tile), 1)
-      if ((!p.chickenPeng && !isChicken(pending.tile)) || rest.some((t) => !isChicken(t)))
+      if (rest.some(t => !p.chickenPeng.includes(t) && (!isChicken(pending.tile) || t !== pending.tile)))
         return { type: 'respond', action: 'peng' }
     }
     return { type: 'respond', action: 'pass' }
@@ -31,7 +31,7 @@ export function chooseAction(state: GameState, seat: Seat): Command | null {
   if (p.declaration !== 'none') return { type: 'discard', index: p.hand.length - 1 }
   const legal = p.hand
     .map((tile, index) => ({ tile, index }))
-    .filter(({ tile }) => !p.chickenPeng || !isChicken(tile))
+    .filter(({ tile }) => !p.chickenPeng.includes(tile))
   const available = legal.length ? legal : p.hand.map((tile, index) => ({ tile, index }))
   const listening = discardWaits(p).filter((o) => available.some((c) => c.index === o.index))
   if (listening.length) {
@@ -47,7 +47,8 @@ export function chooseAction(state: GameState, seat: Seat): Command | null {
         b.waits.reduce((n, w) => n + Math.max(0, 4 - publicCounts[w.tile]), 0) -
         a.waits.reduce((n, w) => n + Math.max(0, 4 - publicCounts[w.tile]), 0),
     )
-    return { type: 'discard', index: listening[0].index, declare: p.draws === 1 && p.drawn !== null }
+    return { type: 'discard', index: listening[0].index,
+      declare: p.draws === 1 && p.drawn !== null && p.discards === 0 && p.melds.length === 0 }
   }
   const counts = countsOf(p.hand)
   const keep = (tile: number) => {

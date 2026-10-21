@@ -43,18 +43,18 @@ export function yaotongGuidance(
     })
     if (protection.peng) hints.push(response?.restrictedPeng ? {
       id: 'chicken-discard', protection: true, summary: '本巡已打鸡，不能碰鸡',
-      reason: '你本巡已经打出鸡牌，同一巡内不能再碰鸡牌；不同种类的鸡牌也受此限制。',
+      reason: '你本巡已经打出鸡牌，同一巡内不能再碰鸡牌；只限制同一种鸡牌，其他种类可以正常操作。',
       action: '请选择「过」或其他仍可用的操作，系统已拦截碰鸡。',
       release: '下次实际摸牌后解除。这里的鸡牌指一万、一条、八筒和幺筒。',
     } : {
       id: 'no-safe-discard', protection: true, summary: '碰后没有安全弃牌',
-      reason: '本次碰牌后只剩鸡牌可直接打出，会碰到同巡碰鸡后不能打鸡的限制。',
+      reason: '本次碰牌后只剩同种鸡牌可直接打出，会碰到同巡碰鸡后不能打鸡的限制。',
       action: '请选择「过」或其他仍可用的操作，系统已提前拦截这次碰牌。',
     })
     if (protection.discards.length) hints.push({
-      id: 'chicken-peng', protection: true, summary: '本巡已碰鸡，请打非鸡牌',
-      reason: '你本巡已经碰过鸡牌，同一巡内不能再打出鸡牌；不同种类的鸡牌也受此限制。',
-      action: '请选择未变灰的非鸡牌打出。系统已禁用手中的一万、一条、八筒和幺筒。',
+      id: 'chicken-peng', protection: true, summary: '本巡已碰鸡，请打其他牌',
+      reason: '你本巡已经碰过鸡牌，同一巡内不能再打出鸡牌；只限制同一种鸡牌，其他种类可以正常操作。',
+      action: '请选择未变灰的牌打出。系统只禁用与本巡碰牌同种的鸡牌。',
       release: '下次实际摸牌后解除。',
     })
   }

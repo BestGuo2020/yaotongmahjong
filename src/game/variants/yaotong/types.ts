@@ -36,8 +36,8 @@ export interface Player {
   passedHu: number | null
   /** Actual structural value at the last legal pass; scene bonuses alone cannot make a bigger hand. */
   passedShape?: number | null
-  chickenPeng: boolean
-  chickenDiscard: boolean
+  chickenPeng: Tile[]
+  chickenDiscard: Tile[]
 }
 export interface Pattern {
   name: string
@@ -53,6 +53,8 @@ export interface HandValue {
   big: boolean
   structure: 'standard' | 'pairs' | 'earth'
   groups: Tile[][]
+  /** Concealed tiles after the selected wildcard substitution (earth includes its fourth tile). */
+  resolvedHand?: Tile[]
 }
 export interface WinContext {
   kind: WinKind
@@ -82,6 +84,7 @@ export interface Pending {
   discard: Discard | null
   options: Record<Seat, ActionOptions>
   choices: Record<Seat, ResponseAction>
+  huChoices?: Record<Seat, string>
 }
 export type Account =
   | '胡牌分'
@@ -139,7 +142,7 @@ export interface GameState {
   originalDecisions: boolean[]
   pending: Pending | null
   result: Settlement | null
-  firstFixedDiscard: boolean
+  firstFixedDiscard: Tile[]
   firstFixedPeng: boolean
   firstYaoDiscard: boolean
   events: GameEvent[]
@@ -152,6 +155,6 @@ export interface GameState {
 export type Command =
   | { type: 'original'; declare: boolean }
   | { type: 'discard'; index: number; declare?: boolean }
-  | { type: 'respond'; action: ResponseAction }
-  | { type: 'hu' }
+  | { type: 'respond'; action: ResponseAction; huChoice?: string }
+  | { type: 'hu'; huChoice?: string }
   | { type: 'kong'; tile: Tile }

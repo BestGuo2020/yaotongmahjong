@@ -1,5 +1,6 @@
 import { discardWaits, huOpportunity, waits } from './hands'
 import { settle, type Ending } from './settlement'
+import { huChoiceKey, winChoices } from './winChoices'
 import { breakWall, countsOf, isChicken, isFixed, shuffledWall, sortHand, tileName, YAO } from './tiles'
 import type { ActionOptions, Command, GameEvent, GameState, Player, Seat, Tile } from './types'
 
@@ -49,8 +50,8 @@ export function makePlayer(name = '玩家'): Player {
     burned: false,
     passedHu: null,
     passedShape: null,
-    chickenPeng: false,
-    chickenDiscard: false,
+    chickenPeng: [],
+    chickenDiscard: [],
   }
 }
 export interface StartOptions {
@@ -93,7 +94,7 @@ export function createGame(options: StartOptions = {}): GameState {
     originalDecisions: [false, false, false, false],
     pending: null,
     result: null,
-    firstFixedDiscard: false,
+    firstFixedDiscard: [],
     firstFixedPeng: false,
     firstYaoDiscard: false,
     events: [],
@@ -164,8 +165,8 @@ function draw(state: GameState, seat: Seat, tail = false) {
   p.draws++
   p.passedHu = null
   p.passedShape = null
-  p.chickenPeng = false
-  p.chickenDiscard = false
+  p.chickenPeng = []
+  p.chickenDiscard = []
   p.afterKong = tail
   state.current = seat
   state.phase = 'discard'
@@ -244,7 +245,7 @@ function offerResponses(state: GameState, flow?: EngineFlow) {
         h,
         shapePoints: opportunity.shapePoints,
         restrictedHu,
-        restrictedPeng: peng && isChicken(pending.tile) && p.chickenDiscard,
+        restrictedPeng: peng && p.chickenDiscard.includes(pending.tile),
         mandatory:
           h > 0 &&
           !restrictedHu &&
@@ -281,6 +282,7 @@ function resolveResponses(state: GameState, flow?: EngineFlow) {
         winKind: pending.kind,
         tile: pending.tile,
         responsibility: pending.tile === YAO ? (pending.discard?.chicken ?? 0) : 0,
+        huChoices: pending.huChoices,
       })
     }
     if (pending.kind === 'rob') advance(state, flow, 'rob-win', end)
@@ -329,7 +331,7 @@ function resolveResponses(state: GameState, flow?: EngineFlow) {
     if (!kong && isFixed(pending.tile)) state.firstFixedPeng = true
     p.drawn = null
     p.afterKong = false
-    if (!kong && isChicken(pending.tile)) p.chickenPeng = true
+    if (!kong && isChicken(pending.tile)) p.chickenPeng.push(pending.tile)
     state.current = claimant
     state.phase = 'discard'
     event(state, claimant, kong ? 'kong' : 'peng', kong ? '明杠' : '碰', pending.tile)
@@ -362,6 +364,8 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
     if (state.phase !== 'response' || !pending || pending.choices[seat]) return false
     const options = pending.options[seat]
     if (!options || (command.action !== 'pass' && !options[command.action])) return false
+    if (command.action === 'hu' && command.huChoice &&
+      !winChoices(state, seat).some(value => huChoiceKey(value) === command.huChoice)) return false
     if (command.action === 'hu' && options.restrictedHu) {
       penalty(state, seat, '违反过手胡限制')
       return true
@@ -385,6 +389,8 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
       p.passedShape = Math.max(p.passedShape ?? 0, options.shapePoints ?? 0)
     }
     pending.choices[seat] = command.action
+    if (command.action === 'hu' && command.huChoice)
+      (pending.huChoices ??= {})[seat] = command.huChoice
     if (Object.keys(pending.options).every((i) => pending.choices[Number(i)])) resolveResponses(state, flow)
     else if (pending.kind === 'rob')
       advance(state, flow, 'between-robbers', () => {
@@ -396,8 +402,10 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
   if (command.type === 'hu') {
     const options = selfOptions(state, seat)
     if (!options.hu) return false
+    if (command.huChoice && !winChoices(state, seat).some(value => huChoiceKey(value) === command.huChoice)) return false
     if (options.restrictedHu) penalty(state, seat, '违反过手胡限制')
-    else finish(state, { kind: 'win', winners: [seat], winKind: 'self', tile: p.drawn! })
+    else finish(state, { kind: 'win', winners: [seat], winKind: 'self', tile: p.drawn!,
+      huChoices: command.huChoice ? { [seat]: command.huChoice } : undefined })
     return true
   }
   if (command.type === 'kong') {
@@ -435,13 +443,14 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
     command.declare &&
     (p.declaration !== 'none' ||
       p.draws !== 1 ||
+      p.discards !== 0 || p.melds.length !== 0 ||
       p.drawn === null ||
       !discardWaits(p).some((o) => o.index === command.index))
   )
     return false
   if (!passSelf(state, seat)) return true
   const tile = p.hand[command.index]
-  const illegalChickenDiscard = p.chickenPeng && isChicken(tile)
+  const illegalChickenDiscard = p.chickenPeng.includes(tile)
   const pre = state.players.some((player) => player.discards === 0)
   let chicken = 0
   let stage: 'normal' | 'pre' | 'first' | 'later' | 'hot' = 'normal'
@@ -450,8 +459,8 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
     chicken = { hot: 100, pre: 30, first: 20, later: 15, normal: 0 }[stage]
     if (stage === 'first') state.firstYaoDiscard = true
   } else if (isFixed(tile)) {
-    chicken = !state.firstFixedDiscard || p.discards === 0 ? 4 : 2
-    state.firstFixedDiscard = true
+    chicken = !state.firstFixedDiscard.includes(tile) || p.discards === 0 ? 4 : 2
+    if (!state.firstFixedDiscard.includes(tile)) state.firstFixedDiscard.push(tile)
   }
   const hot = p.afterKong
   p.hand.splice(command.index, 1)
@@ -459,7 +468,7 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
   p.discards++
   p.drawn = null
   p.afterKong = false
-  if (isChicken(tile)) p.chickenDiscard = true
+  if (isChicken(tile)) p.chickenDiscard.push(tile)
   const discardedEvent = event(
     state,
     seat,

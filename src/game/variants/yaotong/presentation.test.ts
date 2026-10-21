@@ -127,6 +127,6 @@ describe('score flow and concise seat presentation', () => {
     expect(winPatternCue(settle(table(), { kind: 'draw' }), effect)).toBeNull()
     state.players[0] = player('234567m 567s 22p 789p', { declaration: 'ready' })
     const ordinary = settle(state, { kind: 'win', winKind: 'self', winners: [0], tile: 16 })
-    expect(winPatternCue(ordinary, effect)?.winners).toEqual([{ seat: 0, label: '鸡胡', tier: 0 }])
+    expect(winPatternCue(ordinary, effect)?.winners).toEqual([{ seat: 0, label: '硬胡', tier: 0 }])
   })
 })

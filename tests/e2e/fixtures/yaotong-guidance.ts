@@ -16,10 +16,18 @@ createApp({ setup() {
     const state = table()
     game.declarationArmed.value = false
     game.local.mode.value = name === 'hard' ? 'hard' : 'easy'
-    if (name === 'multiple') {
+    if (name === 'hu' || name === 'hu-response') {
+      state.players[0] = player('2222m 33p 44s 55s 66p 11p', { declaration: 'ready', drawn: 9 })
+      if (name === 'hu-response') {
+        state.players[0].hand.pop()
+        state.current = 1
+        state.players[1].hand.push(9)
+        act(state, 1, { type: 'discard', index: 13 })
+      }
+    } else if (name === 'multiple') {
       state.current = 1
       state.players[1] = player('147m 258p 369s 2468s 1m', { declaration: 'ready', drawn: 0 })
-      state.players[0] = player('11m 23m 456789m 888m', { chickenDiscard: true, passedHu: 100 })
+      state.players[0] = player('11m 23m 456789m 888m', { chickenDiscard: [0], passedHu: 100 })
       act(state, 1, { type: 'discard', index: 13 })
     } else if (name === 'original') {
       state.phase = 'original'
@@ -30,13 +38,14 @@ createApp({ setup() {
       state.players[0] = player('234567m 234s 66p 789s', { drawn: 26 })
       state.players[1].declaration = 'ready'
     } else {
-      state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: name !== 'clear' })
+      state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: name !== 'clear' ? [9] : [] })
     }
     // Freeze deterministic states while exercising the real port, HUD and controls.
-    game.local.paused.value = true
+    game.local.paused.value = !name.startsWith('hu')
     game.local.state.value = state
   }
   ;(window as unknown as { setGuidanceScenario: typeof scenario }).setGuidanceScenario = scenario
+  ;(window as unknown as { selectedHu: () => unknown }).selectedHu = () => game.local.state.value?.result?.values[0]
   scenario(query.get('scenario') ?? 'chicken')
   return () => h('main', { class: 'game-app', 'data-table-theme': theme,
     style: themePresentationCssVariables(themePresentationByName(theme)) }, [
@@ -54,6 +63,8 @@ createApp({ setup() {
       userDiscardWaits: null, userKongs: game.userKongs.value, userHasWindKong: false,
       rulesetId: 'yaotong', wallTotal: 108, jokerTiles: ['p1'], extraActions: true,
       blockedDiscardIndices: game.local.protection.value.discards, canPass: !game.local.protection.value.pass,
+      onHu: () => game.userHu(),
+      autoPlayEnabled: true, autoPlay: false,
     }, { actions: () => h(YaotongControls, { game }) })]),
   ])
 } }).mount('#app')

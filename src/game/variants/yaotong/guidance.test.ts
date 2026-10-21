@@ -14,14 +14,14 @@ function inspect(check: (port: ReturnType<typeof useYaotongPort>) => void) {
 
 it('碰鸡后说明禁打牌种、可选操作和解除条件；摸牌后不留下旧原因', () => inspect((port) => {
   const state = table()
-  state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: true })
+  state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: [9] })
   port.local.state.value = state
   expect(port.guidance.value).toEqual([expect.objectContaining({
-    id: 'chicken-peng', protection: true, summary: '本巡已碰鸡，请打非鸡牌',
-    action: expect.stringContaining('一万、一条、八筒和幺筒'),
+    id: 'chicken-peng', protection: true, summary: '本巡已碰鸡，请打其他牌',
+    action: expect.stringContaining('同种的鸡牌'),
     release: '下次实际摸牌后解除。',
   })])
-  state.players[0].chickenPeng = false
+  state.players[0].chickenPeng = []
   triggerRef(port.local.state)
   expect(port.guidance.value).toEqual([])
 }))
@@ -30,7 +30,7 @@ it('同时受过手胡和碰鸡限制时，分别展示两个原因，不误提�
   const state = table()
   state.current = 1
   state.players[1] = player('147m 258p 369s 2468s 1m', { declaration: 'ready', drawn: 0 })
-  state.players[0] = player('11m 23m 456789m 888m', { chickenDiscard: true, passedHu: 100 })
+  state.players[0] = player('11m 23m 456789m 888m', { chickenDiscard: [0], passedHu: 100 })
   act(state, 1, { type: 'discard', index: 13 })
   port.local.state.value = state
   expect(state.pending?.options[0]).toMatchObject({ restrictedHu: true, restrictedPeng: true, mandatory: false })
@@ -89,7 +89,7 @@ it('原报窗口、报听开关和锁手分别给出下一步提示', () => insp
 
 it('老手模式、托管、开场及终局期间不显示新手模式教学提示', () => inspect((port) => {
   const state = table()
-  state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: true })
+  state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: [9] })
   port.local.state.value = state
   expect(port.guidance.value).toHaveLength(1)
   port.local.mode.value = 'hard'

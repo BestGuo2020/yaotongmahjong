@@ -43,6 +43,8 @@ import {
 } from '../../shared/settlement/settlementTimeline'
 import { useYaotongGame } from './useYaotongGame'
 import { yaotongGuidance } from './guidance'
+import { winChoices, huChoiceKey } from './winChoices'
+import { chickenValue } from './settlement'
 import { recordYaotongRound } from './replay'
 import type { ReplayRecorderHooks } from '../../replay/types'
 import { countsOf } from './tiles'
@@ -684,15 +686,15 @@ export function useYaotongPort(
   const risk = computed(() =>
     local.mode.value === 'easy'
       ? local.protection.value.pass || local.protection.value.hu || local.protection.value.peng ||
-        (local.protection.value.discards.length ? '本巡已碰鸡，系统已禁用鸡牌出牌' : '')
+        (local.protection.value.discards.length ? '本巡已碰鸡，系统已禁用同种鸡牌出牌' : '')
       : local.response.value?.mandatory || local.self.value?.mandatory
       ? '本次必须胡牌，选择其他操作将包牌'
       : local.response.value?.restrictedHu || local.self.value?.restrictedHu
         ? '过手胡尚未解除，选择胡将包牌'
         : local.response.value?.restrictedPeng
-          ? '本巡已打鸡，碰鸡将包牌'
-          : local.ownTurn.value && local.user.value?.chickenPeng
-            ? '本巡已碰鸡，不可再打鸡'
+          ? '本巡已打同种鸡，再碰将包牌'
+          : local.ownTurn.value && local.user.value?.chickenPeng.length
+            ? '本巡已碰鸡，不可再打同种鸡'
             : '',
   )
   const port = defineGamePort({
@@ -795,6 +797,7 @@ export function useYaotongPort(
       if (target !== undefined) local.dispatch({ type: 'kong', tile: target })
     },
     userHu() {
+      if (huChoices.value.length > 1) { choosingHu.value = true; return }
       local.dispatch(local.response.value ? { type: 'respond', action: 'hu' } : { type: 'hu' })
     },
     nextRound() {
@@ -832,8 +835,25 @@ export function useYaotongPort(
   const canArmDeclaration = computed(() =>
     local.ownTurn.value && !local.protection.value.pass &&
     local.user.value?.draws === 1 && local.user.value.drawn !== null &&
+    local.user.value.discards === 0 && local.user.value.melds.length === 0 &&
     local.user.value.declaration === 'none' && local.discardOptions.value.length > 0,
   )
+  const choosingHu = ref(false)
+  const huChoices = computed(() => {
+    const state = local.state.value
+    if (!state || local.autoplay.value || local.paused.value) return []
+    return winChoices(state, 0).map(value => ({
+      key: huChoiceKey(value), label: value.patterns.map(p => p.name).join('＋') || '鸡胡',
+      h: value.h, natural: value.naturalYaos, wildcards: value.wildcards,
+      chicken: chickenValue(local.user.value!, value.naturalYaos, null, false, value),
+    }))
+  })
+  watch(() => local.state.value, () => { if (!huChoices.value.length) choosingHu.value = false })
+  function chooseHu(key: string) {
+    if (!huChoices.value.some(choice => choice.key === key)) return
+    local.dispatch(local.response.value ? { type: 'respond', action: 'hu', huChoice: key } : { type: 'hu', huChoice: key })
+    choosingHu.value = false
+  }
   const guidance = computed(() => {
     const state = local.state.value
     if (local.mode.value !== 'easy' || local.autoplay.value || openingActive.value ||
@@ -855,5 +875,6 @@ export function useYaotongPort(
     declarationArmed,
     openingActive,
     canArmDeclaration,
+    choosingHu, huChoices, chooseHu,
   })
 }

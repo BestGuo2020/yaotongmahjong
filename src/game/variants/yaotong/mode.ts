@@ -29,10 +29,11 @@ export function actionProtection(state: GameState, seat = 0) {
   const options = response ?? selfOptions(state, seat)
   const mandatory = options.mandatory ? '本次必须胡牌，系统已拦截其他操作' : ''
   let peng = options.restrictedPeng ? '本巡已打鸡，系统已拦截碰鸡' : ''
-  if (response?.peng && state.pending && (player.chickenPeng || isChicken(state.pending.tile))) {
+  if (response?.peng && state.pending) {
     const rest = [...player.hand]
     for (let i = 0; i < 2; i++) rest.splice(rest.indexOf(state.pending.tile), 1)
-    if (rest.every(isChicken)) peng = '碰牌后将只能打鸡，系统已拦截此次碰牌'
+    if (rest.every(t => player.chickenPeng.includes(t) || (isChicken(state.pending!.tile) && t === state.pending!.tile)))
+      peng = '碰牌后将只能打同种鸡，系统已拦截此次碰牌'
   }
   return {
     hu: options.restrictedHu ? '过手胡尚未解除，系统已拦截胡牌' : '',
@@ -40,7 +41,7 @@ export function actionProtection(state: GameState, seat = 0) {
     kong: mandatory,
     pass: mandatory,
     discards: ownTurn ? player.hand.flatMap((tile, index) =>
-      mandatory || (player.chickenPeng && isChicken(tile)) ? [index] : []) : [],
+      mandatory || player.chickenPeng.includes(tile) ? [index] : []) : [],
   }
 }
 

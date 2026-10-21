@@ -23,7 +23,7 @@ function withGame(mode: YaotongMode, state: GameState, check: (port: ReturnType<
 describe('新手模式辅助防违规，老手模式保留实际包牌', () => {
   it.each(['easy', 'hard'] as const)('%s：同巡碰鸡后打鸡', (mode) => {
     const state = table()
-    state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: true })
+    state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: [9] })
     withGame(mode, state, (port) => {
       const before = structuredClone(state)
       expect(port.local.protection.value.discards.includes(13)).toBe(mode === 'easy')
@@ -42,7 +42,7 @@ describe('新手模式辅助防违规，老手模式保留实际包牌', () => {
     const state = table()
     state.current = 1
     state.players[1] = player('147m 258p 369s 2468s 1s')
-    state.players[0] = player('11s 147m 258p 369s 24s', { chickenDiscard: true })
+    state.players[0] = player('11s 147m 258p 369s 24s', { chickenDiscard: [18] })
     act(state, 1, { type: 'discard', index: 13 })
     expect(state.pending?.options[0].restrictedPeng).toBe(true)
     withGame(mode, state, (port) => {
@@ -120,7 +120,7 @@ describe('新手模式辅助防违规，老手模式保留实际包牌', () => {
     const state = table()
     state.current = 1
     state.players[1] = player('147m 258p 369s 2468s 1s')
-    state.players[0] = player('11s 111m 111p 888p 1m 1p')
+    state.players[0] = player('1111s', { melds: [0, 3, 6].map(tile => ({ kind: 'peng', tile, pre: false, chicken: 0, responsibility: 0 })) })
     act(state, 1, { type: 'discard', index: 13 })
     withGame('easy', state, (port) => {
       expect(port.actionPrompt.value?.canPeng).toBe(false)
@@ -136,7 +136,7 @@ describe('新手模式辅助防违规，老手模式保留实际包牌', () => {
   it('防护只作用于本家，不篡改其他座位违规的结算', () => {
     const state = table()
     state.current = 1
-    state.players[1] = player('147m 258p 369s 2468s 1p', { chickenPeng: true })
+    state.players[1] = player('147m 258p 369s 2468s 1p', { chickenPeng: [9] })
     withGame('easy', state, (port) => {
       port.local.dispatch({ type: 'discard', index: 13 }, 1)
       expect(state.result).toMatchObject({ kind: 'penalty', offender: 1 })
@@ -147,7 +147,7 @@ describe('新手模式辅助防违规，老手模式保留实际包牌', () => {
     const state = table()
     state.current = 1
     state.players[1] = player('147m 258p 369s 2468s 4m')
-    state.players[0] = player('44m 1111s 888p 1m', { chickenPeng: true,
+    state.players[0] = player('44m 11s', { chickenPeng: [18],
       melds: [{ kind: 'peng', tile: 0, from: 2, pre: false, chicken: 8, responsibility: 0 }] })
     act(state, 1, { type: 'discard', index: 13 })
     withGame('easy', state, (port) => {

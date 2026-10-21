@@ -1,4 +1,4 @@
-import { evaluateHand, passAllows, waits } from './hands'
+import { evaluateHand, passAllows, waits, huChoiceKey } from './hands'
 import { countsOf, isFixed, nextTile, tileName, YAO } from './tiles'
 import type {
   Account,
@@ -21,6 +21,7 @@ export interface Ending {
   offender?: Seat
   reason?: string
   responsibility?: number
+  huChoices?: Record<Seat, string>
 }
 
 export function readyInfo(player: Player) {
@@ -77,6 +78,7 @@ export function chickenBreakdown(
   naturalYaos: number,
   flipped: Tile | null,
   exposedOnly = false,
+  value?: HandValue,
 ): ChickenTerm[] {
   const terms = new Map<string, ChickenTerm>()
   const add = (tile: Tile, label: string, count: number, unit: number) => {
@@ -89,7 +91,7 @@ export function chickenBreakdown(
     terms.set(key, { label: name, count: quantity, unit, multiplier, amount: quantity * unit * multiplier })
   }
   if (!exposedOnly) {
-    for (const tile of player.hand) {
+    for (const tile of value?.resolvedHand ?? player.hand) {
       if (isFixed(tile)) add(tile, '底鸡', 1, 2)
       else if (tile === flipped && tile !== YAO) add(tile, '翻牌鸡', 1, 1)
     }
@@ -127,9 +129,18 @@ export const chickenValue = (
   naturalYaos: number,
   flipped: Tile | null,
   exposedOnly = false,
-) => chickenBreakdown(player, naturalYaos, flipped, exposedOnly).reduce((sum, item) => sum + item.amount, 0)
-const chickenReason = (player: Player, naturalYaos: number, flipped: Tile | null, exposedOnly = false) =>
-  chickenBreakdown(player, naturalYaos, flipped, exposedOnly)
+  value?: HandValue,
+) => chickenBreakdown(player, naturalYaos, flipped, exposedOnly, value).reduce((sum, item) => sum + item.amount, 0)
+
+/** Compare total receipts under a single coherent hand, including per-opponent chicken income. */
+export function huGain(player: Player, value: HandValue, payers: number, chicken: Tile | null,
+  responsibility = 0) {
+  return value.h * payers + chickenValue(player, value.naturalYaos, chicken, false, value) * 3 +
+    (value.winningYaoNatural && chicken === YAO ? responsibility * 2 : 0)
+}
+
+const chickenReason = (player: Player, naturalYaos: number, flipped: Tile | null, exposedOnly = false, value?: HandValue) =>
+  chickenBreakdown(player, naturalYaos, flipped, exposedOnly, value)
     .map((item) => {
       const calculation =
         item.count > 1 || item.multiplier > 1
@@ -169,7 +180,7 @@ export function settle(state: GameState, ending: Ending): Settlement {
       add(ending.offender!, to, '一般包牌赔付', b, ending.reason ?? '违反行为规则')
   } else {
     for (const winner of winners) {
-      const candidates = evaluateHand(players[winner], {
+      let candidates = evaluateHand(players[winner], {
         kind: ending.winKind!,
         tile: ending.tile!,
         chicken,
@@ -177,13 +188,15 @@ export function settle(state: GameState, ending: Ending): Settlement {
           (seat) => players[seat].declaration !== 'none',
         ),
       }).filter((v) => passAllows(players[winner], v.h, v))
-      const fan = chicken === YAO ? 3 : 1
+      const selected = ending.huChoices?.[winner]
+      if (selected) {
+        const matching = candidates.filter(v => huChoiceKey(v) === selected)
+        // A flipped chicken can invalidate the pre-flip pure-Hu offer; re-evaluate normally in that case.
+        if (matching.length) candidates = matching
+      }
       const payers = ending.winKind === 'self' ? others(winner) : [source!]
       // High-point selection includes chicken and the winning tile's individual responsibility.
-      const gain = (v: HandValue) =>
-        v.h * payers.length +
-        v.naturalYaos * 10 * fan * 3 +
-        (v.winningYaoNatural ? (ending.responsibility ?? 0) * (fan - 1) : 0)
+      const gain = (v: HandValue) => huGain(players[winner], v, payers.length, chicken, ending.responsibility)
       const value = candidates.sort((a, b) => gain(b) - gain(a) || b.h - a.h)[0]
       if (!value) throw new Error('结算收到不合法的胡牌方案')
       values[winner] = value
@@ -204,7 +217,7 @@ export function settle(state: GameState, ending: Ending): Settlement {
           source,
           winner,
           '幺筒责任分',
-          ending.responsibility * (value.winningYaoNatural ? fan : 1),
+          ending.responsibility * (value.winningYaoNatural && chicken === YAO ? 3 : 1),
           value.winningYaoNatural ? '胡入幺筒作本牌' : '胡入幺筒作癞子',
         )
       }
@@ -227,7 +240,7 @@ export function settle(state: GameState, ending: Ending): Settlement {
             }
         }
     } else {
-      const collected = players.map((p, i) => (p.burned ? 0 : chickenValue(p, info[i].natural, chicken)))
+      const collected = players.map((p, i) => (p.burned ? 0 : chickenValue(p, info[i].natural, chicken, false, values[i])))
       for (let owner = 0; owner < 4; owner++) {
         for (const other of others(owner)) {
           if (ready[owner])
@@ -236,7 +249,7 @@ export function settle(state: GameState, ending: Ending): Settlement {
               owner,
               '鸡分',
               collected[owner],
-              chickenReason(players[owner], info[owner].natural, chicken),
+              chickenReason(players[owner], info[owner].natural, chicken, false, values[owner]),
             )
           else if (ready[other])
             add(
