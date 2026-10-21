@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { act } from './engine'
 import { evaluateHand } from './hands'
 import { settle } from './settlement'
-import { huChoiceKey, winChoices } from './winChoices'
 import { player, table, ready, meld } from './auditFixtures'
 import { YAO } from './tiles'
 
@@ -56,35 +55,30 @@ describe('朋友实玩规则勘误', () => {
     expect(r.values[0].naturalYaos).toBe(0)
     expect(r.transfers.find(t => t.account === '鸡分' && t.to === 0)?.reason).toContain('八筒')
   })
-  it('翻鸡前的胡法列表不读取牌墙，伪造选择不会打乱牌局', () => {
+  it.each([
+    ['self', false, '双龙七', 2, 315],
+    ['discard', false, '龙七对', 0, 135],
+    ['self', true, '龙七对', 0, 405],
+    ['discard', true, '龙七对', 0, 255],
+  ] as const)('%s 翻九筒=%s：自动按最终收益采用%s', (kind, flipped, pattern, wildcards, income) => {
     const s = table()
     s.players[0] = player('2222m 33p 44s 55s 66p 11p', { declaration: 'ready', drawn: YAO })
-    const choices = winChoices(s, 0).map(huChoiceKey)
-    s.wall = [8, 7, 6]
-    expect(winChoices(s, 0).map(huChoiceKey)).toEqual(choices)
-    const before = structuredClone(s)
-    expect(act(s, 0, { type: 'hu', huChoice: '不存在的胡法' })).toBe(false)
-    expect(s).toEqual(before)
-  })
-  it('双龙七自摸与硬龙七接炮分别择高，玩家可主动选择硬胡搏翻九筒', () => {
-    const base = () => {
-      const s = table()
-      s.players[0] = player('2222m 33p 44s 55s 66p 11p', { declaration: 'ready', drawn: YAO })
-      s.wall = []
-      return s
+    s.wall = flipped ? [17] : []
+    if (kind === 'self') expect(act(s, 0, { type: 'hu' })).toBe(true)
+    else {
+      s.players[0].hand.pop()
+      s.players[1].hand.push(YAO)
+      s.current = 1
+      act(s, 1, { type: 'discard', index: 13 })
+      expect(act(s, 0, { type: 'respond', action: 'hu' })).toBe(true)
     }
-    const s = base()
-    const choices = winChoices(s, 0)
-    const hard = choices.find(v => v.wildcards === 0)!
-    expect(hard.patterns.some(p => p.name === '龙七对')).toBe(true)
-    expect(choices.some(v => v.patterns.some(p => p.name === '双龙七'))).toBe(true)
-    expect(settle(s, { kind: 'win', winKind: 'self', winners: [0], tile: YAO }).values[0].wildcards).toBe(2)
-    const q = base()
-    expect(settle(q, { kind: 'win', winKind: 'discard', source: 1, winners: [0], tile: YAO }).values[0].wildcards).toBe(0)
-    const manual = base()
-    manual.wall = [17]
-    expect(act(manual, 0, { type: 'hu', huChoice: huChoiceKey(hard) })).toBe(true)
-    expect(manual.result?.values[0].wildcards).toBe(0)
-    expect(manual.result?.chicken).toBe(YAO)
+    const r = s.result!
+    expect(r.values[0].patterns).toContainEqual({ name: pattern, points: pattern === '双龙七' ? 80 : 40 })
+    expect(r.values[0].wildcards).toBe(wildcards)
+    // Isolate the variable Hu/chicken receipts; winning-tile responsibility is accounted separately.
+    expect(r.transfers.filter(t => t.to === 0 && ['胡牌分', '鸡分'].includes(t.account))
+      .reduce((sum, t) => sum + t.amount, 0)).toBe(income)
+    expect(r.chicken).toBe(flipped ? YAO : null)
+    expect(r.deltas.reduce((a, b) => a + b, 0)).toBe(0)
   })
 })

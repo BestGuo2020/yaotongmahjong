@@ -3,21 +3,20 @@ import { act, selfOptions } from './engine'
 import { evaluateHand, isUntouchedFirstDraw, shapePoints } from './hands'
 import { player, table, meld } from './auditFixtures'
 import { winningPattern, winPatternCue } from './presentation'
-import { huChoiceKey, winChoices } from './winChoices'
 import type { Player } from './types'
 
 const untouched = () => player('234567m 234s 66p 789s', { draws: 1, drawn: 26 })
 
 describe('天胡、地胡共用报听的首次摸牌动作限制', () => {
-  it.each([0, 1, 2, 3])('座位%s按实际庄家区分命名，选择、结算和字效一致，均加40', seat => {
+  it.each([0, 1, 2, 3])('座位%s按实际庄家区分命名，结算和字效一致，均加40', seat => {
     const s = table()
     s.dealer = 2; s.current = seat; s.players[seat] = untouched(); s.wall = []
     const name = seat === 2 ? '天胡' : '地胡'
     expect(selfOptions(s, seat).h).toBe(55)
-    const value = winChoices(s, seat).find(v => v.patterns.some(p => p.name === name))!
+    const value = evaluateHand(s.players[seat], { kind: 'self', tile: 26, isDealer: seat === s.dealer }).find(v => v.patterns.some(p => p.name === name))!
     expect(value.patterns).toContainEqual({ name, points: 40 })
     expect(shapePoints(value)).toBe(10) // Opening bonus is not a larger structural hand for 过手.
-    expect(act(s, seat, { type: 'hu', huChoice: huChoiceKey(value) })).toBe(true)
+    expect(act(s, seat, { type: 'hu' })).toBe(true)
     expect(s.result!.values[seat].h).toBe(55)
     expect(winningPattern(s.result!.values[seat])).toBe(name)
     expect(s.result!.transfers.filter(t => t.account === '胡牌分')).toEqual([
@@ -47,7 +46,7 @@ describe('天胡、地胡共用报听的首次摸牌动作限制', () => {
     expect(isUntouchedFirstDraw(s.players[0])).toBe(false)
     expect(selfOptions(s, 0).hu).toBe(true)
     expect(selfOptions(s, 0).h).toBeLessThan(45)
-    expect(winChoices(s, 0).every(v => !v.patterns.some(p => /天胡|地胡/.test(p.name)))).toBe(true)
+    expect(evaluateHand(s.players[0], { kind: 'self', tile: 26, isDealer: true }).every(v => !v.patterns.some(p => /天胡|地胡/.test(p.name)))).toBe(true)
     expect(act(s, 0, { type: 'discard', index: s.players[0].hand.length - 1, declare: true })).toBe(false)
     expect(act(s, 0, { type: 'hu' })).toBe(true)
     expect(s.result!.values[0].patterns.every(p => !/天胡|地胡/.test(p.name))).toBe(true)

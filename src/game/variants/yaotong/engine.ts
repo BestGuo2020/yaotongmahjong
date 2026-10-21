@@ -1,6 +1,5 @@
 import { discardWaits, huOpportunity, waits, isUntouchedFirstDraw } from './hands'
 import { settle, type Ending } from './settlement'
-import { huChoiceKey, winChoices } from './winChoices'
 import { breakWall, countsOf, isChicken, isFixed, shuffledWall, sortHand, tileName, YAO } from './tiles'
 import type { ActionOptions, Command, GameEvent, GameState, Player, Seat, Tile } from './types'
 
@@ -282,7 +281,6 @@ function resolveResponses(state: GameState, flow?: EngineFlow) {
         winKind: pending.kind,
         tile: pending.tile,
         responsibility: pending.tile === YAO ? (pending.discard?.chicken ?? 0) : 0,
-        huChoices: pending.huChoices,
       })
     }
     if (pending.kind === 'rob') advance(state, flow, 'rob-win', end)
@@ -364,8 +362,6 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
     if (state.phase !== 'response' || !pending || pending.choices[seat]) return false
     const options = pending.options[seat]
     if (!options || (command.action !== 'pass' && !options[command.action])) return false
-    if (command.action === 'hu' && command.huChoice &&
-      !winChoices(state, seat).some(value => huChoiceKey(value) === command.huChoice)) return false
     if (command.action === 'hu' && options.restrictedHu) {
       penalty(state, seat, '违反过手胡限制')
       return true
@@ -389,8 +385,6 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
       p.passedShape = Math.max(p.passedShape ?? 0, options.shapePoints ?? 0)
     }
     pending.choices[seat] = command.action
-    if (command.action === 'hu' && command.huChoice)
-      (pending.huChoices ??= {})[seat] = command.huChoice
     if (Object.keys(pending.options).every((i) => pending.choices[Number(i)])) resolveResponses(state, flow)
     else if (pending.kind === 'rob')
       advance(state, flow, 'between-robbers', () => {
@@ -402,10 +396,8 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
   if (command.type === 'hu') {
     const options = selfOptions(state, seat)
     if (!options.hu) return false
-    if (command.huChoice && !winChoices(state, seat).some(value => huChoiceKey(value) === command.huChoice)) return false
     if (options.restrictedHu) penalty(state, seat, '违反过手胡限制')
-    else finish(state, { kind: 'win', winners: [seat], winKind: 'self', tile: p.drawn!,
-      huChoices: command.huChoice ? { [seat]: command.huChoice } : undefined })
+    else finish(state, { kind: 'win', winners: [seat], winKind: 'self', tile: p.drawn! })
     return true
   }
   if (command.type === 'kong') {

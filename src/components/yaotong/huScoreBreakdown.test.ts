@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { player, table } from '../../game/variants/yaotong/auditFixtures'
 import { settle } from '../../game/variants/yaotong/settlement'
-import { huScoreBreakdown } from './huScoreBreakdown'
+import { huScoreBreakdown, yaoUsageText } from './huScoreBreakdown'
 
 describe('本家胡分组成', () => {
   it('将报听软胡25分拆为基础5与报听20，排除鸡分等其他收付', () => {
@@ -35,5 +35,24 @@ describe('本家胡分组成', () => {
   it('流局赔听不当作普通胡牌分拆分', () => {
     const result = settle(table(), { kind: 'draw' })
     expect(huScoreBreakdown(result)).toEqual([])
+  })
+
+  it('展示最终采用的八筒赖子替代，与结算计鸡一致', () => {
+    const state = table()
+    state.players[0] = player('234m 67p 1p 33p 345s 123s', { drawn: 20 })
+    state.wall = []
+    const result = settle(state, { kind: 'win', winKind: 'self', winners: [0], tile: 20 })
+    expect(yaoUsageText(result.values[0], state.players[0].hand)).toBe('幺筒：本牌 0 张，赖子 1 张；赖子当八筒')
+    const legacy = { ...result.values[0], resolvedHand: undefined }
+    expect(yaoUsageText(legacy, state.players[0].hand)).toBe('幺筒：本牌 0 张，赖子 1 张')
+  })
+
+  it('翻九筒后自动采用硬龙七，胡牌张和两张幺筒均按本牌展示', () => {
+    const state = table()
+    state.players[0] = player('2222m 33p 44s 55s 66p 11p')
+    state.wall = [17]
+    const result = settle(state, { kind: 'win', winKind: 'self', winners: [0], tile: 9 })
+    expect(yaoUsageText(result.values[0], state.players[0].hand, true))
+      .toBe('幺筒：本牌 2 张，赖子 0 张；胡牌张作本牌')
   })
 })

@@ -2,6 +2,9 @@ import { createApp, h } from 'vue'
 import '../../../src/style.css'
 import GameTableHud from '../../../src/components/table/GameTableHud.vue'
 import YaotongControls from '../../../src/components/yaotong/YaotongControls.vue'
+import SettlementOverlay from '../../../src/components/settlement/SettlementOverlay.vue'
+import YaotongLedger from '../../../src/components/yaotong/YaotongLedger.vue'
+import YaotongRoundOverview from '../../../src/components/yaotong/YaotongRoundOverview.vue'
 import { useYaotongPort } from '../../../src/game/variants/yaotong/useYaotongPort'
 import { act } from '../../../src/game/variants/yaotong/engine'
 import { player, ready, table } from '../../../src/game/variants/yaotong/auditFixtures'
@@ -17,6 +20,7 @@ createApp({ setup() {
     game.declarationArmed.value = false
     game.local.mode.value = name === 'hard' ? 'hard' : 'easy'
     if (name === 'hu' || name === 'hu-response') {
+      state.wall = query.get('flip') === 'yao' ? [17] : []
       state.players[0] = player('2222m 33p 44s 55s 66p 11p', { declaration: 'ready', drawn: 9 })
       if (name === 'hu-response') {
         state.players[0].hand.pop()
@@ -45,7 +49,7 @@ createApp({ setup() {
     game.local.state.value = state
   }
   ;(window as unknown as { setGuidanceScenario: typeof scenario }).setGuidanceScenario = scenario
-  ;(window as unknown as { selectedHu: () => unknown }).selectedHu = () => game.local.state.value?.result?.values[0]
+  ;(window as unknown as { adoptedHu: () => unknown }).adoptedHu = () => game.local.state.value?.result?.values[0]
   scenario(query.get('scenario') ?? 'chicken')
   return () => h('main', { class: 'game-app', 'data-table-theme': theme,
     style: themePresentationCssVariables(themePresentationByName(theme)) }, [
@@ -66,5 +70,12 @@ createApp({ setup() {
       onHu: () => game.userHu(),
       autoPlayEnabled: true, autoPlay: false,
     }, { actions: () => h(YaotongControls, { game }) })]),
+    game.result.value ? h(SettlementOverlay, {
+      result: game.result.value, resultVisible: true, matchFinished: false, dealer: game.dealer.value,
+      waitingNextRound: false, gameMode: 'local', continueCountdown: 0, matchName: '东风场',
+      standings: game.standings.value, playerId: '', themeName: theme,
+    }, { overview: () => h(YaotongRoundOverview, { state: game.local.state.value!, themeName: theme }),
+      summary: () => h(YaotongLedger, { state: game.local.state.value!, players: game.players, themeName: theme }),
+    }) : null,
   ])
 } }).mount('#app')

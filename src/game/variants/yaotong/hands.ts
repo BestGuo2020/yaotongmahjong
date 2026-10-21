@@ -233,11 +233,6 @@ function structuralValues(player: Player, ctx: WinContext): HandValue[] {
 
 export const evaluateHand = structuralValues
 
-/** Fix pattern and natural/joker use without fixing the score-maximizing substitution. */
-export const huChoiceKey = (value: HandValue) => JSON.stringify([
-  value.patterns.map(p => p.name), value.naturalYaos, value.winningYaoNatural,
-])
-
 const waitCache = new Map<string, Wait[]>()
 export function waits(player: Player): Wait[] {
   if (player.hand.length !== 13 - player.melds.length * 3) return []

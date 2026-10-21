@@ -86,7 +86,6 @@ export interface Pending {
   discard: Discard | null
   options: Record<Seat, ActionOptions>
   choices: Record<Seat, ResponseAction>
-  huChoices?: Record<Seat, string>
 }
 export type Account =
   | '胡牌分'
@@ -157,6 +156,6 @@ export interface GameState {
 export type Command =
   | { type: 'original'; declare: boolean }
   | { type: 'discard'; index: number; declare?: boolean }
-  | { type: 'respond'; action: ResponseAction; huChoice?: string }
-  | { type: 'hu'; huChoice?: string }
+  | { type: 'respond'; action: ResponseAction }
+  | { type: 'hu' }
   | { type: 'kong'; tile: Tile }

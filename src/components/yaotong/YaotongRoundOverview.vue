@@ -4,7 +4,8 @@ import MahjongTile from '../MahjongTile.vue'
 import type { TableThemeName } from '../table/three/tableTheme'
 import type { Account, GameState } from '../../game/variants/yaotong/types'
 import { toSharedTile } from '../../game/variants/yaotong/useYaotongPort'
-import { huScoreBreakdown } from './huScoreBreakdown'
+import { huScoreBreakdown, yaoUsageText } from './huScoreBreakdown'
+import { YAO } from '../../game/variants/yaotong/tiles'
 
 const props = defineProps<{ state: GameState; themeName?: TableThemeName }>()
 const result = computed(() => props.state.result!)
@@ -56,11 +57,21 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
       </template>
       <b v-if="state.dice[0] === state.dice[1]" class="overview-double" title="展示的分数已包含同点翻倍">同点 ×2</b>
     </div>
+    <ul v-if="result.winners.length" class="winning-hand-uses" aria-label="最终采用的胡牌方案">
+      <li v-for="winner in result.winners" :key="winner">
+        <b>{{ state.players[winner].name }}：{{ result.values[winner].patterns.map(p => p.name).join('＋') || '鸡胡' }}</b>
+        <span>{{ yaoUsageText(result.values[winner], state.players[winner].hand, result.tile === YAO) }}</span>
+      </li>
+    </ul>
   </section>
 </template>
 
 <style scoped>
 .yaotong-round-overview { color: var(--theme-text); padding: 8px 0 14px; }
+.winning-hand-uses { grid-column: 1 / -1; display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; text-align: left; }
+.winning-hand-uses li { display: flex; flex-wrap: wrap; gap: 3px 10px; font-size: 12px; line-height: 1.5; }
+.winning-hand-uses b { color: var(--theme-accent-text); }
+.winning-hand-uses span { color: var(--theme-text-muted); }
 .self-result-label { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; margin: 0 0 4px; color: var(--theme-accent-text); font-size: 14px; font-weight: 700; }
 .self-round-score { display: flex; align-items: baseline; justify-content: center; gap: 12px; color: var(--theme-text-muted); }
 .self-round-score > span { font-size: 13px; color: var(--theme-text-muted); }
@@ -76,6 +87,10 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
 .overview-chicken .flipped-chicken { outline: 2px solid var(--theme-accent); outline-offset: 1px; }
 .chicken-arrow { color: var(--theme-accent-text); }
 .overview-double { margin-left: 4px; color: var(--theme-accent-text); font-size: 12px; }
+@container game (min-width: 620px) {
+  .yaotong-round-overview { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(0, 1.5fr) auto; align-items: center; gap: 12px; flex: none; }
+  .winning-hand-uses { margin-top: 0; }
+}
 @container game (max-height: 600px) {
   .yaotong-round-overview { padding: 4px 0 8px; }
   .self-result-label { font-size: 12px; margin-bottom: 0; }
@@ -88,7 +103,9 @@ const signed = (amount: number) => `${amount > 0 ? '+' : amount < 0 ? '−' : ''
   .overview-chicken .mahjong-tile { --tile-width: 27px; }
 }
 @container game (max-height: 450px) and (min-width: 620px) {
-  .yaotong-round-overview { display: grid; grid-template-columns: minmax(110px, .7fr) minmax(0, 1.5fr) auto; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--theme-accent) 4%, transparent); }
+  .winning-hand-uses { display: flex; flex-wrap: wrap; gap: 2px 16px; margin: 0; }
+  .winning-hand-uses li { flex: 1 1 280px; font-size: 10px; }
+  .yaotong-round-overview { display: grid; grid-template-columns: minmax(110px, .7fr) minmax(0, 1.5fr) auto; align-items: center; gap: 6px 12px; padding: 4px 10px; border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--theme-accent) 4%, transparent); }
   .self-result-label { justify-content: flex-start; font-size: 11px; }
   .self-round-score { justify-content: flex-start; gap: 6px; }
   .self-round-score > span:first-child { display: none; }

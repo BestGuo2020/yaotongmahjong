@@ -43,8 +43,6 @@ import {
 } from '../../shared/settlement/settlementTimeline'
 import { useYaotongGame } from './useYaotongGame'
 import { yaotongGuidance } from './guidance'
-import { winChoices, huChoiceKey } from './winChoices'
-import { chickenValue } from './settlement'
 import { isUntouchedFirstDraw } from './hands'
 import { recordYaotongRound } from './replay'
 import type { ReplayRecorderHooks } from '../../replay/types'
@@ -798,7 +796,6 @@ export function useYaotongPort(
       if (target !== undefined) local.dispatch({ type: 'kong', tile: target })
     },
     userHu() {
-      if (huChoices.value.length > 1) { choosingHu.value = true; return }
       local.dispatch(local.response.value ? { type: 'respond', action: 'hu' } : { type: 'hu' })
     },
     nextRound() {
@@ -838,22 +835,6 @@ export function useYaotongPort(
     Boolean(local.user.value && isUntouchedFirstDraw(local.user.value)) &&
     local.user.value.declaration === 'none' && local.discardOptions.value.length > 0,
   )
-  const choosingHu = ref(false)
-  const huChoices = computed(() => {
-    const state = local.state.value
-    if (!state || local.autoplay.value || local.paused.value) return []
-    return winChoices(state, 0).map(value => ({
-      key: huChoiceKey(value), label: value.patterns.map(p => p.name).join('＋') || '鸡胡',
-      h: value.h, natural: value.naturalYaos, wildcards: value.wildcards,
-      chicken: chickenValue(local.user.value!, value.naturalYaos, null, false, value),
-    }))
-  })
-  watch(() => local.state.value, () => { if (!huChoices.value.length) choosingHu.value = false })
-  function chooseHu(key: string) {
-    if (!huChoices.value.some(choice => choice.key === key)) return
-    local.dispatch(local.response.value ? { type: 'respond', action: 'hu', huChoice: key } : { type: 'hu', huChoice: key })
-    choosingHu.value = false
-  }
   const guidance = computed(() => {
     const state = local.state.value
     if (local.mode.value !== 'easy' || local.autoplay.value || openingActive.value ||
@@ -875,6 +856,5 @@ export function useYaotongPort(
     declarationArmed,
     openingActive,
     canArmDeclaration,
-    choosingHu, huChoices, chooseHu,
   })
 }

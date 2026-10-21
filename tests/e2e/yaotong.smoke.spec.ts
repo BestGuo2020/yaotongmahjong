@@ -98,7 +98,7 @@ test('大厅只提供幺筒，联机入口显示建设中且不请求旧房间�
   await page.getByRole('button', { name: '确定', exact: true }).click()
   await expect(page.locator('.start-button')).toContainText('开始全庄场')
   await page.getByRole('button', { name: /游戏规则/ }).click()
-  await expect(page.locator('.rules-panel h2')).toHaveText('幺筒麻将 · v1.2')
+  await expect(page.locator('.rules-panel h2')).toHaveText('幺筒麻将 · v1.3')
   await expect(page.locator('.rules-panel')).toContainText('108张')
   expect(serviceRequests).toEqual([])
   expect(errors).toEqual([])
@@ -157,21 +157,29 @@ test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => 
   await expect(page.locator('.announcement')).toHaveText('东1局 · 开牌', { timeout: 20_000 })
   // An eligible starting hand still requires its owner's original-report decision.
   const declineOriginal = page.getByRole('button', { name: '不原报', exact: true })
+  const settlement = page.locator('.round-settlement')
   await expect.poll(async () => {
-    if (await declineOriginal.isVisible()) return true
+    if (await declineOriginal.isVisible()) await declineOriginal.click()
+    // A random dealer can legally win before the human's first draw.
+    if (await settlement.isVisible()) return true
     // Another dealer can offer us a peng before our first draw. Decline that response explicitly.
     const pass = page.getByRole('button', { name: '过', exact: true })
     if (await pass.isVisible()) await pass.click()
+    else {
+      const hu = page.getByRole('button', { name: '胡', exact: true })
+      if (await hu.isVisible()) await hu.click()
+    }
     return await page.locator('.hand-rack.playable .hand-tile-slot').count() === 14
   }, { timeout: 20_000 }).toBe(true)
-  if (await declineOriginal.isVisible()) await declineOriginal.click()
-  await expect(page.locator('.hand-rack.playable .hand-tile-slot')).toHaveCount(14, { timeout: 15_000 })
-  await page.locator('.hand-rack.playable .mahjong-tile').first().click()
-  await expect(page.locator('.hand-tile-slot')).toHaveCount(13)
-  const autoplay = page.getByRole('button', { name: '开启机器人托管，自动出牌与过牌' })
-  await expect(autoplay).toBeVisible({ timeout: 30_000 })
-  await page.screenshot({ path: 'tmp/yaotong-cleanup-table.png' })
-  await autoplay.click()
+  if (!await settlement.isVisible()) {
+    await expect(page.locator('.hand-rack.playable .hand-tile-slot')).toHaveCount(14, { timeout: 15_000 })
+    await page.locator('.hand-rack.playable .mahjong-tile').first().click()
+    await expect(page.locator('.hand-tile-slot')).toHaveCount(13)
+    const autoplay = page.getByRole('button', { name: '开启机器人托管，自动出牌与过牌' })
+    await expect(autoplay).toBeVisible({ timeout: 30_000 })
+    await page.screenshot({ path: 'tmp/yaotong-cleanup-table.png' })
+    await autoplay.click()
+  }
   await expect(page.locator('.round-settlement')).toBeVisible({ timeout: 140_000 })
   await expect(page.locator('.round-rankings article')).toHaveCount(4)
   await expect(page.locator('.round-settlement h2')).toHaveText(/^东[1-4]局 · (自摸|胡牌|抢杠胡|热炮胡|一炮[23]响|荒庄|包牌)$/)

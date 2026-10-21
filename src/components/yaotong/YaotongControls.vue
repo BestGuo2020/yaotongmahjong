@@ -5,11 +5,6 @@ const props = defineProps<{ game: ReturnType<typeof useYaotongPort> }>()
 const dialog = ref<HTMLDialogElement | null>(null)
 const helpOpen = ref(false)
 const helpId = useId()
-const huDialog = ref<HTMLDialogElement | null>(null)
-watch(() => props.game.choosingHu.value, open => {
-  if (open) huDialog.value?.showModal()
-  else huDialog.value?.close()
-})
 const hints = computed(() => props.game.guidance.value)
 const helpTitle = computed(() => hints.value.some((hint) => hint.protection) ? '系统防护' : '操作提示')
 function openHelp() {
@@ -26,21 +21,6 @@ function closeFromBackdrop(event: MouseEvent) {
 watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
 </script>
 <template>
-  <dialog ref="huDialog" class="yaotong-help-dialog yaotong-hu-dialog" aria-label="选择胡牌方式"
-    @close="game.choosingHu.value = false">
-    <header><h2>选择胡牌方式</h2><button class="help-close" aria-label="暂不胡牌，返回牌桌"
-      @click="game.choosingHu.value = false">×</button></header>
-    <div class="yaotong-help-content">
-      <p>翻鸡后按所选牌型结算。本牌幺筒可保留翻中九筒后的鸡分收益。</p>
-      <button v-for="(choice, index) in game.huChoices.value" :key="choice.key" class="hu-choice"
-        @click="game.chooseHu(choice.key)">
-        <strong>{{ choice.label }}</strong>
-        <span>胡牌分 {{ choice.h }} · 当前鸡分 {{ choice.chicken }}/家</span>
-        <small>幺筒：{{ choice.natural }} 张本牌，{{ choice.wildcards }} 张赖子{{ index === 0 ? ' · 翻鸡前收益最高' : '' }}</small>
-      </button>
-      <p>鸡分未计翻鸡、骰子倍率及对家的收赔。</p>
-    </div>
-  </dialog>
   <template v-if="!game.local.autoplay.value">
     <template v-if="game.original.value && game.local.waiting.value.length">
       <button
@@ -98,12 +78,6 @@ watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
   >
 </template>
 <style scoped>
-.hu-choice { display: grid; gap: 6px; width: 100%; margin: 10px 0; padding: 12px; border: 1px solid var(--theme-border); border-radius: 8px; background: var(--theme-button); color: var(--theme-button-text); font: inherit; text-align: left; cursor: pointer; }
-.hu-choice strong { font-size: 17px; }
-.hu-choice span { font-size: 13px; }
-.hu-choice small { font-size: 12px; }
-.hu-choice:hover, .hu-choice:focus-visible { outline: 2px solid var(--theme-accent); outline-offset: 2px; }
-.yaotong-hu-dialog .yaotong-help-content { padding-bottom: 12px; }
 .yaotong-help-trigger { display: grid; gap: 2px; max-width: 220px; min-height: 44px; padding: 5px 10px; border: 1px solid var(--theme-border); border-radius: 7px; background: var(--theme-panel); color: var(--theme-text); text-align: left; cursor: pointer; font: inherit; }
 .yaotong-help-trigger b { color: var(--theme-accent-text); font-size: 12px; }
 .yaotong-help-trigger > span { font-size: 11px; line-height: 1.4; }

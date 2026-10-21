@@ -1,4 +1,4 @@
-import { evaluateHand, passAllows, waits, huChoiceKey } from './hands'
+import { evaluateHand, passAllows, waits } from './hands'
 import { countsOf, isFixed, nextTile, tileName, YAO } from './tiles'
 import type {
   Account,
@@ -21,7 +21,6 @@ export interface Ending {
   offender?: Seat
   reason?: string
   responsibility?: number
-  huChoices?: Record<Seat, string>
 }
 
 export function readyInfo(player: Player) {
@@ -180,7 +179,7 @@ export function settle(state: GameState, ending: Ending): Settlement {
       add(ending.offender!, to, '一般包牌赔付', b, ending.reason ?? '违反行为规则')
   } else {
     for (const winner of winners) {
-      let candidates = evaluateHand(players[winner], {
+      const candidates = evaluateHand(players[winner], {
         kind: ending.winKind!,
         tile: ending.tile!,
         isDealer: winner === state.dealer,
@@ -189,12 +188,6 @@ export function settle(state: GameState, ending: Ending): Settlement {
           (seat) => players[seat].declaration !== 'none',
         ),
       }).filter((v) => passAllows(players[winner], v.h, v))
-      const selected = ending.huChoices?.[winner]
-      if (selected) {
-        const matching = candidates.filter(v => huChoiceKey(v) === selected)
-        // A flipped chicken can invalidate the pre-flip pure-Hu offer; re-evaluate normally in that case.
-        if (matching.length) candidates = matching
-      }
       const payers = ending.winKind === 'self' ? others(winner) : [source!]
       // High-point selection includes chicken and the winning tile's individual responsibility.
       const gain = (v: HandValue) => huGain(players[winner], v, payers.length, chicken, ending.responsibility)

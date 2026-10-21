@@ -7,7 +7,8 @@ import { useEffectPlayer } from '../../game/core/presentation/useAudio'
 import type { Account, GameState, Transfer } from '../../game/variants/yaotong/types'
 import { toSharedTile } from '../../game/variants/yaotong/useYaotongPort'
 import type { TableThemeName } from '../table/three/tableTheme'
-import { handScoreFormula } from './huScoreBreakdown'
+import { handScoreFormula, yaoUsageText } from './huScoreBreakdown'
+import { YAO } from '../../game/variants/yaotong/tiles'
 const props = defineProps<{ state: GameState; players: GamePlayer[]; themeName?: TableThemeName }>()
 const result = computed(() => props.state.result!)
 const detailOpen = ref(false)
@@ -51,6 +52,7 @@ function inspect(value: { from: number; to: number; account?: Account }) {
       <template v-if="selectedValue">
         单份胡分：<template v-if="selectedValue.patterns.length">{{ handScoreFormula(selectedValue) }} = {{ selectedValue.h }}分</template>
         <template v-else>{{ selectedValue.h }}分（仅基础分）</template>
+        <span class="yaotong-yao-use">{{ yaoUsageText(selectedValue, state.players[selectedSeat].hand, result.tile === YAO) }}</span>
       </template>
       <template v-else>本局未胡牌</template>
     </p>
@@ -82,6 +84,7 @@ function inspect(value: { from: number; to: number; account?: Account }) {
               <td>{{ state.players[entry.from].name }} → {{ state.players[entry.to].name }}</td>
               <td>
                 {{ entry.account }}<small>{{ entry.account === '胡牌分' && result.values[entry.to] ? handScoreFormula(result.values[entry.to]!) : entry.reason }}</small>
+                <small v-if="entry.account === '胡牌分' && result.values[entry.to]" class="yaotong-yao-use">{{ yaoUsageText(result.values[entry.to], state.players[entry.to].hand, result.tile === YAO) }}</small>
               </td>
               <td
                 class="ledger-amount"
@@ -98,6 +101,7 @@ function inspect(value: { from: number; to: number; account?: Account }) {
   </section>
 </template>
 <style scoped>
+.yaotong-yao-use { display: block; margin-top: 4px; color: var(--theme-text-muted); font-size: 11px; line-height: 1.5; }
 .yaotong-ledger {
   color: var(--theme-text);
   text-align: center;
