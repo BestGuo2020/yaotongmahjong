@@ -157,9 +157,13 @@ test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => 
   await expect(page.locator('.announcement')).toHaveText('东1局 · 开牌', { timeout: 20_000 })
   // An eligible starting hand still requires its owner's original-report decision.
   const declineOriginal = page.getByRole('button', { name: '不原报', exact: true })
-  await expect.poll(async () => await declineOriginal.isVisible() ||
-    await page.locator('.hand-rack.playable .hand-tile-slot').count() === 14,
-    { timeout: 20_000 }).toBe(true)
+  await expect.poll(async () => {
+    if (await declineOriginal.isVisible()) return true
+    // Another dealer can offer us a peng before our first draw. Decline that response explicitly.
+    const pass = page.getByRole('button', { name: '过', exact: true })
+    if (await pass.isVisible()) await pass.click()
+    return await page.locator('.hand-rack.playable .hand-tile-slot').count() === 14
+  }, { timeout: 20_000 }).toBe(true)
   if (await declineOriginal.isVisible()) await declineOriginal.click()
   await expect(page.locator('.hand-rack.playable .hand-tile-slot')).toHaveCount(14, { timeout: 15_000 })
   await page.locator('.hand-rack.playable .mahjong-tile').first().click()
@@ -180,11 +184,10 @@ test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => 
   for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(viewport)
     const footer = page.locator('.round-settlement .settlement-footer')
-    const separation = await page.locator('.round-settlement').evaluate(root => {
+    await expect.poll(() => page.locator('.round-settlement').evaluate(root => {
       const bottom = Math.max(...Array.from(root.querySelectorAll('.round-rankings article')).map(row => row.getBoundingClientRect().bottom))
       return root.querySelector('.settlement-footer')!.getBoundingClientRect().top - bottom
-    })
-    expect(separation, '结算按钮不能浮到排名卡片上方').toBeGreaterThanOrEqual(0)
+    }), { message: '切换屏幕后结算按钮应在排名卡片下方' }).toBeGreaterThanOrEqual(0)
     await footer.scrollIntoViewIfNeeded()
     await expect(page.locator('.round-rankings article').last()).toBeInViewport({ ratio: 1 })
     await expect(page.getByRole('button', { name: '继续', exact: true })).toBeInViewport({ ratio: 1 })
@@ -192,10 +195,10 @@ test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => 
   }
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.screenshot({ path: 'tmp/yaotong-cleanup-settlement.png' })
-  const previousRound = await page.locator('.round-info').innerText()
   await page.getByRole('button', { name: '继续', exact: true }).click()
   await expect(page.locator('.round-settlement')).toHaveCount(0)
-  await expect(page.locator('.round-info')).not.toHaveText(previousRound)
+  // A legal repeat hand keeps the same dealer-round label.
+  await expect(page.locator('.announcement')).toContainText('开牌', { timeout: 20_000 })
   await expect(page.locator('.game-table-hud canvas')).toBeVisible()
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: '退出对局', exact: true }).click()
