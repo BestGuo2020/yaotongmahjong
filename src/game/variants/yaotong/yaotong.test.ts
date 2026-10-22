@@ -116,7 +116,7 @@ describe('幺筒：文档计分算例', () => {
       river: [30, 20, 15].map((chicken, id) => ({ tile: YAO, chicken, stage: 'normal', id })),
     })
     expect(chickenValue(p, 1, YAO)).toBe(255)
-    expect(chickenValue(p, 0, YAO, true)).toBe(195)
+    expect(chickenValue(p, 0, YAO, true)).toBe(65)
   })
   it('固定鸡成杠翻鸡为(10+2)×3=36；普通翻鸡四张为5', () => {
     const p = player('', { hand: [], melds: [peng(18, { kind: 'stored', chicken: 10 })] })

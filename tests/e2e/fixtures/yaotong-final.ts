@@ -5,7 +5,7 @@ import YaotongLedger from '../../../src/components/yaotong/YaotongLedger.vue'
 import YaotongRoundOverview from '../../../src/components/yaotong/YaotongRoundOverview.vue'
 import { act } from '../../../src/game/variants/yaotong/engine'
 import { settle } from '../../../src/game/variants/yaotong/settlement'
-import { table, player, meld } from '../../../src/game/variants/yaotong/auditFixtures'
+import { table, player, meld, ready } from '../../../src/game/variants/yaotong/auditFixtures'
 import { toSharedTile } from '../../../src/game/variants/yaotong/useYaotongPort'
 import { makeRoundResult } from '../../../src/game/shared/settlement/roundResult'
 import { defaultAvatarForSeat } from '../../../src/game/core/presentation/avatar'
@@ -32,6 +32,14 @@ if (opening) {
   state.players[winner] = opening === 'after-peng'
     ? player('234m 66p 789s', { draws: 1, drawn: 26, discards: 2, melds: [meld(4), meld(12)] })
     : player('234567m 234s 66p 789s', { draws: 1, drawn: 26 })
+}
+if (params.has('unready-compensation')) {
+  state.wall = [3] // 五万 is flipped; only the exposed fixed/Yao base tariffs are compensated.
+  state.players[0] = player('147m 257p 369s 2s', {
+    melds: [meld(16, { kind: 'turn', chicken: 10 })],
+    river: [{ tile: 9, chicken: 30, stage: 'pre', id: 1 }, { tile: 4, chicken: 0, stage: 'normal', id: 2 }],
+  })
+  state.players[1] = ready()
 }
 state.players.forEach((p, seat) => { p.name = ['你', '听风', '观山', '望月'][seat]; p.score = scoresBefore[seat] })
 if (reportWin || multiWin) {

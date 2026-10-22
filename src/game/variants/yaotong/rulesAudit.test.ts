@@ -235,7 +235,7 @@ describe('v1.0 clause audit — explicit tariffs and payer matrices', () => {
     expect(terms.reduce((sum, t) => sum + t.amount, 0)).toBe(255)
     expect(terms.find((t) => t.label.includes('额外'))?.amount).toBe(30)
     expect(chickenBreakdown(p, 0, YAO, true).some((t) => t.label.includes('额外'))).toBe(false)
-    expect(chickenValue(p, 0, YAO, true)).toBe(195)
+    expect(chickenValue(p, 0, YAO, true)).toBe(65)
   })
   it.each([0, 18, 16])('§7/9 each fixed chicken kong %s has36 flipped points, not30 or42', (tile) => {
     const p = player('', { melds: [meld(tile, { kind: 'turn', chicken: 10 })] })

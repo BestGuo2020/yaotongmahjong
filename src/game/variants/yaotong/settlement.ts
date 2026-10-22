@@ -71,7 +71,7 @@ export interface ChickenTerm {
   amount: number
 }
 
-/** One tariff per physical holding, also used verbatim by the inspectable ledger. */
+/** One tariff per holding. Unready compensation uses only pre-flip exposed fixed/Yao tariffs. */
 export function chickenBreakdown(
   player: Player,
   naturalYaos: number,
@@ -82,7 +82,7 @@ export function chickenBreakdown(
   const terms = new Map<string, ChickenTerm>()
   const add = (tile: Tile, label: string, count: number, unit: number) => {
     if (!count || !unit) return
-    const multiplier = tile === flipped && (tile === YAO || isFixed(tile)) ? 3 : 1
+    const multiplier = !exposedOnly && tile === flipped && (tile === YAO || isFixed(tile)) ? 3 : 1
     const name = `${tileName(tile)}·${label}`,
       key = `${name}/${unit}`
     const previous = terms.get(key)
@@ -105,7 +105,7 @@ export function chickenBreakdown(
         d.chicken,
       )
     else if (isFixed(d.tile)) add(d.tile, d.chicken === 4 ? '冲鸡' : '牌河底鸡', 1, d.chicken)
-    else if (d.tile === flipped) add(d.tile, '牌河翻鸡', 1, 1)
+    else if (!exposedOnly && d.tile === flipped) add(d.tile, '牌河翻鸡', 1, 1)
   }
   for (const m of player.melds) {
     if (m.tile === YAO || isFixed(m.tile)) {
@@ -116,9 +116,9 @@ export function chickenBreakdown(
             : '碰'
           : { open: '明杠', turn: '转弯杠', stored: '存杠', added: '补杠' }[m.kind]
       add(m.tile, `${m.pre && m.tile === YAO ? '预冲' : ''}${label}`, 1, m.chicken)
-    } else if (m.tile === flipped) add(m.tile, '副露翻鸡', m.kind === 'peng' ? 3 : 4, 1)
+    } else if (!exposedOnly && m.tile === flipped) add(m.tile, '副露翻鸡', m.kind === 'peng' ? 3 : 4, 1)
   }
-  if (flipped !== null && countsOf(ownedTiles(player, exposedOnly))[flipped] === 4)
+  if (!exposedOnly && flipped !== null && countsOf(ownedTiles(player))[flipped] === 4)
     add(flipped, '四张额外一份', 1, flipped === YAO ? 10 : isFixed(flipped) ? 2 : 1)
   return [...terms.values()]
 }
@@ -268,12 +268,13 @@ export function settle(state: GameState, ending: Ending): Settlement {
         }
         if (m.kind === 'peng' || m.kind === 'stored') continue
         for (const from of m.kind === 'open' ? [m.from!] : others(owner)) {
+          if (!ready[owner] && !ready[from]) continue
           add(
-            from,
-            owner,
+            ready[owner] ? from : owner,
+            ready[owner] ? owner : from,
             '杠分',
             m.tile === YAO ? 20 : 5,
-            `${tileName(m.tile)}${({ open: '明杠', turn: '转弯杠', added: '补杠' } as const)[m.kind]}`,
+            `${ready[owner] ? '' : '未听反赔：'}${tileName(m.tile)}${({ open: '明杠', turn: '转弯杠', added: '补杠' } as const)[m.kind]}`,
           )
         }
       }
