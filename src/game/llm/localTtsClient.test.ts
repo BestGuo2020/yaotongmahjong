@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { registerLlmAudioPlayer, resetLlmAudioBusForTests } from '../core/presentation/llmAudioBus'
 import type { LlmProviderPreset } from './config'
-import { isPlatformTtsHost, LocalTtsClient, resolveLocalTtsBaseUrl, resolveLocalTtsVoiceKey } from './localTtsClient'
+import { LocalTtsClient, resolveLocalTtsBaseUrl, resolveLocalTtsVoiceKey } from './localTtsClient'
 
 function preset(overrides: Partial<LlmProviderPreset> = {}): LlmProviderPreset {
   return {
@@ -57,26 +57,11 @@ describe('LocalTtsClient', () => {
     expect(resolveLocalTtsVoiceKey(preset({ ttsVoiceKey: 'default' }))).toBe('default')
   })
 
-  it('本机两分支统一走同源代理，平台新域名走生产网关，旧域名已弃用', () => {
-    vi.stubGlobal('location', { hostname: '127.0.0.1' })
+  it('默认走同源代理，由客户端在 404 时回退生产网关', () => {
     expect(resolveLocalTtsBaseUrl()).toBe('')
-    // 2026-09-14 用户决定彻底弃用旧域名：它不再被当作平台域（回到同源 → 线上会 404）。
-    vi.stubGlobal('location', { hostname: 'room.lumigrav.space' })
-    expect(resolveLocalTtsBaseUrl()).toBe('')
-    // 平台换域名到 gamesvibe.app 后，旧代码只认 lumigrav.space →
-    // 同源 /api/local-tts/synthesize 404 → LLM/llmAnime 主题静默没有语音。
-    vi.stubGlobal('location', { hostname: 'gamesvibe.app' })
-    expect(resolveLocalTtsBaseUrl()).toBe('https://www.bestguo.top:58000')
-    vi.stubGlobal('location', { hostname: 'play.gamesvibe.app' })
-    expect(resolveLocalTtsBaseUrl()).toBe('https://www.bestguo.top:58000')
-    vi.stubGlobal('location', { hostname: 'lianhuaguangdongmahjong.guoguo-labs.online' })
-    expect(resolveLocalTtsBaseUrl()).toBe('')
-    expect(isPlatformTtsHost('gamesvibe.app')).toBe(true)
-    expect(isPlatformTtsHost('notgamesvibe.app')).toBe(false)
-    expect(isPlatformTtsHost('lumigrav.space')).toBe(false)
   })
 
-  it('同源基址 404（平台域名换掉但代码没跟上）时自动回退到网关，并记住可用基址', async () => {
+  it('同源基址 404 时自动回退到网关，并记住可用基址', async () => {
     const player = vi.fn(async () => true)
     registerLlmAudioPlayer(player)
     const audioPath = `/api/local-tts/audio/${'c'.repeat(64)}.mp3`

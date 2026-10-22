@@ -141,4 +141,4 @@ GPU 专用 Playwright 配置使用 Chromium 新版 headless、D3D11 ANGLE，并�
 
 ## Phase 11V 已完成（2026-09-05）
 
-此前记录的 vibehub 受保护入口缺口已完成独立适配并发布。两个真实账号在线上完成莲花麻将完整东风场，含东4局两次连庄，共6次双端结算，最终排名一致且均返回大厅。完整记录见 [vibehub-theme-presentation-validation.md](vibehub-theme-presentation-validation.md)。
+此前记录的 vibehub 受保护入口缺口已完成独立适配并发布。两个真实账号在线上完成莲花麻将完整东风场，含东4局两次连庄，共6次双端结算，最终排名一致且均返回大厅。完整记录见当时的 vibehub-theme-presentation-validation.md（该文档已随 vibehub 分支删除）。

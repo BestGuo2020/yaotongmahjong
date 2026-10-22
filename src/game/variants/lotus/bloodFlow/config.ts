@@ -50,7 +50,7 @@ export const BLOOD_FLOW_KONG_VALUE: KongValueConfig = Object.freeze({
  *    座位自身同时有杠/碰/吃与胡时，不再把"胡"当默认首选。
  *
  * 2026-09-14 修复：此前这个开关只接受 `VITE_BLOOD_FLOW_EXPERIMENT=kong-priority` 才打开，
- * 而仓库 `.env`（以及 vibehub 工作区）都没有这个变量 → **线上实际一直是 standard（胡优先）**，
+ * 而仓库 `.env` 没有这个变量 → **线上实际一直是 standard（胡优先）**，
  * 用户实测"吃牌被胡拦截"正是这个原因。现在默认即 kong-priority，
  * 需要旧口径做 A/B 时用 `VITE_BLOOD_FLOW_EXPERIMENT=standard` 显式切回。
  */
@@ -83,15 +83,15 @@ export const BLOOD_FLOW_CONFIG: BloodFlowRuleConfig = Object.freeze({
   extraPayments: Object.freeze([]) as readonly [],
 })
 
-/** 本地 / WS / P2P 三面均放行：P2P 于 2026-09-10 打开，用于线上双真人 + 机器人（普通 / 大模型）整场验收。 */
-export const BLOOD_FLOW_AVAILABILITY = Object.freeze({ local: true, ws: true, p2p: true })
+/** 本地 / WS 两面均放行。 */
+export const BLOOD_FLOW_AVAILABILITY = Object.freeze({ local: true, ws: true })
 
 export const BLOOD_FLOW_TIMING = Object.freeze({
   // remoteDecisionMs 与后端 BLOOD_FLOW_TIMING.remoteDecisionMs 对齐（12s = 经典房间回合超时），
-  // WS 权威与 P2P 权威共用同一决策窗口，读秒长度不再两套。
+  // 各联机权威共用同一决策窗口，读秒长度不再两套。
   winBeatMs: 450, normalDecisionMs: 15_000, remoteDecisionMs: 12_000, recoveryGraceMs: 12_000,
   /**
-   * 权威链上的机器人/大模型决策上限（2026-09-14 追加，P2P 中盘卡死的自愈）。
+   * 权威链上的机器人/大模型决策上限（2026-09-14 追加，中盘卡死的自愈）。
    *
    * 背景：`BloodFlowAuthority.tick()` 与 `receive()` 共用同一条串行 promise 链，
    * 机器人决策是链里唯一"等外部"的 await（大模型请求可能慢/挂）。一旦它不返回，

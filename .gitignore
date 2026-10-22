@@ -161,8 +161,7 @@ __pycache__/
 
 /backend/
 
-# 同步工具状态与自动化产物
-.vibehub/
+# 本地自动化产物与工具状态
 docs/evidence/
 work/
 .dsh-vision-router/

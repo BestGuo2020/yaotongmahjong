@@ -346,11 +346,11 @@ pnpm exec playwright test tests/e2e/online-two-accounts-two-east-matches.spec.ts
 
 **未验证 / 后置**
 
-- P2P 的「暂离 / 退出本场 / 重进原座位」语义尚未在 P2P 设计实现，vibehub 当前只呈现「返回大厅」（见[适配清单 §3](../vibehub-adaptation-checklist.md)）。
+- P2P 的「暂离 / 退出本场 / 重进原座位」语义尚未在 P2P 设计实现，vibehub 当前只呈现「返回大厅」（见当时的 vibehub 适配清单 §3）。
 - 经典联机三项保留文件修复（`turnOrigin` 天胡通道、`lastDiscardSound` 远端路径、vibehub 结算时间线）按「不手改 keep 文件」搁置待决策（适配清单 §2-A）。
 - 未做实听验收，未做真实手机硬件/触控复核；通道与结算的实听/主观观感不因自动化通过而声明通过。
 
-**验收策略（2026-09-10 决定）**：联机行为一律线上验收；本地 `mockVibeHub` 只保留确定性逻辑覆盖（承诺洗牌与权威 worker、大厅与主题、协议与 replica 纯逻辑），其不足与依据见[适配清单 §7](../vibehub-adaptation-checklist.md)。原 mock 版 P2P LLM 宿主 spec 已标 `fixme`。
+**验收策略（2026-09-10 决定）**：联机行为一律线上验收；本地 `mockVibeHub` 只保留确定性逻辑覆盖（承诺洗牌与权威 worker、大厅与主题、协议与 replica 纯逻辑），其不足与依据见当时的 vibehub 适配清单 §7。原 mock 版 P2P LLM 宿主 spec 已标 `fixme`。
 
 ## 2026-09-08：血流联机节奏与展示对齐（第二轮）
 

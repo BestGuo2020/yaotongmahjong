@@ -20,7 +20,7 @@ export interface BloodFlowWsMeta {
   matchFinished?: boolean
   /** 每局首份快照携带的骰点：驱动联机开局动画（掷骰/翻精/发牌）。 */
   opening?: BloodFlowWsOpening
-  /** 结算快照携带的局间就绪计数（与 P2P 信封同形状）。 */
+  /** 结算快照携带的局间就绪计数（与联机信封同形状）。 */
   continuation?: { readySeats: Seat[]; requiredSeats: Seat[] }
 }
 
@@ -64,7 +64,7 @@ export interface BloodFlowWsAuthority {
   feed(message: unknown): void
   /** externalAuthority.send：把权威命令发给后端。 */
   send(command: EngineCommand): boolean
-  /** 托管开关：交权给服务端代打（P2P 的 blood_flow_auto 在 WS 下的对应消息）。 */
+  /** 托管开关：交权给服务端代打（blood_flow_auto 的 WS 对应消息）。 */
   setAuto(enabled: boolean): boolean
   /** externalAuthority.nextRound：确认进入下一局（局间屏障回执）。 */
   continueRound(): void

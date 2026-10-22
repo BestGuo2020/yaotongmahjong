@@ -1,6 +1,6 @@
 # 牌桌主题表现系统改造实施方案
 
-> 状态：master Phase 0～12 与 vibehub Phase 11V 均已完成。独立适配已发布到 VibeHub，两个真实账号完成“莲花麻将”完整东风场（含东4局两次连庄，共6次结算），详见 docs/vibehub-theme-presentation-validation.md。
+> 状态：master Phase 0～12 与 vibehub Phase 11V 均已完成。独立适配已发布到 VibeHub，两个真实账号完成“莲花麻将”完整东风场（含东4局两次连庄，共6次结算），详见 docs/vibehub-theme-presentation-validation.md（该文档已随 vibehub 分支删除）。
 >
 > 决策日期：2026-09-04
 >
@@ -1023,7 +1023,7 @@ Phase 12 只收口 `llmAnime` 视觉语言，不改变 Phase 0～11 已完成的
 - 本轮起点：master 为 `54d0747`；vibehub 为 `1d0ddd1`，其最近同步来源为 Phase 0～7 的 `2eecd96`。因此原“Phase 8～11 已同步”勾选不能作为完成证据。
 - `check-vibehub-ahead.ps1` 列出的本轮相关共享源码，与 `2eecd96` 基线一致；差异来自 master 后续功能新增，不存在需要反向移植的 vibehub 独有修复。
 - 自动同步会保留 vibehub 的 `src/App.vue`、`src/components/lobby/LobbyView.vue`、`RoomPanel.vue` 等文件。旧入口尚未给 `LobbyDialog` 传入 `themeName`/`variant`，也未给 `LlmSettingsPanel` 传入 `themeName`，其弹层会回退 jade。
-- 上述缺口已按 Phase 11V 在用户授权的 vibehub 专属提交中完成；显式传递主题参数，保留 P2P 逻辑，未反向合并到 master。源码、独立提交和线上验收记录见 docs/vibehub-theme-presentation-validation.md。
+- 上述缺口已按 Phase 11V 在用户授权的 vibehub 专属提交中完成；显式传递主题参数，保留 P2P 逻辑，未反向合并到 master。源码、独立提交和线上验收记录见 docs/vibehub-theme-presentation-validation.md（该文档已随 vibehub 分支删除）。
 
 ### 13.4 Phase 11V `vibehub` 完成定义
 

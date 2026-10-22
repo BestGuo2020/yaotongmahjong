@@ -1,6 +1,6 @@
 import { createTimerScheduler } from './timerScheduler'
 
-/** Wrap the shared scheduler without changing its WS/P2P contract.
+/** Wrap the shared scheduler without changing its remote contract.
  * The caller must invalidate its generation in cancelOpening before cancelled waits resume.
  */
 export function createPresentationScheduler(options: Parameters<typeof createTimerScheduler>[0]) {

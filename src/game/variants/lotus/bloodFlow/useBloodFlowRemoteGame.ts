@@ -406,7 +406,7 @@ export function useBloodFlowRemoteGame(options: BloodFlowRemoteGameOptions) {
 
   function toggleAutoPlay() {
     autoPlay.value = !autoPlay.value
-    // 血流托管由服务端代打（对齐 P2P 的 blood_flow_auto）：本地翻转只是 UI 状态。
+    // 血流托管由服务端代打（对齐 blood_flow_auto）：本地翻转只是 UI 状态。
     authority.setAuto(autoPlay.value)
   }
 

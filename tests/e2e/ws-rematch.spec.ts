@@ -1,8 +1,5 @@
-import { existsSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 
-// 两个长期分支的联机层不同；此用例只覆盖 master 的 WebSocket 入口。
-test.skip(existsSync('src/game/online/transport/vibeRoomTransport.ts'), 'WebSocket-only regression')
 test.setTimeout(120_000)
 
 for (const rulesetId of ['lotus-classic', 'lotus-blood-flow'] as const) {

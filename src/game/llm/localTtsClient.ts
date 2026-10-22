@@ -10,14 +10,10 @@ import { avatarFolderOf } from './persona'
 
 /**
  * 自有 TTS 网关（持有供应商 key，前端不能直连供应商）。
- * 平台域名已从 `*.lumigrav.space` 迁到 `gamesvibe.app`（2026-09-14 用户决定**彻底弃用旧域名**），
- * 这里原来只认旧域名，导致线上同源请求 `/api/local-tts/synthesize` 返回 404、
- * LLM/llmAnime 主题**静默没有语音**。现在只认新域名，并保留运行期回退探针
- * （见 LocalTtsClient.synthesize）：以后再换域名也不会静默失效。
+ * 默认走同源 `/api`；同源请求返回 404 时由 LocalTtsClient 回退到该网关
+ * （见 LocalTtsClient.synthesize），因此换域名或部署到静态站点也不会静默失效。
  */
 const LOCAL_TTS_GATEWAY = 'https://www.bestguo.top:58000'
-/** 平台域名（vibehub 发布域，页面本身没有后端，必须走网关）。旧域名 lumigrav.space 已弃用。 */
-const PLATFORM_TTS_HOSTS = ['gamesvibe.app']
 const AUDIO_PATH_RE = /^\/api\/local-tts\/audio\/[0-9a-f]{64}\.mp3$/
 const REQUEST_TIMEOUT_MS = 8_000
 
@@ -33,22 +29,10 @@ function trimBase(value: string): string {
   return value.trim().replace(/\/+$/, '')
 }
 
-export function isPlatformTtsHost(hostname: string): boolean {
-  return PLATFORM_TTS_HOSTS.some(host => hostname === host || hostname.endsWith(`.${host}`))
-}
-
 export function resolveLocalTtsBaseUrl(): string {
   const configured = import.meta.env.VITE_LOCAL_TTS_BASE_URL || import.meta.env.VITE_API_BASE
   if (configured) return trimBase(configured)
-  if (typeof location !== 'undefined'
-    && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-    // 本地统一走同源 /api proxy，避免 localhost → 127.0.0.1 跨源/PNA 拦截。
-    return ''
-  }
-  if (typeof location !== 'undefined' && isPlatformTtsHost(location.hostname)) {
-    return LOCAL_TTS_GATEWAY
-  }
-  // master 生产同源；本地开发由 Vite /api proxy 转发。
+  // 本地与生产都先走同源 /api（本地由 Vite proxy 转发）；没有后端时由 baseCandidates 回退网关。
   return ''
 }
 

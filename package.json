@@ -14,9 +14,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run src",
     "test:yaotong": "vitest run src/game/variants/yaotong",
-    "test:e2e": "playwright test",
-    "vibehub:solo": "node scripts/vibehub-solo-playwright.mjs",
-    "sync:vibehub": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-master-to-vibehub.ps1"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "three": "^0.185.1",

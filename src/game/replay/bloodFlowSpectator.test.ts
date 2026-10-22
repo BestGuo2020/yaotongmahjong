@@ -13,7 +13,7 @@ import {
 import type { ReplayMatch, ReplayRound } from './types'
 import type { Seat } from '../variants/lotus/bloodFlow/types'
 
-// 联机（P2P）血流回放的**房主侧取数**：房主权威引擎在 worker/进程内，
+// 联机血流回放的**房主侧取数**：房主权威引擎在 worker/进程内，
 // 全知牌谱只能通过 `authority.spectatorView()` 的旁观视角拿到（四家明牌 + 累计弃牌流水）。
 // 这里用进程内 backend 做确定性验证：座位视角拿不到他家手牌，旁观视角必须拿得到。
 

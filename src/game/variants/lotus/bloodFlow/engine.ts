@@ -31,7 +31,7 @@ export interface BloodFlowEngineOptions {
   decisionMs?: number
   winBeatMs?: number
   opening?: BloodFlowOpeningState
-  /** Local worker exposes ordinary action boundaries; simulations/P2P stay synchronous. */
+  /** Local worker exposes ordinary action boundaries; simulations stay synchronous. */
   paced?: boolean
   /**
    * 分析记录（§6）：开启后引擎自己维护"权威动作序列"与开局快照，供**权威端**在局后产出复现数据。

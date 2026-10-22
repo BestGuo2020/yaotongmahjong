@@ -48,7 +48,7 @@ export function useEffectPlayer(){return getCurrentInstance()?inject(EFFECT_PLAY
 /**
  * BGM 曲目端口：玩法层（如血流「全场多胡」）用它换循环 BGM，不直接碰音频实现。
  * 与 `llmAudioBus`/`useEffectPlayer` 同款做法：`useAudio()` 注册到模块级单例，
- * 玩法层随时取用——联机两条分支（WS / P2P）都不必各自改 App.vue 接线。
+ * 玩法层随时取用——联机改动不必各自改 App.vue 接线。
  */
 export interface BgmTrackPort {
   /** 顺序切换循环 BGM：旧曲先淡到 0 停掉，新曲再从 0 淡起；file 为 `audio/` 下的文件名。 */

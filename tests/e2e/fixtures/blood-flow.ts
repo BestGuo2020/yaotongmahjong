@@ -82,7 +82,7 @@ const navigation = { nextRoundCalls: 0, returnToLobbyCalls: 0 }
       vector(s => state.seats[s].winCount), ledger) }
 }
 ;(window as any).__refreshBloodFlowResult = () => {
-  // P2P snapshots replace objects without starting another round.
+  // Remote snapshots replace objects without starting another round.
   liveState.value = JSON.parse(JSON.stringify(liveState.value))
 }
 ;(window as any).__settleBloodFlowRanking = () => {

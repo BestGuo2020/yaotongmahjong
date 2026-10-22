@@ -104,7 +104,7 @@ export const DEFAULT_PRESET: Omit<LlmProviderPreset, 'id' | 'name' | 'apiKey'> =
  * （服务端不保存、不落日志）。
  *
  * 网关地址与 TTS 网关同一个（`localTtsClient.ts` 的 LOCAL_TTS_GATEWAY）；
- * vibehub 跑在平台域名下、没有自家 origin，只能走这条路。
+ * 部署环境没有自家后端 origin 时，也只能走这条路。
  */
 export const LLM_RELAY_GATEWAY = 'https://www.bestguo.top:58000'
 

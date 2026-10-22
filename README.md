@@ -35,7 +35,7 @@ Windows 无法创建符号链接时，可使用 `pnpm install --frozen-lockfile 
 - 原广麻、翻精和血流不再是产品入口，旧 `?game=legacy` 参数也不会切换玩法。幺筒当前使用本地 AI，尚未把保留的旧玩法 LLM 控制器接入幺筒规则。
 - 联机底层代码按要求保留；当前联机按钮仅展示建设中状态，不登录、建房或连接旧房间服务。
 - 旧 AI/LLM 浏览器用例保留为研究参考，其中依赖旧大厅的用例不属于当前产品验收；默认 Playwright 配置只运行 `yaotong*.spec.ts`。模块单测仍由 `pnpm test` 全量运行。
-- 分支同步脚本和[分支工作流](docs/branch-sync-workflow.md)按仓库约定保留。`tmp/`、`dist/`、依赖缓存和用户未提交的规则资料不属于本轮源码删除范围。
+- `tmp/`、`dist/`、依赖缓存和用户未提交的规则资料不属于源码删除范围。
 
 AI资料：[本地AI出牌流程](docs/ai-play-flowchart.md)、[LLM接入设计](docs/llm-ai-design.md)、[网关](docs/llm-relay-gateway.md)、[历史AI研究与复现资料](docs/blood-flow/README.md)。这些历史文档中的玩法、旧部署和验收记录不代表幺筒当前支持范围。
 
@@ -44,8 +44,8 @@ AI资料：[本地AI出牌流程](docs/ai-play-flowchart.md)、[LLM接入设计]
 以下是保留模块的上游接入说明。`VITE_API_BASE` 可指定服务地址；此配置不表示幺筒已提供联机或 LLM 对战。
 
 - `VITE_LOCAL_TTS_BASE_URL`（可选）：单机大模型吐槽的独立 TTS 网关基址。
-  master 默认沿用 `VITE_API_BASE`/同源 `/api`；`*.lumigrav.space` 未显式配置时
-  回退生产网关。该地址只传短文本与白名单音色，不包含百度 Key/Secret。
+  默认沿用 `VITE_API_BASE`/同源 `/api`；同源请求 404 时自动回退生产网关。
+  该地址只传短文本与白名单音色，不包含百度 Key/Secret。
 
 代码通过 Vite 内置的 `import.meta.env.BASE_URL` 拼接音频、图片和头像资源路径。不要把密钥放入前端环境变量或提交到仓库。
 
@@ -53,7 +53,7 @@ AI资料：[本地AI出牌流程](docs/ai-play-flowchart.md)、[LLM接入设计]
 `POST /api/local-tts/synthesize`。音频返回后进入共享播放队列，与 BGM 同时播放
 （语音期间不压低 BGM：2026-09-11 用户决定，忽高忽低更影响对局节奏）；失败只保留气泡，不影响出牌。AI 设置中的“单机音色”可自动按模型识别 DeepSeek/千问/Kimi/豆包/MiniMax/GPT/GLM/Claude，也可
 手动指定任一网关白名单音色或策略默认音色。此链路位于共享 `game/llm` 与
-`game/core/presentation`，master 与 vibehub 使用同一实现，不依赖 WebSocket/P2P。
+`game/core/presentation`，与联机传输解耦。
 
 无浏览器 CORS 的供应商端点不能从网页直连：千问 Token Plan
 （`token-plan.cn-beijing.maas.aliyuncs.com`）、Coding Plan
