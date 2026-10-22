@@ -22,11 +22,17 @@ for (const screen of screens) {
             await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
             const seats = page.locator('.yaotong-table .player-seat .avatar-wrap, .yaotong-table .user-identity')
             await expect(seats).toHaveCount(4)
+            await expect(page.locator('.player-seat .relative-seat-label')).toHaveText(['下家', '对家', '上家'])
+            await expect(page.getByRole('region', { name: '对家 · 观山' })).toBeVisible()
+            const across = (await page.locator('.seat-top .avatar-wrap').boundingBox())!
+            expect(Math.abs(across.x + across.width / 2 - screen.width / 2), '对家卡须位于正上方，不能混入右家区域').toBeLessThanOrEqual(1)
             const boxes = []
             for (const seat of await seats.all()) {
               await expect(seat).toBeInViewport({ ratio: 1 })
               const box = (await seat.boundingBox())!
-              expect(box.width, '信息卡宽度须有上限').toBeLessThanOrEqual(121)
+              const isAcross = await seat.evaluate(e => Boolean(e.closest('.seat-top')))
+              expect(box.width, '信息卡宽度须有上限').toBeLessThanOrEqual(isAcross ? 320 : 129)
+              if (isAcross) expect(box.height, '对家身份栏须保持扁平，不侵入牌河').toBeLessThanOrEqual(40)
               expect(box.height, '信息卡不能再纵向膨胀').toBeLessThanOrEqual(72)
               const avatar = (await seat.locator('.avatar').boundingBox())!
               expect(avatar.width).toBeLessThanOrEqual(30)
@@ -34,6 +40,8 @@ for (const screen of screens) {
                 const overflow = await info.evaluate(e => e.scrollWidth - e.clientWidth)
                 expect(overflow, '名字和分数不得溢出卡片').toBeLessThanOrEqual(1)
               }
+              const nameOverflow = await seat.locator('.player-info strong').evaluate(e => e.scrollWidth - e.clientWidth)
+              expect(nameOverflow, '方位和姓名须完整可见').toBeLessThanOrEqual(1)
               boxes.push(box)
             }
             const overlap = (a: typeof boxes[number], b: typeof boxes[number]) =>

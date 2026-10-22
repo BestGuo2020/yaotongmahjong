@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<{
   scoreDelta?: number
   scoreFlowId?: number
   position: string
+  relativeLabel?: string
   dealer?: boolean
   themeName?: TableThemeName
   /** 主题表现头像覆盖，不修改权威玩家 avatar。 */
@@ -39,12 +40,12 @@ const animeStyle = computed(() => props.themeName === 'llmAnime'
 </script>
 
 <template>
-  <section class="player-seat" :class="[`seat-${position}`, { active, 'action-active': actionActive }]" :style="animeStyle">
+  <section class="player-seat" :class="[`seat-${position}`, { active, 'action-active': actionActive }]" :style="animeStyle" :aria-label="relativeLabel ? `${relativeLabel} · ${player.name}` : undefined">
     <div class="avatar-wrap">
       <span v-if="dealer" class="dealer-badge">庄</span>
       <img class="avatar" :src="avatarSrc" :alt="`${player.name}头像`" @error="onAvatarError" />
       <div class="player-info">
-        <strong>{{ player.name }}</strong>
+        <strong><small v-if="relativeLabel" class="relative-seat-label">{{ relativeLabel }}</small>{{ player.name }}</strong>
         <span>{{ player.score }}</span>
       </div>
       <slot name="footer" />
@@ -64,3 +65,6 @@ const animeStyle = computed(() => props.themeName === 'llmAnime'
     </div>
   </section>
 </template>
+<style scoped>
+.relative-seat-label { margin-inline-end: 4px; color: var(--theme-text-muted); font-size: 9px; font-weight: 500; }
+</style>

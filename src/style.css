@@ -3926,7 +3926,7 @@ button { font: inherit; }
     gap: 2px 6px;
     width: max-content;
     min-width: 0;
-    max-width: clamp(92px, 12cqw, 120px);
+    max-width: clamp(112px, 14cqw, 128px);
     height: auto;
     margin: 0;
     padding: 4px 6px;
@@ -3954,11 +3954,23 @@ button { font: inherit; }
   .game-app .yaotong-table .yaotong-seat-marker { justify-content: flex-start; margin-top: 1px; }
   .game-app .yaotong-table .yaotong-seat-marker > span { padding: 1px 3px; font-size: 9px; }
   .game-app .yaotong-table .player-seat.seat-top {
-    top: calc(var(--safe-top) + var(--topbar-height) + 8px);
-    right: calc(var(--safe-right) + 8px);
-    left: auto;
-    transform: none;
+    top: calc(var(--safe-top) + var(--topbar-height) + 2px);
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
   }
+  /* A shallow identity strip fits between the far hand and its discard river. */
+  .game-app .yaotong-table .player-seat.seat-top .avatar-wrap {
+    grid-template-columns: auto minmax(0, auto) auto;
+    max-width: min(320px, 64cqw);
+    padding: 3px 6px;
+  }
+  .game-app .yaotong-table .player-seat.seat-top .player-info {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+  .game-app .yaotong-table .player-seat.seat-top .yaotong-seat-marker { grid-column: auto; margin: 0; }
   .game-app .yaotong-table .player-seat.seat-left { left: calc(var(--safe-left) + 8px); }
   .game-app .yaotong-table .player-seat.seat-right { right: calc(var(--safe-right) + 8px); }
   .game-app .yaotong-table .user-area { left: var(--safe-left); right: var(--safe-right); }
