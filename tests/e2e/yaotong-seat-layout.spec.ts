@@ -186,3 +186,28 @@ test.describe('PC 矮横屏不走手机紧凑卡', () => {
     await page.screenshot({ path: 'tmp/pc-913x492.png' })
   })
 })
+
+// 大屏 PC（≥1400 CSS 宽）座位卡和头像按视口放大，不再固定 104/76 上限。
+test.describe('大屏 PC 座位卡放大', () => {
+  test.use({ isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
+  for (const { width, height, minCard, minAvatar } of [
+    { width: 1568, height: 900, minCard: 110, minAvatar: 80 },
+    { width: 2508, height: 1400, minCard: 160, minAvatar: 110 },
+  ]) {
+    test(`${width}×${height}：座位卡和头像随视口放大`, async ({ page }) => {
+      await page.setViewportSize({ width, height })
+      await page.emulateMedia({ reducedMotion: 'reduce' })
+      await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=seat-layout&theme=jade')
+      await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
+      const card = page.locator('.yaotong-table .seat-left .avatar-wrap')
+      expect((await card.boundingBox())!.width, '大屏座位卡须放大').toBeGreaterThan(minCard)
+      const avatar = await card.locator('.avatar').boundingBox()
+      expect(avatar!.width, '大屏头像须放大').toBeGreaterThan(minAvatar)
+      await expect(page.locator('.yaotong-table .player-name').first()).toBeVisible()
+      await expect(page.locator('.player-seat .relative-seat-label')).toHaveCount(0)
+      const tileWidth = await page.locator('.hand-rack .mahjong-tile').first().evaluate(e => e.getBoundingClientRect().width)
+      expect(tileWidth, '手牌仍为桌面尺寸').toBeGreaterThan(44)
+      await page.screenshot({ path: `tmp/pc-large-${width}.png` })
+    })
+  }
+})
