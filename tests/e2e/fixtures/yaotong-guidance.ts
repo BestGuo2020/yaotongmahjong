@@ -19,8 +19,18 @@ createApp({ setup() {
     const state = table()
     game.declarationArmed.value = false
     game.local.mode.value = name === 'hard' ? 'hard' : 'easy'
-    if (name === 'hu' || name === 'hu-response') {
-      state.wall = query.get('flip') === 'yao' ? [17] : []
+    if (name === 'river' || name === 'river-claimed') {
+      state.players[0].river = [
+        { tile: 0, chicken: 4, stage: 'normal', id: 1, firstChicken: true },
+        { tile: 0, chicken: 4, stage: 'normal', id: 2, firstChicken: false },
+        { tile: 9, chicken: 30, stage: 'pre', id: 3, firstChicken: true },
+      ]
+      state.players[1].river = [{ tile: 16, chicken: 4, stage: 'normal', id: 4, firstChicken: true }]
+      state.players[2].river = [{ tile: 18, chicken: 4, stage: 'normal', id: 5, firstChicken: true }]
+      state.players[3].melds = [{ kind: 'peng', tile: 4, from: 1, chicken: 0, responsibility: 0, pre: false }]
+      if (name === 'river-claimed') state.players[0].river.shift()
+    } else if (name === 'hu' || name === 'hu-response') {
+      state.wall = query.get('flip') === 'yao' ? [17] : [8]
       state.players[0] = player('2222m 33p 44s 55s 66p 11p', { declaration: 'ready', drawn: 9 })
       if (name === 'hu-response') {
         state.players[0].hand.pop()
@@ -66,6 +76,7 @@ createApp({ setup() {
       userCurrentWaits: game.userCurrentWaits.value, userTingOptions: game.userTingOptions.value,
       userDiscardWaits: null, userKongs: game.userKongs.value, userHasWindKong: false,
       rulesetId: 'yaotong', wallTotal: 108, jokerTiles: ['p1'], extraActions: true,
+      yaotongView: game.tableView.value,
       blockedDiscardIndices: game.local.protection.value.discards, canPass: !game.local.protection.value.pass,
       onHu: () => game.userHu(),
       autoPlayEnabled: true, autoPlay: false,

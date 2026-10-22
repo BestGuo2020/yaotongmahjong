@@ -22,6 +22,11 @@ watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
 </script>
 <template>
   <template v-if="!game.local.autoplay.value">
+    <button v-for="plan in game.winPlans.value" :key="plan.key" class="action hu hu-plan" data-action-role="major"
+      @click="game.confirmHuPlan(plan.key)">
+      <b>胡{{ plan.label }}</b>
+      <span>本牌 {{ plan.value.naturalYaos }} · 赖子 {{ plan.value.wildcards }}</span>
+    </button>
     <template v-if="game.original.value && game.local.waiting.value.length">
       <button
         class="action hu"
@@ -78,6 +83,9 @@ watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
   >
 </template>
 <style scoped>
+.hu-plan { min-width: 110px; min-height: 48px; height: auto; padding: 6px 10px; border-radius: 10px; }
+.hu-plan b { font-size: 15px; }
+.hu-plan span { font-size: 11px; }
 .yaotong-help-trigger { display: grid; gap: 2px; max-width: 220px; min-height: 44px; padding: 5px 10px; border: 1px solid var(--theme-border); border-radius: 7px; background: var(--theme-panel); color: var(--theme-text); text-align: left; cursor: pointer; font: inherit; }
 .yaotong-help-trigger b { color: var(--theme-accent-text); font-size: 12px; }
 .yaotong-help-trigger > span { font-size: 11px; line-height: 1.4; }

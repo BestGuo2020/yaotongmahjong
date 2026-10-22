@@ -1,5 +1,5 @@
 import { evaluateHand, passAllows, waits } from './hands'
-import { countsOf, isFixed, nextTile, tileName, YAO } from './tiles'
+import { countsOf, isFixed, nextTile, tileName, TILES, YAO } from './tiles'
 import type {
   Account,
   GameState,
@@ -10,6 +10,7 @@ import type {
   Tile,
   Transfer,
   WinKind,
+  WinContext,
 } from './types'
 
 export interface Ending {
@@ -21,6 +22,7 @@ export interface Ending {
   offender?: Seat
   reason?: string
   responsibility?: number
+  huPlans?: Record<Seat, string>
 }
 
 export function readyInfo(player: Player) {
@@ -138,6 +140,53 @@ export function huGain(player: Player, value: HandValue, payers: number, chicken
     (value.winningYaoNatural && chicken === YAO ? responsibility * 2 : 0)
 }
 
+/** The declared hand and natural/joker use are fixed before the indicator is revealed. */
+export const huPlanKey = (value: HandValue) => JSON.stringify([
+  value.patterns.map(p => p.name), value.naturalYaos, value.winningYaoNatural,
+])
+export function legalHuPlans(player: Player, context: WinContext) {
+  return evaluateHand(player, context).filter(v => passAllows(player, v.h, v))
+}
+const byPreFlipGain = (player: Player, payers: number, responsibility = 0) => (a: HandValue, b: HandValue) =>
+  huGain(player, b, payers, null, responsibility) - huGain(player, a, payers, null, responsibility) || b.h - a.h
+
+/** Offer only meaningful joker-hand tradeoffs, using hypothetical indicators, never the hidden wall. */
+export function offeredHuPlans(state: GameState, seat: Seat) {
+  const self = state.phase === 'discard' && state.current === seat
+  const pending = state.phase === 'response' ? state.pending : null
+  if ((!self && (!pending?.options[seat]?.hu || pending.choices[seat])) || !state.wall.length) return []
+  const tile = self ? state.players[seat].drawn : pending!.tile
+  if (tile == null) return []
+  const player = self ? state.players[seat] : { ...state.players[seat], hand: [...state.players[seat].hand, tile] }
+  if (!player.hand.includes(YAO)) return []
+  const context: WinContext = { kind: self ? 'self' : pending!.kind, tile, isDealer: seat === state.dealer,
+    killsReport: self ? state.players.some((p, i) => i !== seat && p.declaration !== 'none')
+      : state.players[pending!.from].declaration !== 'none' }
+  const candidates = legalHuPlans(player, context)
+  if (!candidates.some(v => v.wildcards > 0)) return []
+  const payers = self ? 3 : 1, responsibility = pending?.discard?.chicken ?? 0
+  const choices = new Map<string, HandValue>()
+  const profiles = new Map<string, number[]>()
+  for (const value of candidates.sort(byPreFlipGain(player, payers, responsibility))) {
+    const key = huPlanKey(value)
+    if (!choices.has(key)) choices.set(key, value)
+    const previous = profiles.get(key)
+    profiles.set(key, [null, ...TILES].map((flip, index) =>
+      Math.max(previous?.[index] ?? -Infinity, huGain(player, value, payers, flip, responsibility))))
+  }
+  const entries = [...choices]
+  const viable = entries.filter(([key], index) => !entries.some(([other], otherIndex) => {
+    if (other === key) return false
+    const a = profiles.get(key)!, b = profiles.get(other)!
+    return b.every((gain, i) => gain >= a[i]) &&
+      (b.some((gain, i) => gain > a[i]) || otherIndex < index)
+  }))
+  if (viable.length < 2) return []
+  return viable.map(([key, value]) => ({ key, value,
+    label: value.patterns.filter(p => !['报听', '原报', '天胡', '地胡', '抢杠', '热炮'].includes(p.name))
+      .map(p => p.name).join('＋') || '鸡胡' }))
+}
+
 const chickenReason = (player: Player, naturalYaos: number, flipped: Tile | null, exposedOnly = false, value?: HandValue) =>
   chickenBreakdown(player, naturalYaos, flipped, exposedOnly, value)
     .map((item) => {
@@ -164,6 +213,20 @@ export function settle(state: GameState, ending: Ending): Settlement {
   const { players } = state
   const winners = ending.winners ?? []
   const source = ending.source ?? null
+  const contexts = Object.fromEntries(winners.map(winner => [winner, {
+    kind: ending.winKind!, tile: ending.tile!, isDealer: winner === state.dealer,
+    killsReport: (ending.winKind === 'self' ? [0, 1, 2, 3].filter(s => s !== winner) : [source!])
+      .some(seat => players[seat].declaration !== 'none'),
+  }])) as Record<number, WinContext>
+  const declaredPlans: Record<number, string> = {}
+  // This runs before shift(): the default bot/ordinary command must not use the actual indicator either.
+  for (const winner of winners) {
+    const options = legalHuPlans(players[winner], contexts[winner])
+      .sort(byPreFlipGain(players[winner], ending.winKind === 'self' ? 3 : 1, ending.responsibility))
+    const selected = ending.huPlans?.[winner] ?? (options[0] && huPlanKey(options[0]))
+    if (!selected || !options.some(v => huPlanKey(v) === selected)) throw new Error('胡牌前确认的牌型不合法')
+    declaredPlans[winner] = selected
+  }
   // Flipping consumes the actual head tile, and can never fabricate a tile from a river.
   const indicator = ending.kind === 'win' && state.wall.length ? state.wall.shift()! : null
   const chicken = indicator === null ? null : nextTile(indicator)
@@ -179,15 +242,10 @@ export function settle(state: GameState, ending: Ending): Settlement {
       add(ending.offender!, to, '一般包牌赔付', b, ending.reason ?? '违反行为规则')
   } else {
     for (const winner of winners) {
-      const candidates = evaluateHand(players[winner], {
-        kind: ending.winKind!,
-        tile: ending.tile!,
-        isDealer: winner === state.dealer,
-        chicken,
-        killsReport: (ending.winKind === 'self' ? others(winner) : [source!]).some(
-          (seat) => players[seat].declaration !== 'none',
-        ),
-      }).filter((v) => passAllows(players[winner], v.h, v))
+      const all = legalHuPlans(players[winner], { ...contexts[winner], chicken })
+      const matching = all.filter(v => huPlanKey(v) === declaredPlans[winner])
+      // Only pure-Hu can be invalidated by the indicator; then re-evaluate its remaining legal score.
+      const candidates = matching.length ? matching : all
       const payers = ending.winKind === 'self' ? others(winner) : [source!]
       // High-point selection includes chicken and the winning tile's individual responsibility.
       const gain = (v: HandValue) => huGain(players[winner], v, payers.length, chicken, ending.responsibility)

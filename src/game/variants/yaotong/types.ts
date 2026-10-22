@@ -14,6 +14,7 @@ export interface Meld {
   responsibility: number
 }
 export interface Discard {
+  firstChicken?: boolean
   tile: Tile
   chicken: number
   /** Captured before the discard: a kong rush can also occur inside the first-discard cycle. */
@@ -86,6 +87,7 @@ export interface Pending {
   discard: Discard | null
   options: Record<Seat, ActionOptions>
   choices: Record<Seat, ResponseAction>
+  huPlans?: Record<Seat, string>
 }
 export type Account =
   | '胡牌分'
@@ -146,6 +148,7 @@ export interface GameState {
   firstFixedDiscard: Tile[]
   firstFixedPeng: boolean
   firstYaoDiscard: boolean
+  seenChickenDiscards: Tile[]
   events: GameEvent[]
   serial: number
   matchLength: 4 | 8 | 16
@@ -156,6 +159,6 @@ export interface GameState {
 export type Command =
   | { type: 'original'; declare: boolean }
   | { type: 'discard'; index: number; declare?: boolean }
-  | { type: 'respond'; action: ResponseAction }
-  | { type: 'hu' }
+  | { type: 'respond'; action: ResponseAction; plan?: string }
+  | { type: 'hu'; plan?: string }
   | { type: 'kong'; tile: Tile }

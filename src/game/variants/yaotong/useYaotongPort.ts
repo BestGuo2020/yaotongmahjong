@@ -44,6 +44,7 @@ import {
 import { useYaotongGame } from './useYaotongGame'
 import { yaotongGuidance } from './guidance'
 import { isUntouchedFirstDraw } from './hands'
+import { offeredHuPlans } from './settlement'
 import { recordYaotongRound } from './replay'
 import type { ReplayRecorderHooks } from '../../replay/types'
 import { countsOf } from './tiles'
@@ -99,6 +100,12 @@ export function useYaotongPort(
   const dealCounts = ref([0, 0, 0, 0])
   const dealAnimation = ref<DealAnimation>({ playerIndex: -1, count: 0, serial: 0 })
   const declarationArmed = ref(false)
+  const winPlans = computed(() => local.state.value && !local.paused.value && !local.autoplay.value && !local.protection.value.hu
+    ? offeredHuPlans(local.state.value, 0) : [])
+  function confirmHuPlan(plan: string) {
+    if (!winPlans.value.some(option => option.key === plan)) return
+    local.dispatch(local.response.value ? { type: 'respond', action: 'hu', plan } : { type: 'hu', plan })
+  }
   const announcement = shallowRef<Announcement | null>(null)
   const tableActionEvent = shallowRef<TableActionEvent | null>(null)
   const lastDiscard = shallowRef<LastDiscard | null>(null)
@@ -143,6 +150,8 @@ export function useYaotongPort(
     }
   }
   const tableView = computed<YaotongTableView>(() => ({
+    confirmHuPlan: winPlans.value.length > 1,
+    sidewaysDiscards: local.state.value?.players.map(p => p.river.flatMap((d, index) => d.firstChicken ? [index] : [])),
     kongWeather: kongWeather.value,
     multiWinIntro: multiWinIntro.value,
     winPatterns: winPatternCue(local.state.value?.result, winEffect.value),
@@ -856,5 +865,6 @@ export function useYaotongPort(
     declarationArmed,
     openingActive,
     canArmDeclaration,
+    winPlans, confirmHuPlan,
   })
 }

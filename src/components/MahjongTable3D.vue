@@ -34,6 +34,7 @@ import { preloadWeatherAssets } from './table/three/yaotongWeatherAssets'
 import { cuePhase } from '../game/variants/lotus/bloodFlow/presentation'
 
 const props = withDefaults(defineProps<TableProps>(), {
+  sidewaysDiscards: () => [], neutralPengOrientation: false,
   players: () => [], localSeat: 0, currentPlayer: -1, lastDiscard: null, wall: () => [], wallHeadDrawn: 0, wallCount: 0, horses: () => [],
   revealHands: false, winnerIndex: -1, winEffect: null, winPresentation: null,
   jokerTiles: () => [],
@@ -630,6 +631,8 @@ watch(
     player.melds.map((meld) => `${meld.type}:${meld.from ?? '-'}:${meld.tiles.join(',')}`).join('|'),
   ]).flat() as unknown[]).concat(
     props.lastDiscard?.id,
+    props.sidewaysDiscards?.map(indices => indices.join(',')).join('|'),
+    props.neutralPengOrientation,
     props.revealHands,
     props.winnerIndex,
     props.winEffect?.id,
@@ -728,5 +731,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <canvas ref="canvas" class="mahjong-scene" :data-table-theme="props.themeName ?? 'jade'" aria-hidden="true"></canvas>
+  <canvas ref="canvas" class="mahjong-scene" :data-table-theme="props.themeName ?? 'jade'"
+    :data-sideways-discards="JSON.stringify(props.sidewaysDiscards)"
+    :data-neutral-peng="props.neutralPengOrientation ? '1' : '0'" aria-hidden="true"></canvas>
 </template>

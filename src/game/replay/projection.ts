@@ -76,6 +76,7 @@ export function buildReplayFrames(
   let headDrawn = round.anchor.headDrawn
   let currentPlayer = round.anchor.currentPlayer
   let yaotongSeats = round.anchor.yaotongSeats
+  let yaotongSidewaysDiscards = round.anchor.yaotongSidewaysDiscards
   let lastDiscard: LastDiscard | null = null
   let discardCount = 0
 
@@ -143,6 +144,8 @@ export function buildReplayFrames(
       table: {
         wallTotal: round.wallTotal ?? 136,
         laiziOnly: match.rulesetId === 'yaotong',
+        neutralPengOrientation: match.rulesetId === 'yaotong',
+        sidewaysDiscards: yaotongSidewaysDiscards ? handOrder.map(seat => [...(yaotongSidewaysDiscards![seat] ?? [])]) : undefined,
         settlementIndicator: input.settled && round.final?.yaotongState?.result?.indicator != null
           ? { id: round.final.yaotongState.serial, seat: localOf(round.final.yaotongState.result.winners[0]),
             tile: `${['m', 'p', 's'][Math.floor(round.final.yaotongState.result.indicator / 9)]}${round.final.yaotongState.result.indicator % 9 + 1}` as TileType }
@@ -209,6 +212,7 @@ export function buildReplayFrames(
       }
       scores = [...step.snapshot.scores]
       yaotongSeats = step.snapshot.yaotongSeats
+      yaotongSidewaysDiscards = step.snapshot.yaotongSidewaysDiscards
     }
     if (step.state) {
       hands[step.seat] = [...step.state.hand]

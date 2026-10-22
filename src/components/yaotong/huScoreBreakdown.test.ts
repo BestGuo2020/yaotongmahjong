@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { player, table } from '../../game/variants/yaotong/auditFixtures'
-import { settle } from '../../game/variants/yaotong/settlement'
+import { settle, huPlanKey } from '../../game/variants/yaotong/settlement'
+import { evaluateHand } from '../../game/variants/yaotong/hands'
 import { huScoreBreakdown, yaoUsageText } from './huScoreBreakdown'
 
 describe('本家胡分组成', () => {
@@ -47,11 +48,12 @@ describe('本家胡分组成', () => {
     expect(yaoUsageText(legacy, state.players[0].hand)).toBe('幺筒：本牌 0 张，赖子 1 张')
   })
 
-  it('翻九筒后自动采用硬龙七，胡牌张和两张幺筒均按本牌展示', () => {
+  it('翻前选硬龙七，翻九筒后两张幺筒均按本牌展示', () => {
     const state = table()
     state.players[0] = player('2222m 33p 44s 55s 66p 11p')
     state.wall = [17]
-    const result = settle(state, { kind: 'win', winKind: 'self', winners: [0], tile: 9 })
+    const hard = evaluateHand(state.players[0], { kind: 'self', tile: 9 }).find(v => v.wildcards === 0)!
+    const result = settle(state, { kind: 'win', winKind: 'self', winners: [0], tile: 9, huPlans: { 0: huPlanKey(hard) } })
     expect(yaoUsageText(result.values[0], state.players[0].hand, true))
       .toBe('幺筒：本牌 2 张，赖子 0 张；胡牌张作本牌')
   })

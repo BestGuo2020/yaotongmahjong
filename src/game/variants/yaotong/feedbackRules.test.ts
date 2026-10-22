@@ -58,9 +58,9 @@ describe('朋友实玩规则勘误', () => {
   it.each([
     ['self', false, '双龙七', 2, 315],
     ['discard', false, '龙七对', 0, 135],
-    ['self', true, '龙七对', 0, 405],
+    ['self', true, '双龙七', 2, 315],
     ['discard', true, '龙七对', 0, 255],
-  ] as const)('%s 翻九筒=%s：自动按最终收益采用%s', (kind, flipped, pattern, wildcards, income) => {
+  ] as const)('%s 翻九筒=%s：默认胡法翻前已确认%s', (kind, flipped, pattern, wildcards, income) => {
     const s = table()
     s.players[0] = player('2222m 33p 44s 55s 66p 11p', { declaration: 'ready', drawn: YAO })
     s.wall = flipped ? [17] : []

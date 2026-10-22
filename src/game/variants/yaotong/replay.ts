@@ -37,6 +37,7 @@ export function yaotongReplayFrame(state: GameState, characterId?: string, tailC
       giftAmount: gifts.find((gift) => gift.seat === seat)?.amount,
       killed: kills.some((kill) => kill.seat === seat && kill.paid > 0),
       killedAmount: kills.find((kill) => kill.seat === seat)?.paid })),
+    yaotongSidewaysDiscards: state.players.map(p => p.river.flatMap((d, index) => d.firstChicken ? [index] : [])),
     ...(state.result ? { yaotongState: state } : {}),
   }
 }

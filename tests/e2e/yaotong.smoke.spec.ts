@@ -98,7 +98,7 @@ test('大厅只提供幺筒，联机入口显示建设中且不请求旧房间�
   await page.getByRole('button', { name: '确定', exact: true }).click()
   await expect(page.locator('.start-button')).toContainText('开始全庄场')
   await page.getByRole('button', { name: /游戏规则/ }).click()
-  await expect(page.locator('.rules-panel h2')).toHaveText('幺筒麻将 · v1.4')
+  await expect(page.locator('.rules-panel h2')).toHaveText('幺筒麻将 · v1.5')
   await expect(page.locator('.rules-panel')).toContainText('108张')
   expect(serviceRequests).toEqual([])
   expect(errors).toEqual([])

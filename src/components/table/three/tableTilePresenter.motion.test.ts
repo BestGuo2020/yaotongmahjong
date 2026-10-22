@@ -49,6 +49,37 @@ function setup(meld?: Meld, action?: TableActionType) {
 afterEach(() => vi.restoreAllMocks())
 
 describe('shared normal tile animations survive state refreshes', () => {
+  it.each([0, 1, 2, 3])('座位%s的首鸡横放且预留宽度；被取走后不把标记转给跟冲', seat => {
+    const s = setup()
+    s.props.players[seat].discards = ['s2', 's1', 's1']
+    s.props.sidewaysDiscards = [0, 1, 2, 3].map(i => i === seat ? [1] : [])
+    s.presenter.rebuild()
+    const chicken = s.rendered.filter(t => t.face === 's1')
+    const base = discardTileLayout(seat, 1)
+    const upright = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, base.rotation, 0))
+    const sideways = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, base.rotation + Math.PI / 2, 0))
+    expect(chicken[0].rotation.angleTo(sideways)).toBeLessThan(.00001)
+    expect(chicken[1].rotation.angleTo(upright)).toBeLessThan(.00001)
+    const ordinary = discardTileLayout(seat, 2)
+    expect(chicken[1].position.distanceTo(new THREE.Vector3(ordinary.x, .28, ordinary.z - 1.65))).toBeGreaterThan(.2)
+    s.props.players[seat].discards.splice(1, 1); s.props.sidewaysDiscards = [[], [], [], []]
+    s.presenter.rebuild()
+    expect(s.rendered.find(t => t.face === 's1')!.rotation.angleTo(upright)).toBeLessThan(.00001)
+  })
+
+  it.each([0, 1, 2, 3].flatMap(seat => [1, 2, 3].map(relative => ({ seat, relative }))))(
+    '幺筒碰牌座位$seat来源$relative三张同向，其他玩法保留原指向', ({ seat, relative }) => {
+      const s = setup()
+      s.props.players[seat].melds = [{ type: 'peng', tile: 'p5', tiles: ['p5', 'p5', 'p5'], from: (seat + relative) % 4 }]
+      const base = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, [0, Math.PI / 2, Math.PI, -Math.PI / 2][seat], 0))
+      s.props.neutralPengOrientation = true
+      s.presenter.rebuild()
+      expect(s.rendered.filter(t => t.face === 'p5' && t.rotation.angleTo(base) < .00001)).toHaveLength(3)
+      s.props.neutralPengOrientation = false
+      s.presenter.rebuild()
+      expect(s.rendered.filter(t => t.face === 'p5' && t.rotation.angleTo(base) < .00001)).toHaveLength(2)
+    },
+  )
   it.each([1, 2, 3, 4])('对家亮牌与%d组副露在画面中保持水平，且横向不重叠', count => {
     const s = setup()
     s.props.revealHands = true

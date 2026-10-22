@@ -57,6 +57,8 @@ it('整局逐事件精确记录：摸打、原报、墙数、分数、全知/当
     expect(replay.table.wallCount).toBe(actual.wallLeft)
     expect(replay.table.wallHeadDrawn).toBe(actual.headDrawn)
     expect(replay.yaotongSeats).toEqual(actual.yaotongSeats)
+    expect(replay.table.sidewaysDiscards).toEqual(actual.yaotongSidewaysDiscards)
+    expect(replay.table.neutralPengOrientation).toBe(true)
   })
   expect(frames.at(-1)!.scores).toEqual(state.players.map((p) => p.score))
   expect(round.final!.yaotongState!.result).toEqual(state.result)

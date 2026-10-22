@@ -72,6 +72,7 @@ export interface ReplayStep {
 }
 
 export interface ReplayAnchor {
+  yaotongSidewaysDiscards?: number[][]
   yaotongSeats?: SeatStatus[]
   hands: TileType[][]
   melds: Meld[][]
@@ -176,6 +177,7 @@ export interface ReplayMatch {
  * 各引擎按自身能力填字段（莲花麻将多翻精/精牌，血流留待后续接入）。
  */
 export interface ReplayFrameSource {
+  yaotongSidewaysDiscards?: number[][]
   matchName?: string
   roundLabel?: string
   wallTotal?: number

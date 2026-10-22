@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { isHorseForSeat, sortTilesWithJokers } from '../../../game/core/rules/tiles'
 import { meldDisplayTiles, meldSourceTileIndex } from '../../../game/core/rules/rules'
-import { addedKongTileOffset, TABLE_LAYOUT, OPPOSITE_HAND_Z, meldTileCenter, discardTileLayout, meldTrackTransform, concealedMeldClear, concealedSideX } from '../../../game/core/presentation/tableLayout'
+import { addedKongTileOffset, TABLE_LAYOUT, OPPOSITE_HAND_Z, meldTileCenter, discardTileLayout, meldTrackTransform, concealedMeldClear, concealedSideX, pointFromSeat } from '../../../game/core/presentation/tableLayout'
 import { wallBreakIndexForDealer, wallStackSlot, wallTilePlacement, WALL_TOTAL } from '../../../game/core/rules/wallLayout'
 import { splitWinningTile } from '../../../game/core/presentation/winEffect'
 import type { TableActionEvent, TileType } from '../../../game/core/contracts/types'
@@ -216,7 +216,16 @@ function addConcealedHand(playerIndex) {
 
 
 function discardTransform(playerIndex:number, index:number) {
-  return discardTileLayout(playerIndex,index)
+  const transform = discardTileLayout(playerIndex,index)
+  const sideways = props.sidewaysDiscards?.[playerIndex] ?? []
+  const columns = index >= 18 ? 10 : 6
+  const rowStart = index >= 18 ? 18 + Math.floor((index - 18) / columns) * columns : Math.floor(index / columns) * columns
+  const rotated = sideways.includes(index)
+  const extra = (TABLE_LAYOUT.sourcePitch - TABLE_LAYOUT.tilePitch) *
+    (sideways.filter(i => i >= rowStart && i < index).length + (rotated ? .5 : 0))
+  const shift = pointFromSeat(playerIndex, extra, 0)
+  return { x: transform.x + shift.x, z: transform.z + shift.z,
+    rotation: transform.rotation + (rotated ? Math.PI / 2 : 0) }
 }
 
 // 出牌动画的起点 = 各家手牌位置（牌从手牌方向飞向牌河）。
@@ -318,7 +327,7 @@ function addMelds(playerIndex) {
     laidTiles.forEach((tileName, tileIndex) => {
       // 风杠（乱风杠）为亮明暗杠：四张全部亮出；普通暗杠首尾两张背朝上。
       const concealed = meld.type === 'angang' && !meld.windKong && (tileIndex === 0 || tileIndex === laidTiles.length - 1)
-      const pointsToSource = tileIndex === sourceTileIndex
+      const pointsToSource = tileIndex === sourceTileIndex && !(props.neutralPengOrientation && meld.type === 'peng')
       const face = concealed ? null : tileName
       const tileSpan = pointsToSource ? POINT_GAP_OFFSET : TILE_GAP_OFFSET
       const centerOffset = meldTileCenter(trackOffset, tileSpan)
@@ -335,7 +344,7 @@ function addMelds(playerIndex) {
       const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotationY, 0))
       if (concealed) quat.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0)))
       const pos = new THREE.Vector3(transform.x, .28 + bodyOffsetY, transform.z + TILE_LAYER_Z)
-      if (pointsToSource) {
+      if (tileIndex === sourceTileIndex) {
         sourcePlacement = {
           x: transform.x,
           z: transform.z,

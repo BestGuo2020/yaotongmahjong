@@ -29,6 +29,8 @@ export interface ChickenCue {
   strong: boolean
 }
 export interface YaotongTableView {
+  confirmHuPlan?: boolean
+  sidewaysDiscards?: number[][]
   kongWeather?: KongWeatherCue[]
   multiWinIntro?: { id: number; sourceIndex: number } | null
   winPatterns?: YaotongWinPatternCue | null
