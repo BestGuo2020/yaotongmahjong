@@ -145,7 +145,7 @@ function startPayload() {
       @keyup.enter="$emit('copy')"
     >
       <span class="room-code-label">房间码</span>
-      <strong>{{ roomId }}</strong>
+      <strong data-testid="room-code">{{ roomId }}</strong>
       <span class="room-code-copied" :class="{ visible: copied }" aria-live="polite">已复制</span>
     </div>
     <div class="room-game-config"><b>{{ matchName }}</b><span>·</span><b>{{ ruleName }}</b></div>

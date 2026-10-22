@@ -6,6 +6,7 @@ import { ref } from 'vue'
 
 import { API_BASE } from '../../../online/api/httpClient'
 import {
+  closeRoom as closeRoomApi,
   createRoom as createRoomApi,
   getRoom,
   joinRoom as joinRoomApi,
@@ -354,6 +355,16 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     resetSession()
   }
 
+  async function closeRoom() {
+    if (!roomId.value || mySeat.value < 0 || !rejoinCode.value) return
+    try {
+      await closeRoomApi(roomId.value, mySeat.value, rejoinCode.value)
+      resetSession()
+    } catch (error) {
+      sessionError.value = readableError(error, '关闭房间失败')
+    }
+  }
+
   return {
     port,
     inner,
@@ -379,6 +390,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     ready,
     startMatch,
     leaveRoom,
+    closeRoom,
     refreshRoom,
   }
 }

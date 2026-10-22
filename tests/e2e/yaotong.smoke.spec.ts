@@ -73,13 +73,9 @@ test('末局明细选项卡支持键盘切换，保留玩家视角且不改变�
   await expect(page.getByTestId('back-to-lobby')).toBeVisible()
 })
 
-test('大厅只提供幺筒，联机入口显示建设中且不请求旧房间服务', async ({ page }) => {
+test('大厅提供幺筒，联机入口进入真实房间面板', async ({ page }) => {
   const errors: string[] = []
-  const serviceRequests: string[] = []
   page.on('pageerror', error => errors.push(error.message))
-  page.on('request', request => {
-    if (/\/(api|ws)(\/|\?|$)/.test(new URL(request.url()).pathname)) serviceRequests.push(request.url())
-  })
   await page.goto('/?game=legacy')
   await expect(page.locator('.lobby-brand h1')).toHaveText('幺筒麻将')
   await expect(page.getByText(/莲花广麻|翻精癞子|血流到底/)).toHaveCount(0)
@@ -87,9 +83,9 @@ test('大厅只提供幺筒，联机入口显示建设中且不请求旧房间�
   await expect(multiplayer).toBeVisible()
   await multiplayer.click()
   await expect(multiplayer).toHaveAttribute('aria-checked', 'true')
-  await expect(page.getByRole('status', { name: '联机对战建设中' })).toContainText('敬请期待')
-  await page.screenshot({ path: 'tmp/yaotong-cleanup-multiplayer.png' })
-  await expect(page.getByRole('button', { name: '先玩单机对战' })).toHaveCount(0)
+  await expect(page.locator('.waku-account')).toBeVisible()
+  await expect(page.getByTestId('lobby-create')).toBeVisible()
+  await expect(page.getByTestId('lobby-join')).toBeVisible()
   await expect(page.locator('.start-button')).toHaveCount(0)
   await page.getByRole('radio', { name: /单机对战/ }).click()
   await expect(page.locator('.start-button')).toContainText('开始东风场')
@@ -100,7 +96,6 @@ test('大厅只提供幺筒，联机入口显示建设中且不请求旧房间�
   await page.getByRole('button', { name: /游戏规则/ }).click()
   await expect(page.locator('.rules-panel h2')).toHaveText('幺筒麻将 · v1.7')
   await expect(page.locator('.rules-panel')).toContainText('108张')
-  expect(serviceRequests).toEqual([])
   expect(errors).toEqual([])
 })
 
@@ -239,7 +234,6 @@ test('小屏模式切换、五个主题、角色与声音设置仍可用', async
   await expect(sound).toHaveAttribute('aria-checked', enabled === 'true' ? 'false' : 'true')
   await page.getByRole('button', { name: '声音设置', exact: true }).click()
   await page.getByRole('radio', { name: /联机对战/ }).click()
-  await expect(page.getByRole('status', { name: '联机对战建设中' })).toBeVisible()
-  await page.screenshot({ path: 'tmp/yaotong-cleanup-mobile.png' })
+  await expect(page.getByTestId('lobby-create')).toBeVisible()
   expect(errors).toEqual([])
 })

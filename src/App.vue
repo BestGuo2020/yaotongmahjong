@@ -8,12 +8,15 @@ import SettlementOverlay from './components/settlement/SettlementOverlay.vue'
 import YaotongControls from './components/yaotong/YaotongControls.vue'
 import YaotongLedger from './components/yaotong/YaotongLedger.vue'
 import YaotongRoundOverview from './components/yaotong/YaotongRoundOverview.vue'
-import OnlineRoomPanel from './components/lobby/OnlineRoomPanel.vue'
+import StatsOverlay from './components/account/StatsOverlay.vue'
 import { useYaotongPort } from './game/variants/yaotong/useYaotongPort'
 import { useYaotongGame } from './game/variants/yaotong/useYaotongGame'
 import { useYaotongRemoteGame } from './game/variants/yaotong/remote/useYaotongRemoteGame'
 import { useAudio } from './game/core/presentation/useAudio'
+import type { GameMode } from './game/core/contracts/activeGamePort'
 import type { TileType } from './game/core/contracts/types'
+import { useWakuDemoAuth } from './game/online/session/useWakuDemoAuth'
+import { useRoomAvailability } from './game/online/session/useRoomAvailability'
 import type { TableThemeName } from './components/table/three/tableTheme'
 import { readTableThemePreference, resolveInitialTableTheme } from './components/table/three/tableThemePreference'
 import { themePresentationByName, themePresentationCssVariables } from './theme/themePresentation'
@@ -80,18 +83,27 @@ const replay = useReplayRecorder({ meta: () => ({
   humanSeat: 0, yaotongMode: yaotongGame.local.mode.value,
 }) })
 const localSource = useYaotongGame()
-const onlineMode = ref(false)
-const onlinePanelOpen = ref(false)
+const gameMode = ref<GameMode>('local')
 const online = useYaotongRemoteGame({
   playSound: playEffect,
   playSoundAndWait: playEffectAndWait,
   getCharacterId: () => animeCharacterId.value,
   createPort: false,
 })
-// 单机/联机共用同一套演出层：按 onlineMode 切换底层 GameState 源。
+const { roomMeta } = useRoomAvailability(gameMode, online.roomId)
+const wakuAuth = useWakuDemoAuth()
+const nicknameInput = ref('')
+const joinCode = ref('')
+const copied = ref(false)
+const leaving = ref(false)
+const closing = ref(false)
+const matchStarting = ref(false)
+const statsOpen = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
+// 单机/联机共用同一套演出层：按 gameMode 切换底层 GameState 源。
 const gameSource = new Proxy({} as ReturnType<typeof useYaotongGame>, {
   get(_target, key) {
-    const source = onlineMode.value ? online.inner : localSource
+    const source = gameMode.value === 'remote' ? online.inner : localSource
     return (source as any)[key]
   },
 })
@@ -111,7 +123,13 @@ const {
 } = yaotongGame
 // GamePort.players 是 getter；开局时才生成座位，必须保持响应式读取。
 const players = computed(() => yaotongGame.players)
-const showLobby = computed(() => phase.value === 'lobby')
+const allOccupiedReady = computed(() => {
+  const seats = online.roomSeats.value
+  return seats.some(Boolean) && seats.every((seat) => !seat || seat.ready)
+})
+const showLobby = computed(() => gameMode.value === 'local'
+  ? phase.value === 'lobby'
+  : !online.roomId.value || !online.inner.state.value)
 const jokerTiles: TileType[] = ['p1']
 const wallBreakIndex = computed(() => {
   const state = yaotongGame.local.state.value
@@ -123,19 +141,30 @@ watch([rulesOpen, () => yaotongGame.openingActive.value], ([open, opening]) => {
 watch(result, (value) => { resultVisible.value = Boolean(value) })
 watch(showLobby, (lobby) => { if (lobby) { resetTableReady(); replay.finishAuto() } })
 watch(matchFinished, (finished) => { if (finished) replay.finishAuto() })
-const onlineRoomId = computed(() => onlineMode.value ? online.roomId.value : '')
-const onlineSignal = computed(() => onlineMode.value ? online.signalQuality.value : 3)
+watch(() => wakuAuth.account.value?.displayName, (name) => {
+  if (name && !nicknameInput.value) nicknameInput.value = name
+}, { immediate: true })
+watch(() => online.storedSession.value?.nickname, (name) => {
+  if (name && !nicknameInput.value) nicknameInput.value = name
+}, { immediate: true })
+const onlineRoomId = computed(() => gameMode.value === 'remote' ? online.roomId.value : '')
+const onlineSignal = computed(() => gameMode.value === 'remote' ? online.signalQuality.value : 3)
 watch(() => online.sessionStatus.value, (status) => {
   if (status === 'playing') {
-    onlineMode.value = true
-    onlinePanelOpen.value = false
+    gameMode.value = 'remote'
     resetTableReady()
     startBgm()
     void startGame()
-  } else if (status === 'idle') {
-    onlineMode.value = false
   }
 })
+
+function handleAuthRequired() {
+  wakuAuth.error.value = '登录已过期，请重新登录 WakuDemo 账号'
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('wakudemo-auth-required', handleAuthRequired)
+}
+onBeforeUnmount(() => window.removeEventListener('wakudemo-auth-required', handleAuthRequired))
 onBeforeUnmount(() => replay.finishAuto())
 onBeforeUnmount(resetTableReady)
 
@@ -151,8 +180,82 @@ async function openReplay(id: string) {
   replayView.value = { match, rounds }
 }
 
+function onGameModeChange(mode: GameMode) {
+  if (mode === 'remote' && !wakuAuth.authenticated.value) {
+    wakuAuth.error.value = '联机对战需要先登录 WakuDemo 账号'
+  }
+  gameMode.value = mode
+}
+
+async function createRemoteRoom() {
+  await online.createRoom(
+    yaotongGame.length.value,
+    nicknameInput.value.trim() || '玩家',
+    animeCharacterId.value,
+  )
+}
+
+async function joinRemoteRoom() {
+  const code = joinCode.value.trim().toUpperCase()
+  if (code.length !== 6) return
+  await online.joinRoom(
+    code, nicknameInput.value.trim() || '玩家', animeCharacterId.value)
+}
+
+async function resumeRemoteSession() {
+  gameMode.value = 'remote'
+  await online.restoreSession()
+}
+
+async function toggleReady() {
+  await online.ready()
+}
+
+async function startRemoteMatch() {
+  if (matchStarting.value) return
+  matchStarting.value = true
+  try {
+    await online.startMatch()
+  } finally {
+    matchStarting.value = false
+  }
+}
+
+async function leaveRemoteRoom() {
+  if (leaving.value) return
+  leaving.value = true
+  try {
+    await online.leaveRoom()
+  } finally {
+    leaving.value = false
+  }
+}
+
+async function closeRemoteRoom() {
+  if (closing.value) return
+  closing.value = true
+  try {
+    await online.closeRoom()
+  } finally {
+    closing.value = false
+  }
+}
+
+function leaveRemoteMatch() {
+  gameMode.value = 'local'
+}
+
+function copyRoomId() {
+  const text = online.roomId.value
+  if (!text) return
+  void navigator.clipboard?.writeText(text)
+  copied.value = true
+  if (copiedTimer !== null) clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => { copied.value = false }, 1500)
+}
+
 function startGameWithAudio() {
-  if (onlineMode.value) return
+  if (gameMode.value !== 'local') return
   resetTableReady()
   startBgm()
   startGame('east', { waitForTableReady })
@@ -161,11 +264,10 @@ function toggleAutoPlay() {
   yaotongGame.local.autoplay.value = !yaotongGame.local.autoplay.value
 }
 function quitMatch() {
-  if (onlineMode.value) {
+  if (gameMode.value === 'remote') {
     if (!window.confirm('退出将离开当前联机房间，确定返回大厅？')) return
-    void online.leaveRoom()
-    onlineMode.value = false
-    onlinePanelOpen.value = false
+    void leaveRemoteRoom()
+    leaveRemoteMatch()
     return
   }
   if (window.confirm('退出将结束当前本地对局，确定返回大厅？')) returnToLobby()
@@ -189,7 +291,7 @@ function changeTableTheme(theme: TableThemeName) {
     :style="themePresentationStyle"
   >
     <div v-if="!replayView" :class="{ 'has-three-scene': players.length }">
-      <GameShellHeader :game-mode="onlineMode ? 'remote' : 'local'" :phase="phase"
+      <GameShellHeader :game-mode="gameMode" :phase="phase"
         :has-players="Boolean(players.length)"
         :match-name="matchName" :round-label="roundLabel" :honba="honba" :base-score="5"
         :room-id="onlineRoomId" :signal-quality="onlineSignal" :theme-name="tableThemeName"
@@ -261,13 +363,49 @@ function changeTableTheme(theme: TableThemeName) {
       </GameTableHud>
 
 
-      <OnlineRoomPanel v-if="showLobby && onlinePanelOpen" :remote="online"
-        :character-id="animeCharacterId" @back="onlinePanelOpen = false" />
-      <LobbyView v-else-if="showLobby" v-model:yaotong-length="yaotongGame.length.value"
+      <LobbyView v-if="showLobby"
+        :game-mode="gameMode"
+        v-model:yaotong-length="yaotongGame.length.value"
         v-model:yaotong-mode="yaotongGame.local.mode.value"
-        v-model:anime-character-id="animeCharacterId" :table-theme-name="tableThemeName"
-        @start-local="startGameWithAudio" @open-rules="rulesOpen = true" @open-replay="showReplayList"
-        @open-online="onlinePanelOpen = true"
+        v-model:nickname-input="nicknameInput"
+        v-model:join-code="joinCode"
+        v-model:anime-character-id="animeCharacterId"
+        :table-theme-name="tableThemeName"
+        :stored-session="online.storedSession.value"
+        :room-id="online.roomId.value"
+        :room-meta="roomMeta"
+        :session-status="online.sessionStatus.value"
+        :session-error="online.sessionError.value"
+        :room-time-limit="3600"
+        :room-status="online.roomStatus.value"
+        :room-seats="online.roomSeats.value"
+        :my-seat="online.mySeat.value"
+        :is-creator="online.isCreator.value"
+        :all-occupied-ready="allOccupiedReady"
+        :match-starting="matchStarting"
+        :copied="copied"
+        :leaving="leaving"
+        :closing="closing"
+        :waku-authenticated="wakuAuth.authenticated.value"
+        :waku-account-name="wakuAuth.account.value?.displayName ?? ''"
+        :waku-auth-loading="wakuAuth.loading.value"
+        :waku-auth-error="wakuAuth.error.value"
+        @update:game-mode="onGameModeChange"
+        @start-local="startGameWithAudio"
+        @create-room="createRemoteRoom"
+        @join-room="joinRemoteRoom"
+        @resume-session="resumeRemoteSession"
+        @copy-room="copyRoomId"
+        @toggle-ready="toggleReady"
+        @start-remote="startRemoteMatch"
+        @leave-room="leaveRemoteRoom"
+        @close-room="closeRemoteRoom"
+        @leave-match="leaveRemoteMatch"
+        @open-stats="statsOpen = true"
+        @open-replay="showReplayList"
+        @open-rules="rulesOpen = true"
+        @waku-login="wakuAuth.login"
+        @waku-logout="wakuAuth.logout"
       />
       <SettlementOverlay
         v-model:result-visible="resultVisible"
@@ -275,12 +413,12 @@ function changeTableTheme(theme: TableThemeName) {
         :result-title="yaotongGame.resultTitle.value"
         :match-finished="matchFinished"
         :dealer="dealer"
-        :waiting-next-round="onlineMode ? online.waitingNextRound.value : false"
-        :game-mode="onlineMode ? 'remote' : 'local'"
+        :waiting-next-round="gameMode === 'remote' ? online.waitingNextRound.value : false"
+        :game-mode="gameMode"
         :continue-countdown="0"
         :match-name="matchName"
         :standings="standings"
-        :player-id="onlineMode ? online.playerId.value : ''"
+        :player-id="gameMode === 'remote' ? online.playerId.value : ''"
         :human-seats="[0]"
         :joker-tiles="jokerTiles"
         :theme-name="tableThemeName"
@@ -301,5 +439,7 @@ function changeTableTheme(theme: TableThemeName) {
       :notice="replayNotice" @view="openReplay" />
     <ReplayViewer v-if="replayView" :match="replayView.match" :rounds="replayView.rounds"
       back-label="← 返回回放列表" @close="replayView = null; replayOpen = true" />
+    <StatsOverlay v-model:open="statsOpen" :player-id="online.playerId.value"
+      :nickname="online.nickname.value" :fallback-nickname="nicknameInput" />
   </main>
 </template>
