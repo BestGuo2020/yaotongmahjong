@@ -19,8 +19,13 @@ createApp({ setup() {
     const state = table()
     game.declarationArmed.value = false
     const hardWait = name.startsWith('hard-wait')
-    game.local.mode.value = name === 'hard' || hardWait ? 'hard' : 'easy'
-    if (hardWait) {
+    const hardClaim = name === 'hard-claim'
+    game.local.mode.value = name === 'hard' || hardWait || hardClaim ? 'hard' : 'easy'
+    if (hardClaim) {
+      state.players[0] = player('55m 147m 258p 369s 24s')
+      state.current = 1
+      state.players[1].hand.push(4)
+    } else if (hardWait) {
       state.players[0].hand.push(4); state.players[0].drawn = 4
       if (name === 'hard-wait-flow') {
         state.players[0].hand.pop(); state.players[0].drawn = null
@@ -82,9 +87,10 @@ createApp({ setup() {
       state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: name !== 'clear' ? [9] : [] })
     }
     // Freeze deterministic states while exercising the real port, HUD and controls.
-    game.local.paused.value = !name.startsWith('hu') && !hardWait
+    game.local.paused.value = !name.startsWith('hu') && !hardWait && !hardClaim
     game.local.state.value = state
     if (name === 'hard-wait-late') game.local.dispatch({ type: 'discard', index: 13 }, 1)
+    if (hardClaim) game.local.dispatch({ type: 'discard', index: 13 }, 1)
   }
   ;(window as unknown as { setGuidanceScenario: typeof scenario }).setGuidanceScenario = scenario
   ;(window as unknown as { adoptedHu: () => unknown }).adoptedHu = () => game.local.state.value?.result?.values[0]
@@ -92,7 +98,7 @@ createApp({ setup() {
     serial: game.local.state.value?.serial, remaining: game.local.state.value?.waitRemainingMs,
     phase: game.local.state.value?.phase, reason: game.local.state.value?.result?.reason,
     source: game.local.state.value?.result?.source, winners: game.local.state.value?.result?.winners,
-    tile: game.local.state.value?.result?.tile,
+    tile: game.local.state.value?.result?.tile, melds: game.local.state.value?.players[0].melds.length,
   })
   scenario(query.get('scenario') ?? 'chicken')
   return () => h('main', { class: 'game-app', 'data-table-theme': theme,
@@ -113,6 +119,8 @@ createApp({ setup() {
       yaotongView: game.tableView.value,
       blockedDiscardIndices: game.local.protection.value.discards, canPass: !game.local.protection.value.pass,
       onHu: () => game.userHu(),
+      onPeng: () => game.userPeng(), onPass: () => game.userPass(),
+      onGangFromDiscard: () => game.userGangFromDiscard(),
       autoPlayEnabled: true, autoPlay: false,
     }, { actions: () => h(YaotongControls, { game }) })]),
     game.result.value ? h(SettlementOverlay, {

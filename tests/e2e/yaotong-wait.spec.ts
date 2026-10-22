@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const waitButton = (page: Page) => page.getByRole('button', { name: '等，暂停牌局并使用本局等待时间', exact: true })
 async function state(page: Page) {
-  return page.evaluate(() => (window as unknown as { waitState: () => { serial: number; remaining: number[]; phase: string; reason?: string } }).waitState())
+  return page.evaluate(() => (window as unknown as { waitState: () => { serial: number; remaining: number[]; phase: string; reason?: string; melds: number } }).waitState())
 }
 for (const width of [1280, 844]) {
   test.describe(`等待控件 ${width}`, () => {
@@ -72,3 +72,20 @@ for (const width of [1280, 844]) {
   })
   })
 }
+
+test('老手碰杠按钮保留到点击，不随观察间隔消失', async ({ page }) => {
+  test.setTimeout(60000)
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=hard-claim')
+  await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
+  const peng = page.locator('.action-bar').getByRole('button', { name: '碰', exact: true })
+  await expect(peng).toBeVisible()
+  // 旧逻辑在留牌观察间隔（1 秒）结束时自动代过碰；按钮必须继续留在可点状态。
+  await page.waitForTimeout(2000)
+  await expect(peng).toBeVisible()
+  expect((await state(page)).phase).toBe('response')
+  await peng.click()
+  await expect.poll(async () => (await state(page)).melds).toBe(1)
+  await expect(peng).toHaveCount(0)
+})

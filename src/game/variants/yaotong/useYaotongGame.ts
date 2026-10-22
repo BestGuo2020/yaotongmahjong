@@ -237,7 +237,12 @@ export function useYaotongGame() {
       cleanup(() => clearTimeout(timer))
       return
     }
-    const responseSeats = mode.value === 'hard' && !autoplay.value ? [...seats, 0] : seats
+    // Expert players own their peng/kong decisions: keep those buttons until they choose.
+    // Only a hu-only window may move on by itself (the discard's hu opportunity is retained).
+    const humanClaim = game.phase === 'response' ? game.pending?.options[0] : undefined
+    const autoDeferHu = mode.value === 'hard' && !autoplay.value &&
+      Boolean(humanClaim?.hu) && !humanClaim?.peng && !humanClaim?.kong
+    const responseSeats = autoDeferHu ? [...seats, 0] : seats
     const nextSeat = (game.phase === 'response' ? responseSeats : seats).find((seat) =>
       game.phase === 'response'
         ? game.pending?.options[seat] && !game.pending.choices[seat]
