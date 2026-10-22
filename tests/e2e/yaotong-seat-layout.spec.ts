@@ -167,3 +167,22 @@ test.describe('长昵称：手机点头像查看，桌面折两行', () => {
     noOverlap(boxes)
   })
 })
+
+// PC 在高 DPI/缩放下 CSS 视口可能只有 913×492（物理 2739×1476 @3x），
+// 不能再被矮横屏兜底误判成手机；阈值降到 460 后应保留桌面竖卡和昵称。
+test.describe('PC 矮横屏不走手机紧凑卡', () => {
+  test.use({ isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
+  test('913×492：桌面座位卡、昵称与桌面手牌宽度', async ({ page }) => {
+    await page.setViewportSize({ width: 913, height: 492 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=seat-layout&theme=jade')
+    await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
+    const card = page.locator('.yaotong-table .seat-left .avatar-wrap')
+    expect(await card.evaluate(e => getComputedStyle(e).display), '桌面卡应为竖排 flex').toBe('flex')
+    await expect(page.locator('.yaotong-table .player-name').first()).toBeVisible()
+    const tileWidth = await page.locator('.hand-rack .mahjong-tile').first().evaluate(e => e.getBoundingClientRect().width)
+    expect(tileWidth, '桌面手牌不能被压成移动端 40px').toBeGreaterThan(44)
+    await expect(page.locator('.player-seat .relative-seat-label')).toHaveCount(0)
+    await page.screenshot({ path: 'tmp/pc-913x492.png' })
+  })
+})

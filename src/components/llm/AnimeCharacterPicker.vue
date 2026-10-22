@@ -122,7 +122,7 @@ function selectCharacter(characterId: CharacterId) {
 .anime-character-grid i { position: absolute; top: 4px; right: 4px; display: grid; width: 17px; height: 17px; place-items: center; border: 2px solid #2d2923; border-radius: 50%; background: #bd5b48; color: #fffaf0; font-size: 10px; font-style: normal; font-weight: 900; }
 .anime-avatar-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: #8d4b3f; font: 900 28px "Yu Gothic", "Microsoft YaHei", sans-serif; }
 @media (hover: none) and (pointer: coarse) and (orientation: landscape),
-       (orientation: landscape) and (max-width: 1024px) and (max-height: 500px) {
+       (orientation: landscape) and (max-width: 1024px) and (max-height: 460px) {
   .anime-character-preview { grid-template-columns: 62px minmax(0, 1fr); align-items: center; gap: 6px; padding: 7px; }
   .anime-character-preview-art { width: 62px; }
   .anime-character-preview h3 { font-size: 16px; }

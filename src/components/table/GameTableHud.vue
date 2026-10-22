@@ -913,7 +913,7 @@ function onAvatarError(entry: GamePlayer) {
 /* 移动端（窄屏/矮屏）：翻精指示牌折叠为一行小徽章，不遮挡任何座位；
    点击徽章展开二骰/精牌说明（.flip-open），再点收起。 */
 @media (hover: none) and (pointer: coarse) and (orientation: landscape),
-       (orientation: landscape) and (max-width: 1024px) and (max-height: 500px) {
+       (orientation: landscape) and (max-width: 1024px) and (max-height: 460px) {
   .flip-indicator {
     top: calc(var(--safe-top) + var(--topbar-height) + var(--hud-gap));
     right: auto;

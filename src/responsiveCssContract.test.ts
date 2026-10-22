@@ -17,7 +17,7 @@ async function readSource(relativePath: string) {
 describe('响应式 CSS 合同', () => {
   // mini 系列等矮横屏可能上报 fine 指针（桌面小窗/内嵌 WebView），只用粗指针判断会掉回
   // 桌面几何。允许这一条矮横屏尺寸兜底，但不得再按具体设备宽高枚举。
-  const compactLandscapeFallback = '(orientation: landscape) and (max-width: 1024px) and (max-height: 500px)'
+  const compactLandscapeFallback = '(orientation: landscape) and (max-width: 1024px) and (max-height: 460px)'
 
   it('禁止重新引入按具体宽高枚举设备的媒体查询（矮横屏兜底除外）', async () => {
     for (const [relativePath, name] of responsiveSources) {
