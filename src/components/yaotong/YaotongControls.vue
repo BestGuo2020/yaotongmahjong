@@ -141,12 +141,12 @@ watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
   border: 1px solid var(--theme-border);
   border-radius: 20px;
 }
-/* PC 大屏：同一条操作行放大到约 2 倍，×2 也从胶囊改成方形，与方形按钮并排不违和。 */
+/* PC 大屏：同一条操作行放大到约 1.5 倍，×2 也从胶囊改成方形，与方形按钮并排不违和。 */
 @media (hover: hover) and (pointer: fine) {
   @container game (min-width: 1000px) and (min-height: 560px) {
     .yaotong-double {
-      font-size: clamp(12px, 1.17cqw, 24px);
-      padding: clamp(4px, .4cqw, 8px) clamp(8px, .78cqw, 16px);
+      font-size: clamp(12px, .88cqw, 18px);
+      padding: clamp(4px, .29cqw, 6px) clamp(8px, .59cqw, 12px);
       border-radius: 8px;
     }
   }

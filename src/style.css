@@ -3964,49 +3964,49 @@ button { font: inherit; }
   .game-app .yaotong-table .user-identity .avatar { width: 30px; height: 30px; }
 }
 /* PC 大屏操作按钮：2048 宽的牌桌上牌面已有 88px，52px 的碰/杠与 44px 的托管显得像图标。
-   这一档按视口把整条操作行放大到约 2 倍（2048 宽 ≈ 碰杠 108×104、托管 88），
+   这一档按视口把整条操作行放大到约 1.5 倍（2048 宽 ≈ 碰杠 92×78、托管 66），
    同时把原来的椭圆/胶囊改成方形圆角。触屏、手机紧凑横屏与矮窗（<560px 高）仍走固定尺寸。 */
 @media (hover: hover) and (pointer: fine) {
   @container game (min-width: 1000px) and (min-height: 560px) {
     .game-app .yaotong-table .turn-action-row .action,
     .game-app .yaotong-table .turn-action-row .action-bar .action.primary {
-      min-width: clamp(61px, 6cqw, 122px);
-      height: clamp(52px, 5cqw, 104px);
-      padding: clamp(5px, .5cqw, 10px) clamp(12px, 1.2cqw, 24px);
+      min-width: clamp(61px, 4.5cqw, 92px);
+      height: clamp(52px, 3.8cqw, 78px);
+      padding: clamp(5px, .38cqw, 8px) clamp(12px, .9cqw, 18px);
       border-width: 2px;
       border-radius: 14px;
     }
-    .game-app .yaotong-table .turn-action-row .action b { font-size: clamp(26px, 2.55cqw, 52px); }
-    .game-app .yaotong-table .turn-action-row .action span { font-size: clamp(13px, 1.27cqw, 26px); }
-    .game-app .yaotong-table .turn-action-row .action-bar .action.primary { min-width: clamp(54px, 5.3cqw, 108px); }
-    .game-app .yaotong-table .turn-action-row .action-bar .action.primary b { font-size: clamp(24px, 2.35cqw, 48px); }
+    .game-app .yaotong-table .turn-action-row .action b { font-size: clamp(26px, 1.9cqw, 39px); }
+    .game-app .yaotong-table .turn-action-row .action span { font-size: clamp(13px, .95cqw, 20px); }
+    .game-app .yaotong-table .turn-action-row .action-bar .action.primary { min-width: clamp(54px, 4cqw, 81px); }
+    .game-app .yaotong-table .turn-action-row .action-bar .action.primary b { font-size: clamp(24px, 1.75cqw, 36px); }
     .game-app .yaotong-table .turn-action-row .action.autoplay-action {
-      min-width: clamp(44px, 4.3cqw, 88px);
-      height: clamp(44px, 4.3cqw, 88px);
-      padding: clamp(3px, .3cqw, 6px) clamp(7px, .7cqw, 14px);
+      min-width: clamp(44px, 3.2cqw, 66px);
+      height: clamp(44px, 3.2cqw, 66px);
+      padding: clamp(3px, .3cqw, 6px) clamp(7px, .6cqw, 12px);
       border-radius: 12px;
     }
-    .game-app .yaotong-table .turn-action-row .action.autoplay-action b { font-size: clamp(13px, 1.27cqw, 26px); }
+    .game-app .yaotong-table .turn-action-row .action.autoplay-action b { font-size: clamp(13px, .95cqw, 20px); }
     /* 「等 + 秒数」是唯一带副标题的主操作，字号要收一点，副标题才不会顶出方形按钮的下边框。 */
-    .game-app .yaotong-table .turn-action-row .action.wait-action { padding: 6px 12px; }
-    .game-app .yaotong-table .turn-action-row .action.wait-action b { font-size: clamp(23px, 2.15cqw, 44px); }
-    .game-app .yaotong-table .turn-action-row .action.wait-action span { font-size: clamp(10px, .88cqw, 18px); }
+    .game-app .yaotong-table .turn-action-row .action.wait-action { padding: 5px 10px; }
+    .game-app .yaotong-table .turn-action-row .action.wait-action b { font-size: clamp(23px, 1.66cqw, 34px); }
+    .game-app .yaotong-table .turn-action-row .action.wait-action span { font-size: clamp(10px, .73cqw, 15px); }
     .game-app .yaotong-table .turn-action-row .action.hu-plan {
-      min-width: clamp(110px, 10.75cqw, 220px);
-      min-height: clamp(48px, 4.7cqw, 96px);
+      min-width: clamp(110px, 8cqw, 165px);
+      min-height: clamp(48px, 3.5cqw, 72px);
       height: auto;
-      padding: clamp(6px, .6cqw, 12px) clamp(10px, 1cqw, 20px);
+      padding: clamp(6px, .44cqw, 9px) clamp(10px, .73cqw, 15px);
       border-radius: 14px;
     }
-    .game-app .yaotong-table .turn-action-row .action.hu-plan b { font-size: clamp(15px, 1.47cqw, 30px); }
-    .game-app .yaotong-table .turn-action-row .action.hu-plan span { font-size: clamp(11px, 1.08cqw, 22px); }
+    .game-app .yaotong-table .turn-action-row .action.hu-plan b { font-size: clamp(15px, 1.1cqw, 23px); }
+    .game-app .yaotong-table .turn-action-row .action.hu-plan span { font-size: clamp(11px, .8cqw, 16px); }
     .game-app .yaotong-table .turn-action-row .action.waiting-action {
-      width: clamp(54px, 5.3cqw, 108px);
-      height: clamp(60px, 5.9cqw, 120px);
+      width: clamp(54px, 4cqw, 81px);
+      height: clamp(60px, 4.4cqw, 90px);
       padding: 2px;
       border-radius: 0;
     }
-    .game-app .yaotong-table .turn-action-row .waiting-action .action-icon { width: clamp(42px, 4.2cqw, 86px); height: clamp(42px, 4.2cqw, 86px); }
+    .game-app .yaotong-table .turn-action-row .waiting-action .action-icon { width: clamp(42px, 4cqw, 81px); height: clamp(42px, 4cqw, 81px); }
   }
 }
 
