@@ -87,7 +87,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.createRoom.mockResolvedValue({
     roomId: 'ABC123', rulesetId: 'yaotong', matchLength: 8,
-    capacity: 4, status: 'lobby', creatorSeat: 0, seats: [null, null, null, null],
+    yaotongMode: 'easy', capacity: 4, status: 'lobby',
+    creatorSeat: 0, seats: [null, null, null, null],
   })
   api.joinRoom.mockResolvedValue({
     roomId: 'ABC123', seat: 0, nickname: '甲', rejoinCode: 'CODE',
@@ -95,7 +96,7 @@ beforeEach(() => {
   })
   api.getRoom.mockResolvedValue({
     roomId: 'ABC123', rulesetId: 'yaotong', matchLength: 8,
-    capacity: 4, status: 'lobby', creatorSeat: 0,
+    yaotongMode: 'easy', capacity: 4, status: 'lobby', creatorSeat: 0,
     seats: [{
       seat: 0, nickname: '甲', ready: true, connected: true,
     }, null, null, null],
@@ -118,7 +119,7 @@ describe('useYaotongRemoteGame', () => {
 
     await game.createRoom(8, '甲')
     expect(api.createRoom).toHaveBeenCalledWith(
-      'east', 4, expect.any(String), 'yaotong', false, 8)
+      'east', 4, expect.any(String), 'yaotong', false, 8, 'easy')
     expect(game.roomId.value).toBe('ABC123')
     expect(game.mySeat.value).toBe(0)
     expect(game.rejoinCode.value).toBe('CODE')

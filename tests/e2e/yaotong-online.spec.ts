@@ -21,11 +21,14 @@ test.describe('幺筒联机', () => {
     await pageA.getByTestId('lobby-nickname').fill('甲')
     await pageA.getByTestId('lobby-create').click()
     await expect(pageA.getByRole('dialog', { name: '创建房间' })).toBeVisible()
+    await pageA.getByRole('radio', { name: /老手模式/ }).click()
     await pageA.waitForTimeout(400)
     await pageA.screenshot({ path: 'test-results/online-create.png' })
     await pageA.getByTestId('lobby-create-confirm').click()
 
     await expect(pageA.getByTestId('room-code')).toHaveText(/[A-Z0-9]{6}/)
+    await expect(pageA.locator('.room-game-config')).toContainText('东风场')
+    await expect(pageA.locator('.room-game-config')).toContainText('老手模式')
     const roomId = await pageA.getByTestId('room-code').textContent()
 
     await pageB.getByRole('radio', { name: /联机对战/ }).click()

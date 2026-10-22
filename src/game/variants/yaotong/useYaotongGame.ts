@@ -50,7 +50,7 @@ export function useYaotongGame(options: {
   const hold = shallowRef<{ game: GameState; seat: number; startedAt: number; initial: number } | null>(null)
   const holdNow = ref(Date.now())
   const holding = computed(() => hold.value?.seat === 0)
-  const hardControls = computed(() => Boolean(!remote && state.value &&
+  const hardControls = computed(() => Boolean(state.value &&
     state.value.phase !== 'settled' &&
     mode.value === 'hard' && !paused.value && !autoplay.value))
   const waitRemainingMs = computed(() => hold.value?.seat === 0

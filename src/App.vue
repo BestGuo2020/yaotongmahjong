@@ -192,6 +192,7 @@ async function createRemoteRoom() {
     yaotongGame.length.value,
     nicknameInput.value.trim() || '玩家',
     animeCharacterId.value,
+    yaotongGame.local.mode.value,
   )
 }
 

@@ -155,6 +155,9 @@ export interface YtSnapshot {
   round: number
   dealer: number
   matchLength: 4 | 8 | 16
+  yaotongMode?: 'easy' | 'hard'
+  /** 老手模式当前决策的墙钟截止（毫秒时间戳）；0/缺失表示无读秒。 */
+  decisionDeadlineAt?: number
   matchFinished: boolean
   opening: { dice: [number, number]; wallSide: number; reservedStacks: number } | null
   roundResult: YtSettlementView | null

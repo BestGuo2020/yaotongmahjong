@@ -9,6 +9,7 @@ export interface StoredSession {
   mode: MatchType
   rulesetId?: RuleVariant
   matchLength?: 4 | 8 | 16
+  yaotongMode?: 'easy' | 'hard'
 }
 
 export interface StorageLike {
@@ -83,6 +84,9 @@ export function createRemoteSessionStore(
           && rulesetId !== 'lotus-blood-flow' && rulesetId !== 'yaotong') return null
         const matchLength = session.matchLength
         if (matchLength !== undefined && ![4, 8, 16].includes(matchLength)) return null
+        const yaotongMode = session.yaotongMode
+        if (yaotongMode !== undefined && yaotongMode !== 'easy' && yaotongMode !== 'hard')
+          return null
         return {
           roomId: session.roomId,
           rejoinCode: session.rejoinCode,
@@ -91,7 +95,10 @@ export function createRemoteSessionStore(
           mode: session.mode,
           rulesetId,
           ...(rulesetId === 'yaotong'
-            ? { matchLength: (matchLength ?? 4) as 4 | 8 | 16 }
+            ? {
+                matchLength: (matchLength ?? 4) as 4 | 8 | 16,
+                yaotongMode: (yaotongMode ?? 'easy') as 'easy' | 'hard',
+              }
             : {}),
         }
       } catch {

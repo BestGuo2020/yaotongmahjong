@@ -10,12 +10,16 @@ export interface RoomSeatState {
   characterId?: string
 }
 
+export type YaotongRoomMode = 'easy' | 'hard'
+
 export interface RoomInfo {
   roomId: string
   mode: MatchType
   rulesetId?: RuleVariant
   /** 幺筒场次 4/8/16；经典/血流由 mode 推导。 */
   matchLength?: 4 | 8 | 16
+  /** 幺筒新手/老手模式。 */
+  yaotongMode?: YaotongRoomMode
   capacity: number
   status: 'lobby' | 'playing' | 'finished' | 'error' | 'closed'
   creatorSeat: number | null
@@ -43,6 +47,7 @@ export interface JoinResult {
   playerId: string | null
   rejoin: boolean
   characterId?: string
+  yaotongMode?: YaotongRoomMode
 }
 
 export interface ReadyResult {
@@ -101,13 +106,14 @@ export interface RoomMeta {
 
 export function createRoom(mode: MatchType, capacity: number, playerId?: string,
   rulesetId: RuleVariant = 'lotus-classic', llmEnabled?: boolean,
-  matchLength: 4 | 8 | 16 = 4): Promise<RoomInfo> {
+  matchLength: 4 | 8 | 16 = 4,
+  yaotongMode: YaotongRoomMode = 'easy'): Promise<RoomInfo> {
   return request<RoomInfo>('/api/rooms', {
     method: 'POST',
     body: JSON.stringify({
       mode, capacity, playerId, rulesetId,
       ...(llmEnabled === true ? { llmEnabled: true } : {}),
-      ...(rulesetId === 'yaotong' ? { matchLength } : {}),
+      ...(rulesetId === 'yaotong' ? { matchLength, yaotongMode } : {}),
     }),
   })
 }

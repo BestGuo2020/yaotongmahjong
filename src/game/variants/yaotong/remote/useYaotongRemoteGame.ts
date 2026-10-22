@@ -14,6 +14,7 @@ import {
   readyRoom,
   startRoom,
   type RoomSeatState,
+  type YaotongRoomMode,
 } from '../../../online/api/roomApi'
 import {
   createRemoteSessionStore,
@@ -70,6 +71,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   const roomSeats = ref<Array<RoomSeatState | null>>([])
   const roomStatus = ref<'lobby' | 'playing' | 'finished' | 'error' | 'closed'>('lobby')
   const matchLength = ref<4 | 8 | 16>(4)
+  const yaotongMode = ref<YaotongRoomMode>('easy')
   const storedSession = ref<StoredSession | null>(null)
   const waitingNextRound = ref(false)
   const currentRound = ref(0)
@@ -85,6 +87,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       mode: 'east',
       rulesetId: 'yaotong',
       matchLength: matchLength.value,
+      yaotongMode: yaotongMode.value,
     }
     remoteSessionStore.saveSession(storedSession.value)
   }
@@ -94,10 +97,15 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     if (kind === 'rejoin_ok') {
       const payload = message as {
         seat?: number; nickname?: string; matchLength?: 4 | 8 | 16
+        yaotongMode?: YaotongRoomMode
       }
       if (typeof payload.seat === 'number') mySeat.value = payload.seat
       if (typeof payload.nickname === 'string') nickname.value = payload.nickname
       if (payload.matchLength) matchLength.value = payload.matchLength
+      if (payload.yaotongMode) {
+        yaotongMode.value = payload.yaotongMode
+        inner.mode.value = payload.yaotongMode
+      }
       socket.confirmSession()
       sessionError.value = ''
       sessionStatus.value = roomStatus.value === 'playing' ? 'playing' : 'lobby'
@@ -109,6 +117,10 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       const snapshot = message as YtSnapshot
       if (typeof snapshot.seat === 'number') mySeat.value = snapshot.seat
       if (snapshot.matchLength) matchLength.value = snapshot.matchLength
+      if (snapshot.yaotongMode) {
+        yaotongMode.value = snapshot.yaotongMode
+        inner.mode.value = snapshot.yaotongMode
+      }
       currentRound.value = snapshot.round
       if (snapshot.view?.players?.length === 4
           && snapshot.view.phase !== 'lobby') {
@@ -159,8 +171,9 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
         window.dispatchEvent(new Event('wakudemo-auth-required'))
         return
       }
-      if (code === 'INVALID_ACTION' || code === 'STALE_ACTION') {
-        // 服务端窗口已推进/已自动跳过原报时，客户端旧按钮的迟到提交是预期竞态。
+      if (code === 'INVALID_ACTION' || code === 'STALE_ACTION'
+          || code === 'PROTECTED_ACTION') {
+        // 服务端窗口已推进/已自动跳过原报/新手模式已拦截输入时，迟到提交是预期竞态。
         console.warn(`[yaotong] 动作被服务端拒绝（预期竞态）：${code}`)
         return
       }
@@ -225,6 +238,10 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     creatorSeat.value = info.creatorSeat
     isCreator.value = info.creatorSeat === mySeat.value
     if (info.matchLength) matchLength.value = info.matchLength
+    if (info.yaotongMode) {
+      yaotongMode.value = info.yaotongMode
+      inner.mode.value = info.yaotongMode
+    }
     if (info.status === 'playing') sessionStatus.value = 'playing'
     else if (info.status === 'finished') sessionStatus.value = 'finished'
     else if (info.status === 'lobby') sessionStatus.value = 'lobby'
@@ -253,20 +270,25 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     length: 4 | 8 | 16,
     nicknameValue: string,
     characterId?: string,
+    mode: YaotongRoomMode = 'easy',
   ) {
     sessionStatus.value = 'creating'
     sessionError.value = ''
     try {
+      yaotongMode.value = mode
+      inner.mode.value = mode
       const info = await createRoomApi(
-        'east', 4, playerId.value, 'yaotong', false, length)
+        'east', 4, playerId.value, 'yaotong', false, length, mode)
       roomId.value = info.roomId
       matchLength.value = info.matchLength ?? length
+      if (info.yaotongMode) yaotongMode.value = info.yaotongMode
       const joined = await joinRoomApi(
         info.roomId, nicknameValue || '玩家', playerId.value, characterId)
       mySeat.value = joined.seat
       nickname.value = joined.nickname
       rejoinCode.value = joined.rejoinCode
       playerId.value = joined.playerId ?? playerId.value
+      if (joined.yaotongMode) yaotongMode.value = joined.yaotongMode
       roomStatus.value = 'lobby'
       saveSession()
       socket.open()
@@ -293,6 +315,10 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       nickname.value = joined.nickname
       rejoinCode.value = joined.rejoinCode
       playerId.value = joined.playerId ?? playerId.value
+      if (joined.yaotongMode) {
+        yaotongMode.value = joined.yaotongMode
+        inner.mode.value = joined.yaotongMode
+      }
       saveSession()
       socket.open()
       startPolling()
@@ -311,6 +337,8 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     nickname.value = session.nickname
     playerId.value = session.playerId || playerId.value
     matchLength.value = session.matchLength ?? 4
+    yaotongMode.value = session.yaotongMode ?? 'easy'
+    inner.mode.value = yaotongMode.value
     storedSession.value = session
     sessionStatus.value = 'lobby'
     socket.open()
@@ -380,6 +408,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     roomSeats,
     roomStatus,
     matchLength,
+    yaotongMode,
     storedSession,
     waitingNextRound,
     signalQuality: socket.signalQuality,
