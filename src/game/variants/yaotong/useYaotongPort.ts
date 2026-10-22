@@ -778,6 +778,8 @@ export function useYaotongPort(
       // 联机对局由房间快照驱动；本地 start 只服务单机。
       if (local.remote) {
         resetPresentation()
+        // 联机没有本地开局发牌时间线；resetPresentation 的 dealing 闸门会让手牌被裁成 0。
+        openingActive.value = false
         seenHand = 0
         seenSerial = 0
         return Promise.resolve()
@@ -827,7 +829,10 @@ export function useYaotongPort(
       if (!result.value || local.state.value?.result?.finished) return
       resetPresentation()
       local.next()
-      if (local.remote) return
+      if (local.remote) {
+        openingActive.value = false
+        return
+      }
       return opening()
     },
     returnToLobby() {

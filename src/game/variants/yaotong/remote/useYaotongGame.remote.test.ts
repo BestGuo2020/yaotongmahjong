@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createGame } from '../engine'
 import { useYaotongGame } from '../useYaotongGame'
+import { useYaotongPort } from '../useYaotongPort'
 
 const external = {
   send: vi.fn(),
@@ -48,6 +49,19 @@ describe('useYaotongGame remote authority', () => {
     game.leave()
     expect(external.leave).toHaveBeenCalledTimes(1)
     expect(game.state.value).toBeNull()
+    scope.stop()
+  })
+
+  it('remote start does not leave the presentation hand in dealing state', async () => {
+    const scope = effectScope()
+    const game = scope.run(() => useYaotongGame({
+      externalAuthority: external,
+    }))!
+    const port = scope.run(() => useYaotongPort({}, game))!
+    game.acceptRemoteState(createGame({ length: 4 }))
+    await port.startGame()
+    expect(port.players[0].hand.length).toBeGreaterThan(0)
+    expect(port.phase.value).not.toBe('dealing')
     scope.stop()
   })
 })
