@@ -62,6 +62,17 @@ createApp({ setup() {
     } else if (name === 'original') {
       state.phase = 'original'
       state.players[0] = ready()
+    } else if (name === 'seat-layout') {
+      state.dealer = 1
+      state.players.forEach((p, seat) => {
+        p.name = ['你', '听风', '观山', '望月'][seat]
+        p.score = [-263, 95, 103, 65][seat]
+        p.river = Array.from({ length: 9 }, (_, index) => ({
+          tile: (seat * 6 + index) % 27, chicken: index === 0 ? 4 : 0,
+          stage: 'normal' as const, id: seat * 10 + index + 1,
+        }))
+      })
+      state.players[2].river[1] = { tile: 16, chicken: 4, stage: 'normal', id: 22 }
     } else if (name === 'declare') {
       state.players[0] = player('234567m 234s 66p 78s 9m', { draws: 1, drawn: 8 })
     } else if (name === 'mandatory') {
@@ -91,8 +102,8 @@ createApp({ setup() {
       wall: game.wall.value, wallHeadDrawn: game.wallHeadDrawn.value, wallCount: game.wallCount.value,
       currentPlayer: game.currentPlayer.value, selectedIndex: -1, turnSeconds: 0,
       lastDiscard: null, actionPrompt: game.actionPrompt.value, announcement: null, tableActionEvent: null,
-      scoreFlowEvent: null, result: null, winEffect: null, winPresentation: null, revealHands: false,
-      matchFinished: false, winningPlayerIndex: -1, dealer: 0, isUserTurn: game.local.ownTurn.value && !game.local.holding.value,
+      scoreFlowEvent: null, result: null, winEffect: null, winPresentation: null, revealHands: query.has('reveal'),
+      matchFinished: false, winningPlayerIndex: -1, dealer: game.dealer.value, isUserTurn: game.local.ownTurn.value && !game.local.holding.value,
       userCanHu: Boolean(game.local.self.value?.hu && !game.local.protection.value.hu),
       matchName: '东风场', roundLabel: '东1局', dealAnimation: game.dealAnimation.value,
       openingStage: null, diceValues: [2, 3], diceThrowerIndex: 0,
