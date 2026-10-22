@@ -254,6 +254,7 @@ const presentedScoreFlowEvent = computed<ScoreFlowEvent | null>(() => props.bloo
   ? { id: -1, deltas: [{ playerIndex: 0, amount: 800 }, { playerIndex: 1, amount: -800 }] }
   : null))
 const waitsOpen = ref(false)
+const userNicknameOpen = ref(false)
 const tableReady = ref(false)
 const tableLoadError = ref('')
 const tableLoadAttempt = ref(0)
@@ -625,6 +626,7 @@ function onAvatarError(entry: GamePlayer) {
       v-for="(player, index) in players.slice(1)" :key="player.seat" :player="player"
       :data-yaotong-seat="index + 1"
       :relative-label="rulesetId === 'yaotong' ? ['下家', '对家', '上家'][index] : undefined"
+      :nickname-on-tap="rulesetId === 'yaotong'"
       :position="seatPosition[index + 1]" :active="currentPlayer === index + 1"
       :action-active="tableActionEvent?.actorIndex === index + 1 || yaotongView?.declarationCues.some(cue => cue.actorIndex === index + 1)" :score-delta="scoreDeltaFor(index + 1)"
       :score-flow-id="presentedScoreFlowEvent?.id" :dealer="dealer === index + 1"
@@ -674,10 +676,18 @@ function onAvatarError(entry: GamePlayer) {
     </Transition>
 
     <section class="user-area">
-      <div class="user-identity" data-yaotong-seat="0" :class="{ active: currentPlayer === 0, 'action-active': tableActionEvent?.actorIndex === 0 || yaotongView?.declarationCues.some(cue => cue.actorIndex === 0) }" :style="userAnimeStyle">
+      <div class="user-identity" data-yaotong-seat="0" :class="{ active: currentPlayer === 0, 'action-active': tableActionEvent?.actorIndex === 0 || yaotongView?.declarationCues.some(cue => cue.actorIndex === 0), 'nickname-open': userNicknameOpen }" :style="userAnimeStyle">
         <span v-if="dealer === 0" class="dealer-badge">庄</span>
-        <img class="avatar" :src="userAvatar" :alt="`${user.name}头像`" @error="onAvatarError(user)" />
-        <div class="player-info"><strong>{{ user.name }}</strong><span>{{ user.score }}</span><YaotongSeatMarker v-if="yaotongView" :name="user.name" :status="yaotongView.seats[0]" /></div>
+        <button v-if="rulesetId === 'yaotong'" type="button" class="avatar-button"
+          :aria-label="`查看${user.name}的昵称`" :aria-expanded="userNicknameOpen"
+          @click.stop="userNicknameOpen = !userNicknameOpen" @keydown.esc="userNicknameOpen = false" @blur="userNicknameOpen = false">
+          <img class="avatar" :src="userAvatar" :alt="`${user.name}头像`" @error="onAvatarError(user)" />
+        </button>
+        <img v-else class="avatar" :src="userAvatar" :alt="`${user.name}头像`" @error="onAvatarError(user)" />
+        <div class="player-info"><strong><span class="player-name">{{ user.name }}</span></strong><span>{{ user.score }}</span><YaotongSeatMarker v-if="yaotongView" :name="user.name" :status="yaotongView.seats[0]" /></div>
+        <Transition name="nickname-reveal">
+          <div v-if="rulesetId === 'yaotong' && userNicknameOpen" class="nickname-popover user-nickname-popover" role="status" aria-live="polite">{{ user.name }}</div>
+        </Transition>
         <button v-if="bloodFlow" type="button" class="blood-flow-pile-badge win-count-bottom" :data-pile-seat="user.seat"
           :aria-label="`${user.name}，胡${bloodFlow.seats[user.seat].winCount}次，查看流水`"
           @click="settlementHost?.showDetails(user.seat)">胡 {{ bloodFlow.seats[user.seat].winCount }}次</button>
