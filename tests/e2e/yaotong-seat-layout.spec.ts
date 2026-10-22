@@ -22,8 +22,8 @@ for (const screen of screens) {
             await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
             const seats = page.locator('.yaotong-table .player-seat .avatar-wrap, .yaotong-table .user-identity')
             await expect(seats).toHaveCount(4)
-            await expect(page.locator('.player-seat .relative-seat-label')).toHaveText(['下家', '对家', '上家'])
-            await expect(page.getByRole('region', { name: '对家 · 观山' })).toBeVisible()
+            await expect(page.locator('.player-seat .relative-seat-label')).toHaveCount(0)
+            await expect(page.getByRole('region', { name: '观山', exact: true })).toBeVisible()
             const across = (await page.locator('.seat-top .avatar-wrap').boundingBox())!
             expect(Math.abs(across.x + across.width / 2 - screen.width / 2), '对家卡须位于正上方，不能混入右家区域').toBeLessThanOrEqual(1)
             const boxes = []
@@ -114,8 +114,8 @@ test.describe('长昵称：手机点头像查看，桌面折两行', () => {
     const names = page.locator('.yaotong-table .player-name')
     await expect(names).toHaveCount(4)
     for (const name of await names.all()) await expect(name).toBeHidden()
-    // 方位标记保留，昵称不占位。
-    await expect(page.locator('.yaotong-table .relative-seat-label')).toHaveText(['下家', '对家', '上家'])
+    // 方位标记已删除；昵称也不占位，只剩头像/分数/标记。
+    await expect(page.locator('.yaotong-table .relative-seat-label')).toHaveCount(0)
     await page.screenshot({ path: 'tmp/long-names-mobile-hidden.png' })
     const right = page.locator('.yaotong-table .seat-right')
     await right.locator('.avatar-button').click()

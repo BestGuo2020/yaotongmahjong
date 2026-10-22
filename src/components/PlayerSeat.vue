@@ -14,7 +14,6 @@ const props = withDefaults(defineProps<{
   scoreDelta?: number
   scoreFlowId?: number
   position: string
-  relativeLabel?: string
   /** 手机上昵称不占位；点头像查看完整昵称。 */
   nicknameOnTap?: boolean
   dealer?: boolean
@@ -47,7 +46,7 @@ const animeStyle = computed(() => props.themeName === 'llmAnime'
 </script>
 
 <template>
-  <section class="player-seat" :class="[`seat-${position}`, { active, 'action-active': actionActive, 'nickname-open': nicknameOpen }]" :style="animeStyle" :aria-label="relativeLabel ? `${relativeLabel} · ${player.name}` : undefined">
+  <section class="player-seat" :class="[`seat-${position}`, { active, 'action-active': actionActive, 'nickname-open': nicknameOpen }]" :style="animeStyle" :aria-label="player.name">
     <div class="avatar-wrap">
       <span v-if="dealer" class="dealer-badge">庄</span>
       <button v-if="nicknameOnTap" type="button" class="avatar-button"
@@ -57,7 +56,7 @@ const animeStyle = computed(() => props.themeName === 'llmAnime'
       </button>
       <img v-else class="avatar" :src="avatarSrc" :alt="`${player.name}头像`" @error="onAvatarError" />
       <div class="player-info">
-        <strong><small v-if="relativeLabel" class="relative-seat-label">{{ relativeLabel }}</small><span class="player-name">{{ player.name }}</span></strong>
+        <strong><span class="player-name">{{ player.name }}</span></strong>
         <span>{{ player.score }}</span>
       </div>
       <Transition name="nickname-reveal">
@@ -80,6 +79,3 @@ const animeStyle = computed(() => props.themeName === 'llmAnime'
     </div>
   </section>
 </template>
-<style scoped>
-.relative-seat-label { margin-inline-end: 4px; color: var(--theme-text-muted); font-size: 9px; font-weight: 500; }
-</style>

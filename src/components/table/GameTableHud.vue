@@ -625,7 +625,6 @@ function onAvatarError(entry: GamePlayer) {
     <PlayerSeat
       v-for="(player, index) in players.slice(1)" :key="player.seat" :player="player"
       :data-yaotong-seat="index + 1"
-      :relative-label="rulesetId === 'yaotong' ? ['下家', '对家', '上家'][index] : undefined"
       :nickname-on-tap="rulesetId === 'yaotong'"
       :position="seatPosition[index + 1]" :active="currentPlayer === index + 1"
       :action-active="tableActionEvent?.actorIndex === index + 1 || yaotongView?.declarationCues.some(cue => cue.actorIndex === index + 1)" :score-delta="scoreDeltaFor(index + 1)"
