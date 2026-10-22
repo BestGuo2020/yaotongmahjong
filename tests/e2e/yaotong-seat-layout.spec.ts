@@ -60,3 +60,35 @@ for (const screen of screens) {
     }
   })
 }
+
+// mini 横屏（以及桌面小窗/内嵌 WebView）可能上报 fine 指针，触控能力查询不会命中。
+// 尺寸兜底后仍须使用移动端紧凑信息卡与手牌宽度，不能掉回桌面几何。
+test.describe('未上报粗指针的 mini 横屏仍使用移动端布局', () => {
+  test.use({ isMobile: false, hasTouch: false, deviceScaleFactor: 3 })
+  test('880×405：四家信息卡不遮挡，手牌保持移动端宽度', async ({ page }) => {
+    await page.setViewportSize({ width: 880, height: 405 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=seat-layout&theme=jade')
+    await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
+    const seats = page.locator('.yaotong-table .player-seat .avatar-wrap, .yaotong-table .user-identity')
+    await expect(seats).toHaveCount(4)
+    const boxes = []
+    for (const seat of await seats.all()) {
+      await expect(seat).toBeInViewport({ ratio: 1 })
+      const box = (await seat.boundingBox())!
+      const isAcross = await seat.evaluate(e => Boolean(e.closest('.seat-top')))
+      expect(box.width, '信息卡宽度须有上限').toBeLessThanOrEqual(isAcross ? 320 : 129)
+      expect(box.height, '信息卡不能再纵向膨胀').toBeLessThanOrEqual(72)
+      const avatar = (await seat.locator('.avatar').boundingBox())!
+      expect(avatar.width, '头像须为移动端紧凑尺寸').toBeLessThanOrEqual(30)
+      boxes.push(box)
+    }
+    const overlap = (a: typeof boxes[number], b: typeof boxes[number]) =>
+      Math.min(a.x + a.width, b.x + b.width) > Math.max(a.x, b.x) &&
+      Math.min(a.y + a.height, b.y + b.height) > Math.max(a.y, b.y)
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++)
+      expect(overlap(boxes[i], boxes[j]), '四家的信息卡互不遮挡').toBe(false)
+    const tileWidth = await page.locator('.hand-rack .mahjong-tile').first().evaluate(e => e.getBoundingClientRect().width)
+    expect(tileWidth, '手牌须使用移动端宽度，不能回落到桌面 48px').toBeLessThanOrEqual(44)
+  })
+})
