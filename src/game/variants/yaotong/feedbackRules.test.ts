@@ -1,11 +1,35 @@
 import { describe, expect, it } from 'vitest'
 import { act } from './engine'
+import { huOpportunity } from './hands'
+import { legalHuPlans } from './settlement'
 import { evaluateHand } from './hands'
 import { settle } from './settlement'
 import { player, table, ready, meld } from './auditFixtures'
 import { YAO } from './tiles'
 
 describe('朋友实玩规则勘误', () => {
+  it.each(['rob', 'hot'] as const)('%s优先于过手；手持幺筒必须胡，胡牌可正常结算', kind => {
+    function scenario() {
+      const s = table()
+      s.players[0] = player('147m 258p 369s 2468s 5m', { drawn: 4, afterKong: kind === 'hot' })
+      if (kind === 'rob') s.players[0] = player('5m 147s 258p 369s 2p', { drawn: 4, melds: [meld(4, { from: 2 })] })
+      s.players[1] = player('234567m 234s 66p 1p 4m', { declaration: 'ready', passedHu: 200, passedShape: 180 })
+      act(s, 0, kind === 'rob' ? { type: 'kong', tile: 4 } : { type: 'discard', index: 13 })
+      return s
+    }
+    const s = scenario()
+    expect(s.pending?.options[1]).toMatchObject({ hu: true, restrictedHu: false, mandatory: true })
+    const winning = { ...s.players[1], hand: [...s.players[1].hand, 4] }
+    expect(huOpportunity(winning, { kind: 'discard', tile: 4 }).restricted).toBe(true)
+    expect(legalHuPlans(winning, { kind, tile: 4 }).length).toBeGreaterThan(0)
+    act(s, 1, { type: 'respond', action: 'hu' })
+    for (const seat of [2, 3]) if (s.phase === 'response' && s.pending?.options[seat]) act(s, seat, { type: 'respond', action: 'pass' })
+    expect(s.result).toMatchObject({ kind: 'win', winKind: kind, winners: [1] })
+    expect(s.result!.values[1].patterns.some(p => p.name === (kind === 'rob' ? '抢杠' : '热炮'))).toBe(true)
+    const missed = scenario()
+    act(missed, 1, { type: 'respond', action: 'pass' })
+    expect(missed.result).toMatchObject({ kind: 'penalty', offender: 1, reason: '手中有幺筒却未抢杠／接热炮' })
+  })
   it('首次摸牌前已经碰过，或已经出过牌，都不能报听', () => {
     for (const extra of [{ melds: [meld(4)] }, { discards: 1 }]) {
       const s = table()

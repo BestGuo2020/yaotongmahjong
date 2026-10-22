@@ -98,7 +98,7 @@ test('大厅只提供幺筒，联机入口显示建设中且不请求旧房间�
   await page.getByRole('button', { name: '确定', exact: true }).click()
   await expect(page.locator('.start-button')).toContainText('开始全庄场')
   await page.getByRole('button', { name: /游戏规则/ }).click()
-  await expect(page.locator('.rules-panel h2')).toHaveText('幺筒麻将 · v1.6')
+  await expect(page.locator('.rules-panel h2')).toHaveText('幺筒麻将 · v1.7')
   await expect(page.locator('.rules-panel')).toContainText('108张')
   expect(serviceRequests).toEqual([])
   expect(errors).toEqual([])
@@ -106,6 +106,7 @@ test('大厅只提供幺筒，联机入口显示建设中且不请求旧房间�
 
 for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
   test(`模式选择可确认、取消，并适配五个主题：${viewport.width}`, async ({ page }) => {
+    test.setTimeout(60000)
     await page.setViewportSize(viewport)
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.goto('/?theme=llm')

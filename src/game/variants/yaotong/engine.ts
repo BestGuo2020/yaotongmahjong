@@ -2,6 +2,7 @@ import { discardWaits, huOpportunity, waits, isUntouchedFirstDraw } from './hand
 import { settle, legalHuPlans, huPlanKey, type Ending } from './settlement'
 import { breakWall, countsOf, isChicken, isFixed, shuffledWall, sortHand, tileName, YAO } from './tiles'
 import type { ActionOptions, Command, GameEvent, GameState, Player, Seat, Tile } from './types'
+import { huWindow, retainHuWindow, takeHuWindow } from './huWindow'
 
 type EventObserver = (state: GameState, event: GameEvent) => void
 const eventObservers = new WeakMap<GameState, EventObserver>()
@@ -224,6 +225,26 @@ function passSelf(state: GameState, seat: Seat): boolean {
   return true
 }
 
+function closeHuWindow(state: GameState) {
+  const entry = takeHuWindow(state)
+  if (!entry) return true
+  const pending = entry.snapshot.pending!
+  if (state.pending?.deferredHu === entry.seat) delete state.pending.deferredHu
+  const options = pending.options[entry.seat]
+  if (options.mandatory) {
+    penalty(state, entry.seat, state.players[pending.from].declaration !== 'none'
+      ? '可杀报却放弃胡牌' : '手中有幺筒却未抢杠／接热炮')
+    return false
+  }
+  const p = state.players[entry.seat]
+  // A real draw has already cleared the previous turn's restriction.
+  if (!options.restrictedHu && p.draws === entry.snapshot.players[entry.seat].draws) {
+    p.passedHu = Math.max(p.passedHu ?? 0, options.h)
+    p.passedShape = Math.max(p.passedShape ?? 0, options.shapePoints ?? 0)
+  }
+  return true
+}
+
 function offerResponses(state: GameState, flow?: EngineFlow) {
   const pending = state.pending!
   for (let offset = 1; offset < 4; offset++) {
@@ -291,6 +312,7 @@ function resolveResponses(state: GameState, flow?: EngineFlow) {
     else end()
     return
   }
+  if (pending.deferredHu !== undefined) retainHuWindow(state, pending.deferredHu)
   if (pending.kind === 'rob') {
     const p = state.players[pending.from]
     removeTiles(p, pending.tile, 1)
@@ -350,6 +372,21 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
   if (!Number.isInteger(seat) || seat < 0 || seat > 3 || state.phase === 'settled') return false
   const p = state.players[seat]
   if (command.type === 'declareHu' || command.type === 'passHu') {
+    const previous = huWindow(state, seat)
+    if (previous) {
+      if (command.type === 'passHu') { closeHuWindow(state); return true }
+      const old = previous.pending!
+      if (command.plan && !legalHuPlans({ ...previous.players[seat], hand: [...previous.players[seat].hand, old.tile] }, {
+        kind: old.kind, tile: old.tile, isDealer: seat === previous.dealer,
+        killsReport: previous.players[old.from].declaration !== 'none',
+      }).some(value => huPlanKey(value) === command.plan)) return false
+      // Hu outranks a provisional draw/peng. Restore the exact pre-claim hands and
+      // wall, while preserving the spent wait budget and the event sequence.
+      takeHuWindow(state)
+      const { events, serial, waitRemainingMs } = state
+      Object.assign(state, previous, { events, serial, waitRemainingMs })
+      return act(state, seat, { type: 'respond', action: 'hu', plan: command.plan }, flow)
+    }
     if (state.phase === 'discard' && state.current === seat) {
       if (command.type === 'passHu') { passSelf(state, seat); return true }
       if (selfOptions(state, seat).hu) return act(state, seat, { type: 'hu', plan: command.plan }, flow)
@@ -397,7 +434,8 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
       penalty(state, seat, '违反过手胡限制')
       return true
     }
-    if (command.action !== 'hu' && options.mandatory) {
+    const defer = command.action === 'pass' && command.deferHu && pending.kind !== 'rob' && options.hu
+    if (command.action !== 'hu' && options.mandatory && !defer) {
       penalty(
         state,
         seat,
@@ -411,11 +449,12 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
       penalty(state, seat, '同巡打鸡后碰鸡')
       return true
     }
-    if (command.action !== 'hu' && options.hu && !options.restrictedHu) {
+    if (command.action !== 'hu' && options.hu && !options.restrictedHu && !defer) {
       p.passedHu = Math.max(p.passedHu ?? 0, options.h)
       p.passedShape = Math.max(p.passedShape ?? 0, options.shapePoints ?? 0)
     }
     pending.choices[seat] = command.action
+    if (defer) { pending.deferredHu = seat; retainHuWindow(state, seat) }
     if (command.action === 'hu' && command.plan) (pending.huPlans ??= {})[seat] = command.plan
     if (Object.keys(pending.options).every((i) => pending.choices[Number(i)])) {
       const choices = Object.values(pending.choices)
@@ -446,6 +485,7 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
     if (!passSelf(state, seat)) return true
     const meld = p.melds.find((m) => m.kind === 'peng' && m.tile === command.tile)
     if (meld) {
+      if (!closeHuWindow(state)) return true
       state.pending = { kind: 'rob', tile: command.tile, from: seat, discard: null, options: {}, choices: {} }
       if (flow) event(state, seat, 'kong-intent', '宣告补杠', command.tile)
       advance(state, flow, 'before-rob', () => offerResponses(state, flow))
@@ -479,7 +519,7 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
       !discardWaits(p).some((o) => o.index === command.index))
   )
     return false
-  if (!passSelf(state, seat)) return true
+  if (!closeHuWindow(state) || !passSelf(state, seat)) return true
   const tile = p.hand[command.index]
   const illegalChickenDiscard = p.chickenPeng.includes(tile)
   const pre = state.players.some((player) => player.discards === 0)

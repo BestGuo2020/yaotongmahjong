@@ -88,6 +88,8 @@ export interface Pending {
   options: Record<Seat, ActionOptions>
   choices: Record<Seat, ResponseAction>
   huPlans?: Record<Seat, string>
+  /** Expert seats that let play advance without explicitly declining this discard. */
+  deferredHu?: Seat
 }
 export type Account =
   | '胡牌分'
@@ -161,7 +163,7 @@ export interface GameState {
 export type Command =
   | { type: 'original'; declare: boolean }
   | { type: 'discard'; index: number; declare?: boolean }
-  | { type: 'respond'; action: ResponseAction; plan?: string }
+  | { type: 'respond'; action: ResponseAction; plan?: string; deferHu?: boolean }
   | { type: 'hu'; plan?: string }
   | { type: 'declareHu'; plan?: string }
   | { type: 'passHu' }

@@ -276,9 +276,13 @@ export const passAllows = (player: Player, h: number, value?: HandValue) =>
     h > player.passedHu &&
     (player.passedShape == null || Boolean(value && shapePoints(value) > player.passedShape)))
 
+/** Robbing an added kong and a hot discard override the ordinary passed-Hu restriction. */
+export const contextAllows = (player: Player, context: WinContext, value: HandValue) =>
+  context.kind === 'rob' || context.kind === 'hot' || passAllows(player, value.h, value)
+
 export function huOpportunity(player: Player, context: WinContext) {
   const values = evaluateHand(player, context)
-  const legal = values.filter((value) => passAllows(player, value.h, value))
+  const legal = values.filter((value) => contextAllows(player, context, value))
   return {
     hu: values.length > 0,
     restricted: values.length > 0 && legal.length === 0,

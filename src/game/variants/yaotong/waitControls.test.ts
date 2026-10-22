@@ -115,7 +115,7 @@ describe('老手常驻等与每人每小局累计15秒', () => {
     expect(s.result?.winners).toEqual([0])
     expect(s.waitRemainingMs[0]).toBe(13000)
   })
-  it('没按等的老手响应在观察间隔后自动过，不自动代胡', async () => {
+  it('没按等时继续走牌，下一张出牌前保留胡口，不提前记过手', async () => {
     const { port, s } = setup()
     s.current = 1; s.players[1].hand.push(26)
     s.players[0] = { ...ready(), declaration: 'ready' }
@@ -123,8 +123,80 @@ describe('老手常驻等与每人每小局累计15秒', () => {
     await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS - 1)
     expect(s.players[0].passedHu).toBeNull()
     await vi.advanceTimersByTimeAsync(1)
-    expect(s.players[0].passedHu).toBeGreaterThan(0)
+    expect(s.players[0].passedHu).toBeNull()
     expect(s.result).toBeNull()
+    await vi.advanceTimersByTimeAsync(999)
+    port.local.startHold()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(s.players[2].hand).toHaveLength(14)
+    port.userHu()
+    expect(s.result).toMatchObject({ kind: 'win', source: 1, tile: 26, winners: [0] })
+    expect(s.players[2].hand).toHaveLength(13)
+    expect(s.result?.indicator).toBe(17)
+    expect(s.wall).toEqual([20, 23])
+    expect(s.players[1].river).toHaveLength(0)
+  })
+  it('下一张真正打出后才记过手，不能再回胡旧弃牌', async () => {
+    const { port, s } = setup()
+    s.current = 1; s.players[1].hand.push(26)
+    s.players[0] = { ...ready(), declaration: 'ready' }
+    port.local.dispatch({ type: 'discard', index: 13 }, 1)
+    await vi.advanceTimersByTimeAsync(1500)
+    port.local.dispatch({ type: 'discard', index: 13 }, 2)
+    expect(s.players[2].river).toHaveLength(1)
+    expect(s.players[0].passedHu).toBeGreaterThan(0)
+    port.userHu()
+    expect(s.result?.reason).toContain('炸胡')
+  })
+  it('必须胡的弃牌也保留到下一次出牌，逾期才判未杀报包牌', async () => {
+    const { port, s } = setup()
+    s.current = 1; s.players[1].hand.push(26); s.players[1].drawn = 26
+    s.players[1].declaration = 'ready'
+    s.players[0] = { ...ready(), declaration: 'ready' }
+    port.local.dispatch({ type: 'discard', index: 13 }, 1)
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(s.result).toBeNull()
+    port.local.dispatch({ type: 'discard', index: 13 }, 2)
+    expect(s.result).toMatchObject({ kind: 'penalty', offender: 0, reason: '可杀报却放弃胡牌' })
+  })
+  it('等额度用完仍可在下一次出牌前直接胡上一张', async () => {
+    const { port, s } = setup()
+    s.waitRemainingMs[0] = 0
+    s.current = 1; s.players[1].hand.push(26)
+    s.players[0] = { ...ready(), declaration: 'ready' }
+    port.local.dispatch({ type: 'discard', index: 13 }, 1)
+    await vi.advanceTimersByTimeAsync(1500)
+    const before = JSON.stringify(s)
+    expect(port.local.dispatch({ type: 'declareHu', plan: 'invalid' })).toBe(false)
+    expect(JSON.stringify(s)).toBe(before)
+    port.userHu()
+    expect(s.result).toMatchObject({ kind: 'win', source: 1, tile: 26, winners: [0] })
+  })
+  it('下一家碰走后尚未出牌，仍可按等并胡原出牌者，恢复原碰牌前牌张', async () => {
+    const { port, s } = setup()
+    s.current = 1; s.players[1].hand.push(26)
+    s.players[0] = { ...ready(), declaration: 'ready' }
+    s.players[2] = player('99s 147m 258p 369s 24s')
+    port.local.dispatch({ type: 'discard', index: 13 }, 1)
+    port.local.dispatch({ type: 'respond', action: 'peng' }, 2)
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(s.players[2].melds).toHaveLength(1)
+    port.local.startHold()
+    port.userHu()
+    expect(s.result).toMatchObject({ kind: 'win', source: 1, winners: [0] })
+    expect(s.players[2].melds).toHaveLength(0)
+    expect(s.players[2].hand).toHaveLength(13)
+  })
+  it('延长胡口内主动点过立即记过手，之后再次宣胡不能吃回旧牌', async () => {
+    const { port, s } = setup()
+    s.current = 1; s.players[1].hand.push(26)
+    s.players[0] = { ...ready(), declaration: 'ready' }
+    port.local.dispatch({ type: 'discard', index: 13 }, 1)
+    await vi.advanceTimersByTimeAsync(1200)
+    port.local.startHold(); port.local.passHold()
+    expect(s.players[0].passedHu).toBeGreaterThan(0)
+    port.userHu()
+    expect(s.result?.kind).toBe('penalty')
   })
   it('随时可宣胡，不能成胡时按炸胡包牌；新手不开放该入口', async () => {
     const { port, s } = setup()

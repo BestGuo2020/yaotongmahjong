@@ -31,6 +31,10 @@ createApp({ setup() {
         state.wall = [17]
       }
       if (name === 'hard-wait-zero') state.waitRemainingMs[0] = 0
+      if (name === 'hard-wait-late') {
+        state.players[0] = { ...ready(), declaration: 'ready' }
+        state.current = 1; state.players[1].hand.push(26)
+      }
     } else if (name === 'river' || name === 'river-claimed') {
       state.players[0].river = [
         { tile: 0, chicken: 4, stage: 'normal', id: 1, firstChicken: true },
@@ -69,12 +73,15 @@ createApp({ setup() {
     // Freeze deterministic states while exercising the real port, HUD and controls.
     game.local.paused.value = !name.startsWith('hu') && !hardWait
     game.local.state.value = state
+    if (name === 'hard-wait-late') game.local.dispatch({ type: 'discard', index: 13 }, 1)
   }
   ;(window as unknown as { setGuidanceScenario: typeof scenario }).setGuidanceScenario = scenario
   ;(window as unknown as { adoptedHu: () => unknown }).adoptedHu = () => game.local.state.value?.result?.values[0]
   ;(window as unknown as { waitState: () => unknown }).waitState = () => ({
     serial: game.local.state.value?.serial, remaining: game.local.state.value?.waitRemainingMs,
     phase: game.local.state.value?.phase, reason: game.local.state.value?.result?.reason,
+    source: game.local.state.value?.result?.source, winners: game.local.state.value?.result?.winners,
+    tile: game.local.state.value?.result?.tile,
   })
   scenario(query.get('scenario') ?? 'chicken')
   return () => h('main', { class: 'game-app', 'data-table-theme': theme,

@@ -1,4 +1,5 @@
-import { evaluateHand, passAllows, waits } from './hands'
+import { evaluateHand, contextAllows, waits } from './hands'
+import { huWindow } from './huWindow'
 import { countsOf, isFixed, nextTile, tileName, TILES, YAO } from './tiles'
 import type {
   Account,
@@ -145,13 +146,14 @@ export const huPlanKey = (value: HandValue) => JSON.stringify([
   value.patterns.map(p => p.name), value.naturalYaos, value.winningYaoNatural,
 ])
 export function legalHuPlans(player: Player, context: WinContext) {
-  return evaluateHand(player, context).filter(v => passAllows(player, v.h, v))
+  return evaluateHand(player, context).filter(v => contextAllows(player, context, v))
 }
 const byPreFlipGain = (player: Player, payers: number, responsibility = 0) => (a: HandValue, b: HandValue) =>
   huGain(player, b, payers, null, responsibility) - huGain(player, a, payers, null, responsibility) || b.h - a.h
 
 /** Offer only meaningful joker-hand tradeoffs, using hypothetical indicators, never the hidden wall. */
 export function offeredHuPlans(state: GameState, seat: Seat) {
+  state = huWindow(state, seat) ?? state
   const self = state.phase === 'discard' && state.current === seat
   const pending = state.phase === 'response' || state.phase === 'transition' ? state.pending : null
   if ((!self && (!pending || pending.from === seat || pending.choices[seat])) || !state.wall.length) return []

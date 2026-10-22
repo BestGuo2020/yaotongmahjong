@@ -247,7 +247,7 @@ export function useYaotongGame() {
     timer = setTimeout(
       () => {
         const command: Command | null = nextSeat === 0 && !autoplay.value && game.phase === 'response'
-          ? { type: 'respond', action: 'pass' } : chooseAction(game, nextSeat)
+          ? { type: 'respond', action: 'pass', deferHu: true } : chooseAction(game, nextSeat)
         if (command && state.value === game) dispatch(command, nextSeat)
       },
       game.phase === 'response'

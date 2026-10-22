@@ -89,10 +89,10 @@ describe('v1.0 clause audit — physical flow and eligibility', () => {
 
 describe('v1.0 clause audit — pass and mandatory decisions', () => {
   it.each<WinKind>(['hot', 'rob'])(
-    '§10.1 same 清一色 becomes H55 only from %s; this is not a larger shape',
+    '§10.1 %s overrides passed-Hu even without a larger shape',
     (kind) => {
       const p = player('234567789m 22m 345m', { passedHu: 35, passedShape: 30 })
-      expect(huOpportunity(p, { kind, tile: 4 })).toMatchObject({ hu: true, restricted: true, h: 55 })
+      expect(huOpportunity(p, { kind, tile: 4 })).toMatchObject({ hu: true, restricted: false, h: 55 })
       expect(evaluateHand(p, { kind, tile: 4 }).every((v) => !passAllows(p, v.h, v))).toBe(true)
     },
   )
@@ -104,14 +104,14 @@ describe('v1.0 clause audit — pass and mandatory decisions', () => {
     expect(passAllows(p, v.h, v)).toBe(true)
     expect(passAllows({ ...p, passedHu: 45 }, v.h, v)).toBe(false)
   })
-  it('§10.2 blocked hot opportunity keeps 胡 button and no mandatory punishment for passing', () => {
+  it('§10.2 hot overrides passed-Hu, so a legal report kill still requires Hu', () => {
     const s = table()
     s.players[0] = player('147m 258p 369s 2468s 5m', { afterKong: true, declaration: 'ready', drawn: 4 })
     s.players[1] = player('234567789m 22m 34m', { passedHu: 35, passedShape: 30 })
     act(s, 0, { type: 'discard', index: 13 })
-    expect(s.pending?.options[1]).toMatchObject({ hu: true, restrictedHu: true, mandatory: false })
+    expect(s.pending?.options[1]).toMatchObject({ hu: true, restrictedHu: false, mandatory: true })
     expect(act(s, 1, { type: 'respond', action: 'pass' })).toBe(true)
-    expect(s.result?.kind).not.toBe('penalty')
+    expect(s.result).toMatchObject({ kind: 'penalty', offender: 1, reason: '可杀报却放弃胡牌' })
   })
   it('§10.1 passing stores the actual structural maximum, a peng does not reset it', () => {
     const s = table()
