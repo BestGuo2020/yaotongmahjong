@@ -18,8 +18,20 @@ createApp({ setup() {
   function scenario(name: string) {
     const state = table()
     game.declarationArmed.value = false
-    game.local.mode.value = name === 'hard' ? 'hard' : 'easy'
-    if (name === 'river' || name === 'river-claimed') {
+    const hardWait = name.startsWith('hard-wait')
+    game.local.mode.value = name === 'hard' || hardWait ? 'hard' : 'easy'
+    if (hardWait) {
+      state.players[0].hand.push(4); state.players[0].drawn = 4
+      if (name === 'hard-wait-flow') {
+        state.players[0].hand.pop(); state.players[0].drawn = null
+        state.current = 1; state.players[1].hand.push(4); state.players[1].drawn = 4
+      }
+      if (name === 'hard-wait-legal') {
+        state.players[0] = player('2222m 33p 44s 55s 66p 11p', { declaration: 'ready', drawn: 9 })
+        state.wall = [17]
+      }
+      if (name === 'hard-wait-zero') state.waitRemainingMs[0] = 0
+    } else if (name === 'river' || name === 'river-claimed') {
       state.players[0].river = [
         { tile: 0, chicken: 4, stage: 'normal', id: 1, firstChicken: true },
         { tile: 0, chicken: 4, stage: 'normal', id: 2, firstChicken: false },
@@ -55,11 +67,15 @@ createApp({ setup() {
       state.players[0] = player('147m 258p 369s 2468s 1p', { chickenPeng: name !== 'clear' ? [9] : [] })
     }
     // Freeze deterministic states while exercising the real port, HUD and controls.
-    game.local.paused.value = !name.startsWith('hu')
+    game.local.paused.value = !name.startsWith('hu') && !hardWait
     game.local.state.value = state
   }
   ;(window as unknown as { setGuidanceScenario: typeof scenario }).setGuidanceScenario = scenario
   ;(window as unknown as { adoptedHu: () => unknown }).adoptedHu = () => game.local.state.value?.result?.values[0]
+  ;(window as unknown as { waitState: () => unknown }).waitState = () => ({
+    serial: game.local.state.value?.serial, remaining: game.local.state.value?.waitRemainingMs,
+    phase: game.local.state.value?.phase, reason: game.local.state.value?.result?.reason,
+  })
   scenario(query.get('scenario') ?? 'chicken')
   return () => h('main', { class: 'game-app', 'data-table-theme': theme,
     style: themePresentationCssVariables(themePresentationByName(theme)) }, [
@@ -69,7 +85,7 @@ createApp({ setup() {
       currentPlayer: game.currentPlayer.value, selectedIndex: -1, turnSeconds: 0,
       lastDiscard: null, actionPrompt: game.actionPrompt.value, announcement: null, tableActionEvent: null,
       scoreFlowEvent: null, result: null, winEffect: null, winPresentation: null, revealHands: false,
-      matchFinished: false, winningPlayerIndex: -1, dealer: 0, isUserTurn: game.local.ownTurn.value,
+      matchFinished: false, winningPlayerIndex: -1, dealer: 0, isUserTurn: game.local.ownTurn.value && !game.local.holding.value,
       userCanHu: Boolean(game.local.self.value?.hu && !game.local.protection.value.hu),
       matchName: '东风场', roundLabel: '东1局', dealAnimation: game.dealAnimation.value,
       openingStage: null, diceValues: [2, 3], diceThrowerIndex: 0,
@@ -82,6 +98,7 @@ createApp({ setup() {
       autoPlayEnabled: true, autoPlay: false,
     }, { actions: () => h(YaotongControls, { game }) })]),
     game.result.value ? h(SettlementOverlay, {
+      resultTitle: game.resultTitle.value,
       result: game.result.value, resultVisible: true, matchFinished: false, dealer: game.dealer.value,
       waitingNextRound: false, gameMode: 'local', continueCountdown: 0, matchName: '东风场',
       standings: game.standings.value, playerId: '', themeName: theme,

@@ -125,6 +125,7 @@ export interface Settlement {
   finished: boolean
 }
 export interface GameEvent {
+  afterKong?: boolean
   id: number
   seat: Seat
   text: string
@@ -149,6 +150,7 @@ export interface GameState {
   firstFixedPeng: boolean
   firstYaoDiscard: boolean
   seenChickenDiscards: Tile[]
+  waitRemainingMs: number[]
   events: GameEvent[]
   serial: number
   matchLength: 4 | 8 | 16
@@ -161,4 +163,6 @@ export type Command =
   | { type: 'discard'; index: number; declare?: boolean }
   | { type: 'respond'; action: ResponseAction; plan?: string }
   | { type: 'hu'; plan?: string }
+  | { type: 'declareHu'; plan?: string }
+  | { type: 'passHu' }
   | { type: 'kong'; tile: Tile }

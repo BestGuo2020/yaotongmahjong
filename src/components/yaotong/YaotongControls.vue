@@ -22,12 +22,20 @@ watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
 </script>
 <template>
   <template v-if="!game.local.autoplay.value">
-    <button v-for="plan in game.winPlans.value" :key="plan.key" class="action hu hu-plan" data-action-role="major"
+    <button v-if="game.local.hardControls.value && !game.local.holding.value && game.local.waitRemainingMs.value > 0"
+      class="action wait-action" data-action-role="primary" aria-label="等，暂停牌局并使用本局等待时间" @click="game.local.startHold()">
+      <b>等</b><span>{{ Math.ceil(game.local.waitRemainingMs.value / 1000) }}秒</span>
+    </button>
+    <button v-if="game.local.hardControls.value && (game.local.holding.value || game.local.waitRemainingMs.value <= 0) && !game.winPlans.value.length"
+      class="action hu" data-action-role="major" @click="game.userHu()"><b>胡</b></button>
+    <button v-for="plan in (game.local.hardControls.value && !game.local.holding.value && game.local.waitRemainingMs.value > 0 ? [] : game.winPlans.value)" :key="plan.key" class="action hu hu-plan" data-action-role="major"
       @click="game.confirmHuPlan(plan.key)">
       <b>胡{{ plan.label }}</b>
       <span>本牌 {{ plan.value.naturalYaos }} · 赖子 {{ plan.value.wildcards }}</span>
     </button>
-    <template v-if="game.original.value && game.local.waiting.value.length">
+    <button v-if="game.local.holding.value" class="action pass" data-action-role="secondary" @click="game.local.passHold()"><b>过</b></button>
+    <span v-if="game.local.holding.value" class="wait-budget" role="timer" aria-label="本小局剩余等待时间">{{ Math.ceil(game.local.waitRemainingMs.value / 1000) }}秒</span>
+    <template v-if="!game.local.holding.value && game.original.value && game.local.waiting.value.length">
       <button
         class="action hu"
         data-action-role="major"
@@ -44,7 +52,7 @@ watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
       </button>
     </template>
     <button
-      v-if="game.canArmDeclaration.value"
+      v-if="!game.local.holding.value && game.canArmDeclaration.value"
       class="action primary"
       :class="{ active: game.declarationArmed.value }"
       data-action-role="primary"
@@ -83,6 +91,9 @@ watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
   >
 </template>
 <style scoped>
+.wait-action { min-width: 54px; height: 52px; border: 2px solid var(--theme-accent-text); }
+.wait-action b { font-size: 23px; }
+.wait-budget { color: var(--theme-accent-text); font-size: 13px; font-variant-numeric: tabular-nums; }
 .hu-plan { min-width: 110px; min-height: 48px; height: auto; padding: 6px 10px; border-radius: 10px; }
 .hu-plan b { font-size: 15px; }
 .hu-plan span { font-size: 11px; }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useYaotongPort } from './useYaotongPort'
 import { meld, player, table } from './auditFixtures'
 import { kongWeatherKind } from './kongPresentation'
+import { YAOTONG_REACTION_MS, YAOTONG_EXTENDED_REACTION_MS } from './useYaotongGame'
 import { PACE_MS } from '../../core/local/localGameConfig'
 import type { GameEvent } from './types'
 
@@ -28,11 +29,12 @@ describe('幺筒开杠天气特效', () => {
       if (kind === '明杠') {
         port.local.dispatch({ type: 'discard', index: 13 }, 1)
         port.local.dispatch({ type: 'respond', action: 'kong' }, 0)
+        await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS)
       } else port.userGang('m5')
       if (kind === '补杠') {
         expect(port.tableView.value.kongWeather).toEqual([])
         expect(sound.mock.calls.some(([name]) => name === 'mingang_windy.wav')).toBe(false)
-        await vi.advanceTimersByTimeAsync(PACE_MS.beforeRobKong)
+        await vi.advanceTimersByTimeAsync(YAOTONG_EXTENDED_REACTION_MS)
       }
       expect(port.tableView.value.kongWeather).toEqual([expect.objectContaining({ seat: 0, kind: expected })])
       const cue = port.tableView.value.kongWeather![0]
@@ -59,7 +61,7 @@ describe('幺筒开杠天气特效', () => {
       state.players[1] = player('234567m 234s 66p 34m')
       port.local.state.value = state
       port.userGang('m5')
-      await vi.advanceTimersByTimeAsync(PACE_MS.beforeRobKong)
+      await vi.advanceTimersByTimeAsync(YAOTONG_EXTENDED_REACTION_MS)
       expect(state.pending?.kind).toBe('rob')
       port.local.dispatch({ type: 'respond', action: 'hu' }, 1)
       await vi.advanceTimersByTimeAsync(PACE_MS.betweenRobKongs)

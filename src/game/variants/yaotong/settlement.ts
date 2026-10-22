@@ -153,8 +153,8 @@ const byPreFlipGain = (player: Player, payers: number, responsibility = 0) => (a
 /** Offer only meaningful joker-hand tradeoffs, using hypothetical indicators, never the hidden wall. */
 export function offeredHuPlans(state: GameState, seat: Seat) {
   const self = state.phase === 'discard' && state.current === seat
-  const pending = state.phase === 'response' ? state.pending : null
-  if ((!self && (!pending?.options[seat]?.hu || pending.choices[seat])) || !state.wall.length) return []
+  const pending = state.phase === 'response' || state.phase === 'transition' ? state.pending : null
+  if ((!self && (!pending || pending.from === seat || pending.choices[seat])) || !state.wall.length) return []
   const tile = self ? state.players[seat].drawn : pending!.tile
   if (tile == null) return []
   const player = self ? state.players[seat] : { ...state.players[seat], hand: [...state.players[seat].hand, tile] }

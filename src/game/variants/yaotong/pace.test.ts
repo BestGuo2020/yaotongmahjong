@@ -17,7 +17,7 @@ import {
 } from '../../core/presentation/winEffect'
 import { createGame, makePlayer } from './engine'
 import { chooseAction } from './ai'
-import { YAOTONG_AI_DISCARD_MS } from './useYaotongGame'
+import { YAOTONG_AI_DISCARD_MS, YAOTONG_REACTION_MS, YAOTONG_EXTENDED_REACTION_MS } from './useYaotongGame'
 import { countsOf } from './tiles'
 import { ownedTiles } from './settlement'
 import { fromSharedTile, useYaotongPort } from './useYaotongPort'
@@ -63,7 +63,7 @@ afterEach(() => {
 })
 
 describe('原版节奏与幺筒实时对局的边界', () => {
-  it('无人响应：落牌450ms后摸牌，AI再思考1000ms，不同一帧摸打', async () => {
+  it('无人响应：落牌1000ms后摸牌，AI再思考1000ms，不同一帧摸打', async () => {
     const port = setup(),
       state = fixture()
     state.players[0].hand.push(4)
@@ -75,7 +75,7 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     const serial = state.serial
     port.userDiscard(0)
     expect(state.serial).toBe(serial)
-    await vi.advanceTimersByTimeAsync(PACE_MS.afterDiscardToNextTurn - 1)
+    await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS - 1)
     expect(state.players[1].hand).toHaveLength(13)
     await vi.advanceTimersByTimeAsync(1)
     expect(state.players[1].hand).toHaveLength(14)
@@ -86,14 +86,14 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     expect(state.players[1].river).toHaveLength(1)
   })
 
-  it('碰牌响应500ms，AI碰后1000ms再出牌', async () => {
+  it('碰牌留牌1000ms，AI碰后1000ms再出牌', async () => {
     const port = setup(),
       state = fixture()
     state.players[0].hand.push(4)
     state.players[1].hand = tiles('55m 147m 258p 369s 24s')
     port.local.state.value = state
     port.userDiscard(13)
-    await vi.advanceTimersByTimeAsync(AI_DELAYS.claim - 1)
+    await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS - 1)
     expect(state.players[1].melds).toHaveLength(0)
     await vi.advanceTimersByTimeAsync(1)
     expect(state.players[1].melds[0]?.kind).toBe('peng')
@@ -113,6 +113,7 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     human.local.dispatch({ type: 'discard', index: 13 }, 1)
     human.userPeng()
     expect(human.isUserTurn.value).toBe(false)
+    await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS)
     await vi.advanceTimersByTimeAsync(PACE_MS.skipDrawPengDelay)
     expect(human.isUserTurn.value).toBe(true)
 
@@ -122,7 +123,7 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     state.players[1].hand = tiles('555m 147m 258p 369s 2s')
     port.local.state.value = state
     port.userDiscard(13)
-    await vi.advanceTimersByTimeAsync(AI_DELAYS.claim)
+    await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS)
     expect(state.players[1].melds[0]?.kind).toBe('open')
     const wallCount = state.wall.length
     await vi.advanceTimersByTimeAsync(PACE_MS.afterClaimGang - 1)
@@ -136,7 +137,7 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     expect(state.players[1].river).toHaveLength(1)
   })
 
-  it('补杠先宣告，650ms处理抢杠，再等600ms补牌；不重复播杠声', async () => {
+  it('补杠先宣告，2000ms处理抢杠，再等600ms补牌；不重复播杠声', async () => {
     const sound = vi.fn(),
       port = setup({ playSound: sound }),
       state = fixture()
@@ -149,7 +150,7 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     expect(state.players[0].melds[0].kind).toBe('peng')
     expect(port.players[0].melds[0]).toMatchObject({ type: 'gang', pending: true })
     const n = state.wall.length
-    await vi.advanceTimersByTimeAsync(PACE_MS.beforeRobKong - 1)
+    await vi.advanceTimersByTimeAsync(YAOTONG_EXTENDED_REACTION_MS - 1)
     expect(state.players[0].melds[0].kind).toBe('peng')
     await vi.advanceTimersByTimeAsync(1)
     expect(state.players[0].melds[0].kind).toBe('added')

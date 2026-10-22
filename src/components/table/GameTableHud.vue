@@ -728,31 +728,31 @@ function onAvatarError(entry: GamePlayer) {
           <img v-else class="action-icon" :src="`${imageBase}tips.png`" alt="" />
         </button>
         <template v-if="actionPrompt?.type === 'claim'">
-          <button v-if="actionPrompt.canHu && !yaotongView?.confirmHuPlan" class="action hu" data-action-role="major" @click="$emit('hu')"><b>胡</b></button>
+          <button v-if="actionPrompt.canHu && !yaotongView?.confirmHuPlan && !yaotongView?.manualHuControls" class="action hu" data-action-role="major" @click="$emit('hu')"><b>胡</b></button>
           <button v-if="!bloodFlow?.seats[user.seat].locked && actionPrompt.canPeng" class="action primary" data-action-role="primary" @click="$emit('peng')"><b>碰</b></button>
           <button v-if="actionPrompt.canGang" class="action primary" data-action-role="primary" @click="$emit('gangFromDiscard')"><b>杠</b></button>
           <button v-if="!bloodFlow?.seats[user.seat].locked && actionPrompt.chiOptions?.length" class="action primary" data-action-role="primary" @click="toggleChiPicker"><b>吃</b></button>
-          <button v-if="canPass !== false && (!bloodFlow || !bloodFlow.seats[user.seat].locked || (actionPrompt.canGang && !actionPrompt.canHu))" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
+          <button v-if="!yaotongView?.holding && canPass !== false && (!bloodFlow || !bloodFlow.seats[user.seat].locked || (actionPrompt.canGang && !actionPrompt.canHu))" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
         </template>
         <template v-else-if="actionPrompt?.type === 'response'">
           <button v-if="!bloodFlow?.seats[user.seat].locked && actionPrompt.canPeng" class="action primary" data-action-role="primary" @click="$emit('peng')"><b>碰</b></button>
           <button v-if="actionPrompt.canGang" class="action primary" data-action-role="primary" @click="$emit('gangFromDiscard')"><b>杠</b></button>
           <button v-if="!bloodFlow?.seats[user.seat].locked && actionPrompt.chiOptions?.length" class="action primary" data-action-role="primary" @click="toggleChiPicker"><b>吃</b></button>
-          <button v-if="actionPrompt.canHu && !yaotongView?.confirmHuPlan" class="action hu" data-action-role="major" @click="$emit('hu')"><b>胡</b></button>
-          <button v-if="!bloodFlow || !bloodFlow.seats[user.seat].locked || (actionPrompt.canGang && !actionPrompt.canHu)" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
+          <button v-if="actionPrompt.canHu && !yaotongView?.confirmHuPlan && !yaotongView?.manualHuControls" class="action hu" data-action-role="major" @click="$emit('hu')"><b>胡</b></button>
+          <button v-if="!yaotongView?.holding && (!bloodFlow || !bloodFlow.seats[user.seat].locked || (actionPrompt.canGang && !actionPrompt.canHu))" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
         </template>
         <template v-else-if="actionPrompt?.type === 'rob' || actionPrompt?.type === 'hu'">
-          <button v-if="!yaotongView?.confirmHuPlan" class="action hu" data-action-role="major" @click="$emit('hu')"><b>胡</b></button>
-          <button v-if="!bloodFlow || !bloodFlow.seats[user.seat].locked" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
+          <button v-if="!yaotongView?.confirmHuPlan && !yaotongView?.manualHuControls" class="action hu" data-action-role="major" @click="$emit('hu')"><b>胡</b></button>
+          <button v-if="!yaotongView?.holding && (!bloodFlow || !bloodFlow.seats[user.seat].locked)" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
         </template>
         <template v-else-if="actionPrompt?.type === 'chi'">
           <button class="action primary" data-action-role="primary" @click="toggleChiPicker"><b>吃</b></button>
-          <button v-if="!bloodFlow || !bloodFlow.seats[user.seat].locked" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
+          <button v-if="!yaotongView?.holding && (!bloodFlow || !bloodFlow.seats[user.seat].locked)" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
         </template>
         <template v-else>
           <button v-if="userKongs.length" class="action primary" data-action-role="primary" @click="toggleKongPicker"><b>{{ kongPickerOpen ? '取消' : '杠' }}</b></button>
           <button v-if="userHasWindKong" class="action primary" data-action-role="primary" @click="$emit('windKong')"><b>风杠</b></button>
-          <button v-if="userCanHu && !yaotongView?.confirmHuPlan" class="action hu" data-action-role="major" @click="$emit('hu')"><b>胡</b></button>
+          <button v-if="userCanHu && !yaotongView?.confirmHuPlan && !yaotongView?.manualHuControls" class="action hu" data-action-role="major" @click="$emit('hu')"><b>胡</b></button>
         </template>
       </div>
       <button

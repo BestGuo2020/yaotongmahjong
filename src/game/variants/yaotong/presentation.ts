@@ -29,6 +29,8 @@ export interface ChickenCue {
   strong: boolean
 }
 export interface YaotongTableView {
+  manualHuControls?: boolean
+  holding?: boolean
   confirmHuPlan?: boolean
   sidewaysDiscards?: number[][]
   kongWeather?: KongWeatherCue[]

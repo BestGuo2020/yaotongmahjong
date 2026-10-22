@@ -287,7 +287,7 @@ describe('幺筒复用原版GamePort与3D表现', () => {
     expect(port.tableView.value.chickenCue).toBeNull()
     scope.stop()
   })
-  it('无人响应的出牌保留3D飞牌事件，450ms后才摸下一张', async () => {
+  it('无人响应的出牌保留3D飞牌事件，1000ms后才摸下一张', async () => {
     vi.useFakeTimers()
     const scope = effectScope()
     const port = scope.run(() => useYaotongPort())!
@@ -305,7 +305,7 @@ describe('幺筒复用原版GamePort与3D表现', () => {
     expect(port.lastDiscard.value).toMatchObject({ tile: 'm5', from: 0 })
     expect(state.phase).toBe('transition')
     expect(state.current).toBe(0)
-    await vi.advanceTimersByTimeAsync(450)
+    await vi.advanceTimersByTimeAsync(1000)
     expect(state.current).toBe(1)
     expect(state.phase).toBe('discard')
     scope.stop()

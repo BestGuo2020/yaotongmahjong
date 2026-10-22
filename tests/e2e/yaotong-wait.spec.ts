@@ -1,0 +1,59 @@
+import { expect, test, type Page } from '@playwright/test'
+
+const waitButton = (page: Page) => page.getByRole('button', { name: '等，暂停牌局并使用本局等待时间', exact: true })
+async function state(page: Page) {
+  return page.evaluate(() => (window as unknown as { waitState: () => { serial: number; remaining: number[]; phase: string; reason?: string } }).waitState())
+}
+for (const width of [1280, 844]) {
+  test.describe(`等待控件 ${width}`, () => {
+  test.use({ isMobile: width === 844, hasTouch: width === 844, deviceScaleFactor: 1 })
+  test(`老手等常驻、暂停整桌、按过累计扣时 ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 844 ? 390 : 720 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=hard-wait-idle')
+    await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
+    await expect(waitButton(page)).toContainText('15秒')
+    await expect(page.getByRole('button', { name: '胡', exact: true })).toHaveCount(0)
+    await page.evaluate(() => (window as unknown as { setGuidanceScenario: (name: string) => void }).setGuidanceScenario('hard-wait-flow'))
+    await waitButton(page).click()
+    const serial = (await state(page)).serial
+    await expect(page.getByRole('button', { name: '胡', exact: true })).toBeInViewport({ ratio: 1 })
+    await expect(page.getByRole('button', { name: '过', exact: true })).toBeInViewport({ ratio: 1 })
+    const countdown = page.getByRole('timer', { name: '本小局剩余等待时间' })
+    await expect(countdown).toHaveText('13秒', { timeout: 4000 })
+    expect((await state(page)).serial).toBe(serial)
+    await page.screenshot({ path: `tmp/yaotong-hard-wait-${width}.png` })
+    await page.getByRole('button', { name: '过', exact: true }).click()
+    const remaining = (await state(page)).remaining[0]
+    expect(remaining).toBeLessThan(14000)
+    expect(remaining).toBeGreaterThan(10000)
+    await expect(waitButton(page)).toBeVisible()
+    await expect.poll(async () => (await state(page)).serial).toBeGreaterThan(serial)
+  })
+  test(`等累计15秒用完后常驻胡，不会自动代胡 ${width}`, async ({ page }) => {
+    test.setTimeout(45000)
+    await page.setViewportSize({ width, height: width === 844 ? 390 : 720 })
+    await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=hard-wait-idle')
+    await waitButton(page).click()
+    await expect(page.getByRole('timer', { name: '本小局剩余等待时间' })).toHaveCount(0, { timeout: 18000 })
+    await expect(waitButton(page)).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '胡', exact: true })).toBeVisible()
+    expect((await state(page)).remaining[0]).toBe(0)
+    expect((await state(page)).phase).not.toBe('settled')
+    await page.screenshot({ path: `tmp/yaotong-hard-wait-exhausted-${width}.png` })
+  })
+  test(`老手可随时宣胡，错胡显示炸胡包牌；可胡大牌仍翻前选型 ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 844 ? 390 : 720 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=hard-wait-zero')
+    await page.getByRole('button', { name: '胡', exact: true }).click()
+    await expect.poll(async () => (await state(page)).reason).toContain('炸胡')
+    await expect(page.locator('.round-settlement h2')).toContainText('包牌', { timeout: 15000 })
+    await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=hard-wait-legal')
+    await waitButton(page).click()
+    await expect(page.getByRole('button', { name: /^胡双龙七/ })).toBeVisible()
+    await page.getByRole('button', { name: /^胡龙七对＋硬胡/ }).click()
+    await expect(page.locator('.self-round-score strong')).toHaveText('+405', { timeout: 15000 })
+  })
+  })
+}

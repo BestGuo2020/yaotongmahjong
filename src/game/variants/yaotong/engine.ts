@@ -24,6 +24,7 @@ export type FlowStep =
   | 'between-robbers'
   | 'after-added-kong'
   | 'rob-win'
+  | 'before-claim'
 export type EngineFlow = (step: FlowStep, resume: () => void) => void
 function advance(state: GameState, flow: EngineFlow | undefined, step: FlowStep, resume: () => void) {
   if (!flow) {
@@ -97,6 +98,7 @@ export function createGame(options: StartOptions = {}): GameState {
     firstFixedPeng: false,
     firstYaoDiscard: false,
     seenChickenDiscards: [],
+    waitRemainingMs: [15000, 15000, 15000, 15000],
     events: [],
     serial: 0,
     matchLength: options.length ?? 4,
@@ -114,7 +116,7 @@ function event(
   kind: GameEvent['kind'],
   text: string,
   tile?: Tile,
-  details?: Pick<GameEvent, 'chicken' | 'rush'>,
+  details?: Pick<GameEvent, 'chicken' | 'rush' | 'afterKong'>,
   notify = true,
 ) {
   const value = { id: ++state.serial, seat, kind, text, tile, ...details }
@@ -343,10 +345,33 @@ function resolveResponses(state: GameState, flow?: EngineFlow) {
   } else advance(state, flow, 'next-draw', () => draw(state, (pending.from + 1) % 4))
 }
 
-/** Single deterministic command boundary. Invalid basic actions do not mutate state. */
+/** Invalid basic inputs do not mutate state; explicit expert declarations are judged for penalties. */
 export function act(state: GameState, seat: Seat, command: Command, flow?: EngineFlow): boolean {
   if (!Number.isInteger(seat) || seat < 0 || seat > 3 || state.phase === 'settled') return false
   const p = state.players[seat]
+  if (command.type === 'declareHu' || command.type === 'passHu') {
+    if (state.phase === 'discard' && state.current === seat) {
+      if (command.type === 'passHu') { passSelf(state, seat); return true }
+      if (selfOptions(state, seat).hu) return act(state, seat, { type: 'hu', plan: command.plan }, flow)
+    }
+    const pending = state.pending
+    if (pending && pending.from !== seat && (state.phase === 'response' || state.phase === 'transition')) {
+      if (pending.choices[seat] === 'hu') return false // Ignore a repeated tap on the same declaration.
+      if (state.phase === 'transition' && !pending.choices[seat]) {
+        const opportunity = huOpportunity({ ...p, hand: [...p.hand, pending.tile] }, {
+          kind: pending.kind, tile: pending.tile, killsReport: state.players[pending.from].declaration !== 'none',
+        })
+        if (opportunity.hu) offerResponses(state, flow)
+      }
+      if (state.phase === 'response' && pending.options[seat] && !pending.choices[seat]) {
+        if (command.type === 'passHu') return act(state, seat, { type: 'respond', action: 'pass' }, flow)
+        if (pending.options[seat].hu) return act(state, seat, { type: 'respond', action: 'hu', plan: command.plan }, flow)
+      }
+    }
+    if (command.type === 'passHu') return false // Cancelling 等 without a legal opportunity is not a foul.
+    penalty(state, seat, '炸胡：当前没有可声明的胡牌机会')
+    return true
+  }
   if (command.type === 'original') {
     if (state.phase !== 'original' || state.originalDecisions[seat]) return false
     if (command.declare && !waits(p).length) return false
@@ -392,7 +417,12 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
     }
     pending.choices[seat] = command.action
     if (command.action === 'hu' && command.plan) (pending.huPlans ??= {})[seat] = command.plan
-    if (Object.keys(pending.options).every((i) => pending.choices[Number(i)])) resolveResponses(state, flow)
+    if (Object.keys(pending.options).every((i) => pending.choices[Number(i)])) {
+      const choices = Object.values(pending.choices)
+      if (!choices.includes('hu') && (pending.kind === 'rob' || choices.some(choice => choice === 'peng' || choice === 'kong')))
+        advance(state, flow, 'before-claim', () => resolveResponses(state, flow))
+      else resolveResponses(state, flow)
+    }
     else if (pending.kind === 'rob')
       advance(state, flow, 'between-robbers', () => {
         state.phase = 'response'
@@ -478,7 +508,7 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
       ? `${{ pre: '预冲', first: '首冲', later: '后冲', hot: '杠冲', normal: '' }[stage]}幺筒 · ${chicken}`
       : `打出${tileName(tile)}`,
     tile,
-    { chicken, rush: stage },
+    { chicken, rush: stage, afterKong: hot },
     false,
   )
   const firstChicken = isChicken(tile) && !state.seenChickenDiscards.includes(tile)

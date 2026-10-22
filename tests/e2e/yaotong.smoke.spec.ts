@@ -98,7 +98,7 @@ test('大厅只提供幺筒，联机入口显示建设中且不请求旧房间�
   await page.getByRole('button', { name: '确定', exact: true }).click()
   await expect(page.locator('.start-button')).toContainText('开始全庄场')
   await page.getByRole('button', { name: /游戏规则/ }).click()
-  await expect(page.locator('.rules-panel h2')).toHaveText('幺筒麻将 · v1.5')
+  await expect(page.locator('.rules-panel h2')).toHaveText('幺筒麻将 · v1.6')
   await expect(page.locator('.rules-panel')).toContainText('108张')
   expect(serviceRequests).toEqual([])
   expect(errors).toEqual([])
@@ -140,7 +140,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 
 }
 
 test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => {
-  test.setTimeout(180_000)
+  test.setTimeout(240_000)
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -180,7 +180,7 @@ test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => 
     await page.screenshot({ path: 'tmp/yaotong-cleanup-table.png' })
     await autoplay.click()
   }
-  await expect(page.locator('.round-settlement')).toBeVisible({ timeout: 140_000 })
+  await expect(page.locator('.round-settlement')).toBeVisible({ timeout: 200_000 })
   await expect(page.locator('.round-rankings article')).toHaveCount(4)
   await expect(page.locator('.round-settlement h2')).toHaveText(/^东[1-4]局 · (自摸|胡牌|抢杠胡|热炮胡|一炮[23]响|荒庄|包牌)$/)
   await expect(page.getByRole('tab', { name: '概览', exact: true })).toHaveAttribute('aria-selected', 'true')

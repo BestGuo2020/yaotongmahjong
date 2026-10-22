@@ -16,8 +16,12 @@ import { OPENING_PACE_MS } from '../../shared/runtime/localOpening'
 import { discardWaits, waits, isUntouchedFirstDraw } from './hands'
 import type { Command, GameState } from './types'
 import { actionProtection, NO_PROTECTION, protectionReason, type YaotongMode } from './mode'
+import { YAO } from './tiles'
 
 export const YAOTONG_AI_DISCARD_MS = 1000
+export const YAOTONG_REACTION_MS = 1000
+export const YAOTONG_EXTENDED_REACTION_MS = 2000
+export const YAOTONG_WAIT_BUDGET_MS = 15000
 
 export function useYaotongGame() {
   const state = shallowRef<GameState | null>(null)
@@ -27,10 +31,44 @@ export function useYaotongGame() {
   const protection = computed(() => mode.value === 'easy' && state.value
     ? actionProtection(state.value) : NO_PROTECTION)
   const protectionNotice = ref('')
-  const pendingTransition = shallowRef<{ state: GameState; step: FlowStep; resume: () => void } | null>(null)
+  const pendingTransition = shallowRef<{ state: GameState; step: FlowStep; resume: () => void; readyAt: number } | null>(null)
   const flowStep = computed(() => pendingTransition.value?.step ?? null)
   const selected = ref(-1)
   const error = ref('')
+  const hold = shallowRef<{ game: GameState; seat: number; startedAt: number; initial: number } | null>(null)
+  const holdNow = ref(Date.now())
+  const holding = computed(() => hold.value?.seat === 0)
+  const hardControls = computed(() => Boolean(state.value && state.value.phase !== 'settled' &&
+    mode.value === 'hard' && !paused.value && !autoplay.value))
+  const waitRemainingMs = computed(() => hold.value?.seat === 0
+    ? Math.max(0, hold.value.initial - (holdNow.value - hold.value.startedAt))
+    : state.value?.waitRemainingMs?.[0] ?? YAOTONG_WAIT_BUDGET_MS)
+  const reactionClocks = new WeakMap<GameState, { id: number; until: number }>()
+  function reactionDeadline(game: GameState) {
+    const event = [...game.events].reverse().find(e => e.kind === 'discard' || e.kind === 'kong-intent')
+    if (!event) return 0
+    const cached = reactionClocks.get(game)
+    if (cached?.id === event.id) return cached.until
+    const extended = event.kind === 'kong-intent' || event.tile === YAO || event.afterKong
+    const until = Date.now() + (extended ? YAOTONG_EXTENDED_REACTION_MS : YAOTONG_REACTION_MS)
+    reactionClocks.set(game, { id: event.id, until })
+    return until
+  }
+  function endHold() {
+    const entry = hold.value
+    if (!entry) return
+    entry.game.waitRemainingMs[entry.seat] = Math.max(0, entry.initial - (Date.now() - entry.startedAt))
+    hold.value = null
+    if (state.value === entry.game) triggerRef(state)
+  }
+  function startHold(seat = 0) {
+    const game = state.value
+    if (!game || !hardControls.value || hold.value || !Number.isInteger(seat) || seat < 0 || seat > 3) return
+    const budget = game.waitRemainingMs[seat]
+    if (budget <= 0) return
+    holdNow.value = Date.now()
+    hold.value = { game, seat, startedAt: holdNow.value, initial: budget }
+  }
   const user = computed(() => state.value?.players[0])
   const ownTurn = computed(() => state.value?.phase === 'discard' && state.value.current === 0)
   const response = computed(() =>
@@ -67,28 +105,56 @@ export function useYaotongGame() {
       resume()
       return
     }
-    pendingTransition.value = { state: state.value!, step, resume }
+    const game = state.value!
+    const reactionLeft = Math.max(0, reactionDeadline(game) - Date.now())
+    const delays: Record<FlowStep, number> = {
+      'first-draw': OPENING_PACE_MS.firstTurn,
+      'next-draw': Math.max(reactionLeft, PACE_MS.afterDiscardToNextTurn),
+      'before-claim': reactionLeft,
+      'after-peng': PACE_MS.skipDrawPengDelay,
+      'after-open-kong': PACE_MS.afterClaimGang,
+      'before-rob': Math.max(reactionLeft, YAOTONG_EXTENDED_REACTION_MS),
+      'between-robbers': PACE_MS.betweenRobKongs,
+      'after-added-kong': PACE_MS.afterKongSettle,
+      'rob-win': PACE_MS.betweenRobKongs,
+    }
+    if (step === 'before-claim' && delays[step] === 0) { resume(); return }
+    pendingTransition.value = { state: game, step, resume, readyAt: Date.now() + delays[step] }
   }
   function dispatch(command: Command, seat = 0) {
-    if (!state.value || paused.value) return
+    if (!state.value || paused.value) return false
+    if (mode.value !== 'hard' && (command.type === 'declareHu' || command.type === 'passHu')) return false
+    if (hold.value && (hold.value.seat !== seat || (command.type !== 'declareHu' && command.type !== 'passHu'))) return false
     try {
       const reason = seat === 0 ? protectionReason(protection.value, command) : ''
       if (reason) {
         protectionNotice.value = reason
-        return
+        return false
       }
       if (act(state.value, seat, command, flow)) {
+        reactionDeadline(state.value)
         protectionNotice.value = ''
         selected.value = -1
         error.value = ''
         triggerRef(state)
+        return true
       }
     } catch (cause) {
       paused.value = true
       error.value = cause instanceof Error ? cause.message : '对局出现异常'
     }
+    return false
+  }
+  function holdDecision(command: 'declareHu' | 'passHu', plan?: string) {
+    if (mode.value !== 'hard') return
+    const seat = hold.value?.seat ?? 0
+    endHold()
+    const previous = pendingTransition.value
+    const accepted = dispatch(command === 'declareHu' ? { type: 'declareHu', plan } : { type: 'passHu' }, seat)
+    if (accepted && pendingTransition.value === previous && state.value?.phase !== 'transition') pendingTransition.value = null
   }
   function begin(length: 4 | 8 | 16, options: Omit<StartOptions, 'length'> = {}) {
+    endHold()
     pendingTransition.value = null
     state.value = createGame({ ...options, length })
     selected.value = -1
@@ -98,12 +164,14 @@ export function useYaotongGame() {
     protectionNotice.value = ''
   }
   function next() {
+    endHold()
     protectionNotice.value = ''
     pendingTransition.value = null
     if (state.value) state.value = continueGame(state.value)
     selected.value = -1
   }
   function leave() {
+    endHold()
     protectionNotice.value = ''
     pendingTransition.value = null
     state.value = null
@@ -113,21 +181,23 @@ export function useYaotongGame() {
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined
+  watchEffect(cleanup => {
+    const entry = hold.value
+    if (!entry) return
+    const tick = () => { holdNow.value = Date.now() }
+    tick()
+    const interval = setInterval(tick, 50)
+    const expiry = setTimeout(() => { if (hold.value === entry) endHold() }, entry.initial)
+    cleanup(() => { clearInterval(interval); clearTimeout(expiry) })
+  })
+  watchEffect(() => {
+    if (hold.value && (state.value !== hold.value.game || paused.value || autoplay.value || mode.value !== 'hard' || state.value?.phase === 'settled')) endHold()
+  })
   watchEffect((cleanup) => {
     const game = state.value
-    if (!game || game.phase === 'settled' || paused.value) return
+    if (!game || game.phase === 'settled' || paused.value || hold.value) return
     const transition = pendingTransition.value
     if (transition?.state === game) {
-      const stepDelay: Record<FlowStep, number> = {
-        'first-draw': OPENING_PACE_MS.firstTurn,
-        'next-draw': PACE_MS.afterDiscardToNextTurn,
-        'after-peng': game.current === 0 && !autoplay.value ? PACE_MS.skipDrawPengDelay : 0,
-        'after-open-kong': PACE_MS.afterClaimGang,
-        'before-rob': PACE_MS.beforeRobKong,
-        'between-robbers': PACE_MS.betweenRobKongs,
-        'after-added-kong': PACE_MS.afterKongSettle,
-        'rob-win': PACE_MS.betweenRobKongs,
-      }
       timer = setTimeout(() => {
         if (state.value !== game || pendingTransition.value !== transition) return
         pendingTransition.value = null
@@ -138,7 +208,7 @@ export function useYaotongGame() {
           error.value = cause instanceof Error ? cause.message : '对局推进异常'
           paused.value = true
         }
-      }, stepDelay[transition.step])
+      }, Math.max(0, transition.readyAt - Date.now()))
       cleanup(() => clearTimeout(timer))
       return
     }
@@ -167,7 +237,8 @@ export function useYaotongGame() {
       cleanup(() => clearTimeout(timer))
       return
     }
-    const nextSeat = seats.find((seat) =>
+    const responseSeats = mode.value === 'hard' && !autoplay.value ? [...seats, 0] : seats
+    const nextSeat = (game.phase === 'response' ? responseSeats : seats).find((seat) =>
       game.phase === 'response'
         ? game.pending?.options[seat] && !game.pending.choices[seat]
         : game.current === seat,
@@ -175,18 +246,21 @@ export function useYaotongGame() {
     if (nextSeat === undefined) return
     timer = setTimeout(
       () => {
-        const command = chooseAction(game, nextSeat)
+        const command: Command | null = nextSeat === 0 && !autoplay.value && game.phase === 'response'
+          ? { type: 'respond', action: 'pass' } : chooseAction(game, nextSeat)
         if (command && state.value === game) dispatch(command, nextSeat)
       },
       game.phase === 'response'
-        ? game.pending?.kind === 'rob'
+        ? nextSeat === 0 && !autoplay.value
+          ? Math.max(0, reactionDeadline(game) - Date.now())
+          : game.pending?.kind === 'rob'
           ? 0
           : AI_DELAYS.claim
         : YAOTONG_AI_DISCARD_MS,
     )
     cleanup(() => clearTimeout(timer))
   })
-  onScopeDispose(() => clearTimeout(timer))
+  onScopeDispose(() => { clearTimeout(timer); endHold() })
   return {
     state,
     user,
@@ -198,6 +272,9 @@ export function useYaotongGame() {
     flowStep,
     selected,
     error,
+    holding, hardControls, waitRemainingMs, startHold,
+    declareHu: (plan?: string) => holdDecision('declareHu', plan),
+    passHold: () => holdDecision('passHu'),
     ownTurn,
     autoDiscard,
     response,

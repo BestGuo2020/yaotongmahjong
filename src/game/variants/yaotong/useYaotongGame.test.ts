@@ -1,7 +1,7 @@
 import { effectScope, nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createGame } from './engine'
-import { useYaotongGame } from './useYaotongGame'
+import { useYaotongGame, YAOTONG_REACTION_MS } from './useYaotongGame'
 import { player, ready, table, unready } from './auditFixtures'
 import { AI_DELAYS } from '../../core/controllers/playerController'
 import { OPENING_PACE_MS } from '../../shared/runtime/localOpening'
@@ -34,11 +34,11 @@ describe('幺筒对局生命周期', () => {
         state.players[0].draws = 1
         game.state.value = state
         game.dispatch({ type: 'discard', index: 13, declare: true })
-        await vi.advanceTimersByTimeAsync(PACE_MS.afterDiscardToNextTurn)
+        await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS)
         for (const seat of [1, 2, 3]) {
           expect(state.current).toBe(seat)
           game.dispatch({ type: 'discard', index: state.players[seat].hand.length - 1 }, seat)
-          await vi.advanceTimersByTimeAsync(PACE_MS.afterDiscardToNextTurn)
+          await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS)
         }
       }
       expect(game.autoplay.value).toBe(false)
