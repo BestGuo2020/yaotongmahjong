@@ -79,6 +79,8 @@ defineProps<{ status?: SeatStatus; name: string }>()
   color: var(--theme-accent-text);
   white-space: nowrap;
 }
+/* 计数（×2 等）沿用印章本身的字号/颜色，不能被座位卡积分 span 的规则放大。 */
+.yaotong-seat-marker > span span { font: inherit; color: inherit; }
 .declaration-seal {
   animation: declare-pulse 0.7s ease-out 1;
 }
