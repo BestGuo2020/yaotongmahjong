@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, ref, shallowRef, triggerRef, watchEffect } from 'vue'
+import { computed, onScopeDispose, ref, shallowRef, triggerRef, watch, watchEffect } from 'vue'
 import { chooseAction } from './ai'
 import {
   act,
@@ -23,7 +23,19 @@ export const YAOTONG_REACTION_MS = 1000
 export const YAOTONG_EXTENDED_REACTION_MS = 2000
 export const YAOTONG_WAIT_BUDGET_MS = 15000
 
-export function useYaotongGame() {
+export interface YaotongExternalAuthority {
+  send(command: Command): void
+  nextRound(): void
+  leave(): void
+  openingDone(round: number): void
+  auto(enabled: boolean): void
+}
+
+export function useYaotongGame(options: {
+  externalAuthority?: YaotongExternalAuthority
+} = {}) {
+  const external = options.externalAuthority
+  const remote = Boolean(external)
   const state = shallowRef<GameState | null>(null)
   const paused = ref(false)
   const autoplay = ref(false)
@@ -38,7 +50,8 @@ export function useYaotongGame() {
   const hold = shallowRef<{ game: GameState; seat: number; startedAt: number; initial: number } | null>(null)
   const holdNow = ref(Date.now())
   const holding = computed(() => hold.value?.seat === 0)
-  const hardControls = computed(() => Boolean(state.value && state.value.phase !== 'settled' &&
+  const hardControls = computed(() => Boolean(!remote && state.value &&
+    state.value.phase !== 'settled' &&
     mode.value === 'hard' && !paused.value && !autoplay.value))
   const waitRemainingMs = computed(() => hold.value?.seat === 0
     ? Math.max(0, hold.value.initial - (holdNow.value - hold.value.startedAt))
@@ -123,6 +136,14 @@ export function useYaotongGame() {
   }
   function dispatch(command: Command, seat = 0) {
     if (!state.value || paused.value) return false
+    if (remote) {
+      // 服务端权威：只发意图，本地不推进引擎。
+      external!.send(command)
+      selected.value = -1
+      protectionNotice.value = ''
+      error.value = ''
+      return true
+    }
     if (mode.value !== 'hard' && (command.type === 'declareHu' || command.type === 'passHu')) return false
     if (hold.value && (hold.value.seat !== seat || (command.type !== 'declareHu' && command.type !== 'passHu'))) return false
     try {
@@ -154,6 +175,7 @@ export function useYaotongGame() {
     if (accepted && pendingTransition.value === previous && state.value?.phase !== 'transition') pendingTransition.value = null
   }
   function begin(length: 4 | 8 | 16, options: Omit<StartOptions, 'length'> = {}) {
+    if (remote) return
     endHold()
     pendingTransition.value = null
     state.value = createGame({ ...options, length })
@@ -164,6 +186,10 @@ export function useYaotongGame() {
     protectionNotice.value = ''
   }
   function next() {
+    if (remote) {
+      external!.nextRound()
+      return
+    }
     endHold()
     protectionNotice.value = ''
     pendingTransition.value = null
@@ -171,6 +197,14 @@ export function useYaotongGame() {
     selected.value = -1
   }
   function leave() {
+    if (remote) {
+      external!.leave()
+      state.value = null
+      selected.value = -1
+      autoplay.value = false
+      paused.value = false
+      return
+    }
     endHold()
     protectionNotice.value = ''
     pendingTransition.value = null
@@ -179,6 +213,22 @@ export function useYaotongGame() {
     autoplay.value = false
     paused.value = false
   }
+
+  /** 联机快照落地：远端模式唯一的 state 写入口。 */
+  function acceptRemoteState(next: GameState) {
+    state.value = next
+    selected.value = -1
+    paused.value = false
+    pendingTransition.value = null
+    hold.value = null
+    error.value = ''
+    protectionNotice.value = ''
+    triggerRef(state)
+  }
+
+  watch(autoplay, (enabled) => {
+    if (remote) external!.auto(enabled)
+  })
 
   let timer: ReturnType<typeof setTimeout> | undefined
   watchEffect(cleanup => {
@@ -194,6 +244,7 @@ export function useYaotongGame() {
     if (hold.value && (state.value !== hold.value.game || paused.value || autoplay.value || mode.value !== 'hard' || state.value?.phase === 'settled')) endHold()
   })
   watchEffect((cleanup) => {
+    if (remote) return
     const game = state.value
     if (!game || game.phase === 'settled' || paused.value || hold.value) return
     const transition = pendingTransition.value
@@ -272,6 +323,8 @@ export function useYaotongGame() {
     paused,
     autoplay,
     mode,
+    remote,
+    acceptRemoteState,
     protection,
     protectionNotice,
     flowStep,

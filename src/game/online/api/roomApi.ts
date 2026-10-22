@@ -14,6 +14,8 @@ export interface RoomInfo {
   roomId: string
   mode: MatchType
   rulesetId?: RuleVariant
+  /** 幺筒场次 4/8/16；经典/血流由 mode 推导。 */
+  matchLength?: 4 | 8 | 16
   capacity: number
   status: 'lobby' | 'playing' | 'finished' | 'error' | 'closed'
   creatorSeat: number | null
@@ -98,12 +100,14 @@ export interface RoomMeta {
 }
 
 export function createRoom(mode: MatchType, capacity: number, playerId?: string,
-  rulesetId: RuleVariant = 'lotus-classic', llmEnabled?: boolean): Promise<RoomInfo> {
+  rulesetId: RuleVariant = 'lotus-classic', llmEnabled?: boolean,
+  matchLength: 4 | 8 | 16 = 4): Promise<RoomInfo> {
   return request<RoomInfo>('/api/rooms', {
     method: 'POST',
     body: JSON.stringify({
       mode, capacity, playerId, rulesetId,
       ...(llmEnabled === true ? { llmEnabled: true } : {}),
+      ...(rulesetId === 'yaotong' ? { matchLength } : {}),
     }),
   })
 }

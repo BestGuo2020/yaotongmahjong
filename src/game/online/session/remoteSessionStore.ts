@@ -8,6 +8,7 @@ export interface StoredSession {
   playerId: string
   mode: MatchType
   rulesetId?: RuleVariant
+  matchLength?: 4 | 8 | 16
 }
 
 export interface StorageLike {
@@ -79,7 +80,9 @@ export function createRemoteSessionStore(
         if (session.mode !== 'east' && session.mode !== 'hanchan') return null
         const rulesetId = session.rulesetId ?? 'lotus-classic'
         if (rulesetId !== 'lotus-classic' && rulesetId !== 'lotus-legacy'
-          && rulesetId !== 'lotus-blood-flow') return null
+          && rulesetId !== 'lotus-blood-flow' && rulesetId !== 'yaotong') return null
+        const matchLength = session.matchLength
+        if (matchLength !== undefined && ![4, 8, 16].includes(matchLength)) return null
         return {
           roomId: session.roomId,
           rejoinCode: session.rejoinCode,
@@ -87,6 +90,9 @@ export function createRemoteSessionStore(
           playerId: session.playerId ?? '',
           mode: session.mode,
           rulesetId,
+          ...(rulesetId === 'yaotong'
+            ? { matchLength: (matchLength ?? 4) as 4 | 8 | 16 }
+            : {}),
         }
       } catch {
         return null

@@ -28,6 +28,8 @@ export interface Discard {
 export interface Player {
   name: string
   hand: Tile[]
+  /** 联机快照里他人手牌不透明时，仍用于 3D 牌背数量。 */
+  concealedTileCount?: number
   melds: Meld[]
   river: Discard[]
   score: number

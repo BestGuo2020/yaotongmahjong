@@ -8,7 +8,10 @@ import SettlementOverlay from './components/settlement/SettlementOverlay.vue'
 import YaotongControls from './components/yaotong/YaotongControls.vue'
 import YaotongLedger from './components/yaotong/YaotongLedger.vue'
 import YaotongRoundOverview from './components/yaotong/YaotongRoundOverview.vue'
+import OnlineRoomPanel from './components/lobby/OnlineRoomPanel.vue'
 import { useYaotongPort } from './game/variants/yaotong/useYaotongPort'
+import { useYaotongGame } from './game/variants/yaotong/useYaotongGame'
+import { useYaotongRemoteGame } from './game/variants/yaotong/remote/useYaotongRemoteGame'
 import { useAudio } from './game/core/presentation/useAudio'
 import type { TileType } from './game/core/contracts/types'
 import type { TableThemeName } from './components/table/three/tableTheme'
@@ -76,12 +79,28 @@ const replay = useReplayRecorder({ meta: () => ({
   rulesetId: 'yaotong', rulesetName: '幺筒麻将', themeName: tableThemeName.value,
   humanSeat: 0, yaotongMode: yaotongGame.local.mode.value,
 }) })
+const localSource = useYaotongGame()
+const onlineMode = ref(false)
+const onlinePanelOpen = ref(false)
+const online = useYaotongRemoteGame({
+  playSound: playEffect,
+  playSoundAndWait: playEffectAndWait,
+  getCharacterId: () => animeCharacterId.value,
+  createPort: false,
+})
+// 单机/联机共用同一套演出层：按 onlineMode 切换底层 GameState 源。
+const gameSource = new Proxy({} as ReturnType<typeof useYaotongGame>, {
+  get(_target, key) {
+    const source = onlineMode.value ? online.inner : localSource
+    return (source as any)[key]
+  },
+})
 const yaotongGame = useYaotongPort({
   recorder: replay.hooks,
   playSound: playEffect,
   playSoundAndWait: playEffectAndWait,
   getCharacterId: () => animeCharacterId.value,
-})
+}, gameSource)
 const {
   phase, wall, wallHeadDrawn, wallCount, currentPlayer, selectedIndex, turnSeconds, lastDiscard,
   actionPrompt, announcement, tableActionEvent, scoreFlowEvent, result, winEffect, winPresentation, revealHands, winningPlayerIndex,
@@ -104,6 +123,19 @@ watch([rulesOpen, () => yaotongGame.openingActive.value], ([open, opening]) => {
 watch(result, (value) => { resultVisible.value = Boolean(value) })
 watch(showLobby, (lobby) => { if (lobby) { resetTableReady(); replay.finishAuto() } })
 watch(matchFinished, (finished) => { if (finished) replay.finishAuto() })
+const onlineRoomId = computed(() => onlineMode.value ? online.roomId.value : '')
+const onlineSignal = computed(() => onlineMode.value ? online.signalQuality.value : 3)
+watch(() => online.sessionStatus.value, (status) => {
+  if (status === 'playing') {
+    onlineMode.value = true
+    onlinePanelOpen.value = false
+    resetTableReady()
+    startBgm()
+    void startGame()
+  } else if (status === 'idle') {
+    onlineMode.value = false
+  }
+})
 onBeforeUnmount(() => replay.finishAuto())
 onBeforeUnmount(resetTableReady)
 
@@ -120,6 +152,7 @@ async function openReplay(id: string) {
 }
 
 function startGameWithAudio() {
+  if (onlineMode.value) return
   resetTableReady()
   startBgm()
   startGame('east', { waitForTableReady })
@@ -128,6 +161,13 @@ function toggleAutoPlay() {
   yaotongGame.local.autoplay.value = !yaotongGame.local.autoplay.value
 }
 function quitMatch() {
+  if (onlineMode.value) {
+    if (!window.confirm('退出将离开当前联机房间，确定返回大厅？')) return
+    void online.leaveRoom()
+    onlineMode.value = false
+    onlinePanelOpen.value = false
+    return
+  }
   if (window.confirm('退出将结束当前本地对局，确定返回大厅？')) returnToLobby()
 }
 function changeTableTheme(theme: TableThemeName) {
@@ -149,9 +189,10 @@ function changeTableTheme(theme: TableThemeName) {
     :style="themePresentationStyle"
   >
     <div v-if="!replayView" :class="{ 'has-three-scene': players.length }">
-      <GameShellHeader game-mode="local" :phase="phase" :has-players="Boolean(players.length)"
+      <GameShellHeader :game-mode="onlineMode ? 'remote' : 'local'" :phase="phase"
+        :has-players="Boolean(players.length)"
         :match-name="matchName" :round-label="roundLabel" :honba="honba" :base-score="5"
-        room-id="" :signal-quality="3" :theme-name="tableThemeName"
+        :room-id="onlineRoomId" :signal-quality="onlineSignal" :theme-name="tableThemeName"
         @quit="quitMatch" @open-rules="rulesOpen = true" @change-theme="changeTableTheme"
       />
       <GameTableHud
@@ -220,10 +261,13 @@ function changeTableTheme(theme: TableThemeName) {
       </GameTableHud>
 
 
-      <LobbyView v-if="showLobby" v-model:yaotong-length="yaotongGame.length.value"
+      <OnlineRoomPanel v-if="showLobby && onlinePanelOpen" :remote="online"
+        :character-id="animeCharacterId" @back="onlinePanelOpen = false" />
+      <LobbyView v-else-if="showLobby" v-model:yaotong-length="yaotongGame.length.value"
         v-model:yaotong-mode="yaotongGame.local.mode.value"
         v-model:anime-character-id="animeCharacterId" :table-theme-name="tableThemeName"
         @start-local="startGameWithAudio" @open-rules="rulesOpen = true" @open-replay="showReplayList"
+        @open-online="onlinePanelOpen = true"
       />
       <SettlementOverlay
         v-model:result-visible="resultVisible"
@@ -231,12 +275,12 @@ function changeTableTheme(theme: TableThemeName) {
         :result-title="yaotongGame.resultTitle.value"
         :match-finished="matchFinished"
         :dealer="dealer"
-        :waiting-next-round="false"
-        game-mode="local"
+        :waiting-next-round="onlineMode ? online.waitingNextRound.value : false"
+        :game-mode="onlineMode ? 'remote' : 'local'"
         :continue-countdown="0"
         :match-name="matchName"
         :standings="standings"
-        player-id=""
+        :player-id="onlineMode ? online.playerId.value : ''"
         :human-seats="[0]"
         :joker-tiles="jokerTiles"
         :theme-name="tableThemeName"

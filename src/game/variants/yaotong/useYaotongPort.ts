@@ -71,9 +71,11 @@ import {
   type YaotongTableView,
 } from './presentation'
 
-export const toSharedTile = (tile: number): TileType =>
-  `${['m', 'p', 's'][Math.floor(tile / 9)]}${(tile % 9) + 1}` as TileType
-export const fromSharedTile = (tile: TileType) => 'mps'.indexOf(tile[0]) * 9 + Number(tile[1]) - 1
+import { fromSharedTile, toSharedTile } from './sharedTile'
+
+export { fromSharedTile, toSharedTile }
+
+export type YaotongGameSource = ReturnType<typeof useYaotongGame>
 
 /** Rules stay deterministic; the original opening, audio, cue and settlement timelines own presentation. */
 export function useYaotongPort(
@@ -83,11 +85,12 @@ export function useYaotongPort(
     getCharacterId?: () => string
     recorder?: ReplayRecorderHooks
   } = {},
+  local: YaotongGameSource = useYaotongGame(),
 ) {
-  const local = useYaotongGame()
-  let recordedState = local.state.value
+  const activeState = computed(() => local.state.value)
+  let recordedState = activeState.value
   let stopRecording: (() => void) | undefined
-  watch(local.state, (state) => {
+  watch(activeState, (state) => {
     if (state === recordedState) return
     stopRecording?.()
     recordedState = state
@@ -256,6 +259,7 @@ export function useYaotongPort(
           name: p.name,
           avatar: defaultAvatarForSeat(seat),
           seat,
+          concealedTileCount: p.concealedTileCount ?? hand.length,
           // Engine settlement is atomic. Display transfers only when the shared reveal stage finishes.
           score: p.score - (outcome && !scoresReleased.value ? outcome.deltas[seat] : 0),
           redCount: 0,
@@ -771,6 +775,13 @@ export function useYaotongPort(
     userKongs: computed(() => local.protection.value.kong || local.holding.value ? [] : local.kongs.value.map(toSharedTile)),
     capabilities: computed(() => ({})),
     startGame(_mode?: MatchType, startOptions?: GameStartOptions) {
+      // 联机对局由房间快照驱动；本地 start 只服务单机。
+      if (local.remote) {
+        resetPresentation()
+        seenHand = 0
+        seenSerial = 0
+        return Promise.resolve()
+      }
       resetPresentation()
       seenHand = 0
       seenSerial = 0
@@ -816,6 +827,7 @@ export function useYaotongPort(
       if (!result.value || local.state.value?.result?.finished) return
       resetPresentation()
       local.next()
+      if (local.remote) return
       return opening()
     },
     returnToLobby() {

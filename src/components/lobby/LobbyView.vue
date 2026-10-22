@@ -23,6 +23,7 @@ defineEmits<{
   startLocal: []
   openRules: []
   openReplay: []
+  openOnline: []
 }>()
 const dialog = ref<'match' | 'mode' | 'character' | null>(null)
 const mode = ref<'local' | 'multiplayer'>('local')
@@ -44,7 +45,8 @@ const matchOption = computed(() => ({
             <b>单机对战</b><span>与三名本地 AI 同桌</span>
           </button>
           <button data-action-role="secondary" role="radio" :aria-checked="mode === 'multiplayer'"
-            :class="{ active: mode === 'multiplayer' }" @click="mode = 'multiplayer'">
+            :class="{ active: mode === 'multiplayer' }"
+            @click="mode = 'multiplayer'; $emit('openOnline')">
             <b>联机对战</b><span>创建或加入房间</span>
           </button>
         </div>
