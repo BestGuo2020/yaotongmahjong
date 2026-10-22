@@ -73,8 +73,11 @@ createApp({ setup() {
       state.players[0] = ready()
     } else if (name === 'seat-layout') {
       state.dealer = 1
+      const names = query.has('longNames')
+        ? ['麻将对局昵称超过十二个字', '听风就是雨的超长昵称', '观山望月看一整晚牌', '望月听风打到天亮']
+        : ['你', '听风', '观山', '望月']
       state.players.forEach((p, seat) => {
-        p.name = ['你', '听风', '观山', '望月'][seat]
+        p.name = names[seat]
         p.score = [-263, 95, 103, 65][seat]
         p.river = Array.from({ length: 9 }, (_, index) => ({
           tile: (seat * 6 + index) % 27, chicken: index === 0 ? 4 : 0,

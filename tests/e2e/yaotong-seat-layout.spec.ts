@@ -92,3 +92,53 @@ test.describe('未上报粗指针的 mini 横屏仍使用移动端布局', () =>
     expect(tileWidth, '手牌须使用移动端宽度，不能回落到桌面 48px').toBeLessThanOrEqual(44)
   })
 })
+
+// 长昵称用满卡片下方余量：左右家/本家折两行；mini 横屏的对家保持 30px 扁条，
+// 桌面竖卡的对家也折两行。四家卡片与手牌之间不得互相遮挡。
+test.describe('长昵称两行', () => {
+  test.use({ isMobile: false, hasTouch: false, deviceScaleFactor: 2 })
+  for (const { width, height, topTwoLine } of [
+    { width: 880, height: 405, topTwoLine: false },
+    { width: 1280, height: 720, topTwoLine: true },
+  ]) {
+    test(`${width}×${height}：长昵称折两行且不互相遮挡`, async ({ page }) => {
+      await page.setViewportSize({ width, height })
+      await page.emulateMedia({ reducedMotion: 'reduce' })
+      await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=seat-layout&longNames=1&theme=jade')
+      await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
+      const seats = page.locator('.yaotong-table .player-seat .avatar-wrap, .yaotong-table .user-identity')
+      await expect(seats).toHaveCount(4)
+      const names = page.locator('.yaotong-table .player-seat .avatar-wrap .player-info strong, .yaotong-table .user-identity .player-info strong')
+      await expect(names).toHaveCount(4)
+      // DOM 顺序：下家、对家、上家、本家。
+      const expected = ['听风就是雨的超长昵称', '观山望月看一整晚牌', '望月听风打到天亮', '麻将对局昵称超过十二个字']
+      for (let i = 0; i < 4; i++) await expect(names.nth(i)).toContainText(expected[i])
+      for (const i of [0, 2, 3]) {
+        expect(await names.nth(i).evaluate(e => getComputedStyle(e).webkitLineClamp), `昵称${i}须两行`).toBe('2')
+        expect((await names.nth(i).boundingBox())!.height, `昵称${i}须实际折行`).toBeGreaterThan(20)
+      }
+      expect(await names.nth(1).evaluate(e => getComputedStyle(e).webkitLineClamp)).toBe(topTwoLine ? '2' : '1')
+      const boxes = []
+      for (const seat of await seats.all()) {
+        await expect(seat).toBeInViewport({ ratio: 1 })
+        const box = (await seat.boundingBox())!
+        const isAcross = await seat.evaluate(e => Boolean(e.closest('.seat-top')))
+        if (width === 880) {
+          expect(box.width, '信息卡宽度须有上限').toBeLessThanOrEqual(isAcross ? 320 : 129)
+          expect(box.height, '信息卡高度须保持紧凑').toBeLessThanOrEqual(isAcross ? 40 : 72)
+        }
+        boxes.push(box)
+      }
+      const overlap = (a: typeof boxes[number], b: typeof boxes[number]) =>
+        Math.min(a.x + a.width, b.x + b.width) > Math.max(a.x, b.x) &&
+        Math.min(a.y + a.height, b.y + b.height) > Math.max(a.y, b.y)
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++)
+        expect(overlap(boxes[i], boxes[j]), '四家的信息卡互不遮挡').toBe(false)
+      for (const tile of await page.locator('.hand-rack .mahjong-tile').all()) {
+        const box = (await tile.boundingBox())!
+        for (const seat of boxes) expect(overlap(seat, box), '信息卡不遮本家手牌').toBe(false)
+      }
+      await page.screenshot({ path: `tmp/long-names-${width}.png` })
+    })
+  }
+})

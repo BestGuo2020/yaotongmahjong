@@ -2375,6 +2375,18 @@ button { font: inherit; }
   .has-three-scene .hand-rack .mahjong-tile {
     --tile-width: clamp(48px, min(calc(7.97 * var(--game-cqh)), calc(5.5 * var(--game-cqw))), 104px);
   }
+  /* 桌面竖卡同样利用牌名下方的余量显示两行；紧凑横屏的对家扁条在下方单独保持单行。 */
+  .game-app .yaotong-table :is(.player-seat.seat-left, .player-seat.seat-right) .player-info strong,
+  .game-app .yaotong-table .player-seat.seat-top .player-info strong,
+  .game-app .yaotong-table .user-identity .player-info strong {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
 }
 
 @media (hover: none) and (pointer: coarse) and (orientation: landscape),
@@ -3966,6 +3978,18 @@ button { font: inherit; }
   }
   .game-app .yaotong-table .player-info :is(strong, span) { width: auto; text-align: left; }
   .game-app .yaotong-table .player-info strong { font-size: 11px; line-height: 1.25; }
+  /* 左右家与本家卡下方还有一行余量：长昵称折成两行，用满卡高，避免只剩三四个字。
+     对家是横向扁条（≤40px），保持单行，不把顶部牌河挤高。 */
+  .game-app .yaotong-table :is(.player-seat.seat-left, .player-seat.seat-right) .player-info strong,
+  .game-app .yaotong-table .user-identity .player-info strong {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
   .game-app .yaotong-table .player-info > span { font-size: 12px; line-height: 1.25; }
   .game-app .yaotong-table .avatar-wrap > .yaotong-seat-marker { grid-column: 1 / -1; }
   .game-app .yaotong-table .yaotong-seat-marker { justify-content: flex-start; margin-top: 1px; }
@@ -3986,6 +4010,15 @@ button { font: inherit; }
     flex-direction: row;
     align-items: center;
     gap: 6px;
+  }
+  /* 紧凑横屏的对家是约 30px 的扁条，昵称保持单行，避免把顶部牌墙挤高。 */
+  .game-app .yaotong-table .player-seat.seat-top .player-info strong {
+    display: block;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    text-overflow: ellipsis;
   }
   .game-app .yaotong-table .player-seat.seat-top .yaotong-seat-marker { grid-column: auto; margin: 0; }
   .game-app .yaotong-table .player-seat.seat-left { left: calc(var(--safe-left) + 8px); }
