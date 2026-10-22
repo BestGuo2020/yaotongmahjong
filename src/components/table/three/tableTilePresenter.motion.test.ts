@@ -49,7 +49,7 @@ function setup(meld?: Meld, action?: TableActionType) {
 afterEach(() => vi.restoreAllMocks())
 
 describe('shared normal tile animations survive state refreshes', () => {
-  it.each([0, 1, 2, 3])('座位%s的首鸡横放且预留宽度；被取走后不把标记转给跟冲', seat => {
+  it.each([0, 1, 2, 3])('座位%s的首鸡横放且预留宽度；被取走后不把标记自动转给下一张', seat => {
     const s = setup()
     s.props.players[seat].discards = ['s2', 's1', 's1']
     s.props.sidewaysDiscards = [0, 1, 2, 3].map(i => i === seat ? [1] : [])

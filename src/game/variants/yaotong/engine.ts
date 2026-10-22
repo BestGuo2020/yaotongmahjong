@@ -553,7 +553,10 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
   )
   const firstChicken = isChicken(tile) && !state.seenChickenDiscards.includes(tile)
   if (firstChicken) state.seenChickenDiscards.push(tile)
-  const discard = { tile, chicken, stage, pre, id: state.serial, firstChicken }
+  // The player's first fixed-chicken discard on an already-chonged kind also scores 4; mark it
+  // separately so the river can show it sideways without pretending the global first tile returned.
+  const followChicken = isFixed(tile) && chicken === 4 && !firstChicken
+  const discard = { tile, chicken, stage, pre, id: state.serial, firstChicken, followChicken }
   p.river.push(discard)
   notifyEvent(state, discardedEvent)
   // Judge the actual discard before opening responses. Listening status for B is now unambiguous.

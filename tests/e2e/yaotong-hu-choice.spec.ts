@@ -46,15 +46,15 @@ for (const width of [1280, 844]) {
     await expect(summary).toContainText('本牌 2 张，赖子 0 张')
     await expect(page.locator('.self-round-score strong')).toHaveText('+405')
   })
-  test(`首鸡存活横放，碰三张同向；被碰后跟冲不递补 ${width}`, async ({ page }) => {
+  test(`首鸡和跟冲存活横放，碰三张同向；首张被碰后不递补 ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 844 ? 390 : 720 })
     await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=river')
     const canvas = page.locator('canvas.mahjong-scene')
-    await expect(canvas).toHaveAttribute('data-sideways-discards', '[[0,2],[0],[0],[]]')
+    await expect(canvas).toHaveAttribute('data-sideways-discards', '[[0,2],[0],[0],[0]]')
     await expect(canvas).toHaveAttribute('data-neutral-peng', '1')
     await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
     await page.screenshot({ path: `tmp/yaotong-first-chicken-${width}.png` })
     await page.evaluate(() => (window as unknown as { setGuidanceScenario: (name: string) => void }).setGuidanceScenario('river-claimed'))
-    await expect(canvas).toHaveAttribute('data-sideways-discards', '[[1],[0],[0],[]]')
+    await expect(canvas).toHaveAttribute('data-sideways-discards', '[[1],[0],[0],[0]]')
   })
 }

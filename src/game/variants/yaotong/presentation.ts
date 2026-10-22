@@ -28,6 +28,10 @@ export interface ChickenCue {
   points: number
   strong: boolean
 }
+/** 全场首张与本家首张跟冲都是4分档，牌河同样横放。 */
+export const sidewaysDiscard = (discard: { firstChicken?: boolean; followChicken?: boolean }) =>
+  Boolean(discard.firstChicken || discard.followChicken)
+
 export interface YaotongTableView {
   manualHuControls?: boolean
   holding?: boolean

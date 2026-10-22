@@ -58,8 +58,8 @@ describe('翻鸡前确认，仅有实际风险取舍的大牌提供多个胡法'
   })
 })
 
-describe('每种鸡的首张存活横放，不递补；碰牌不指来源', () => {
-  it.each([0, 16, 18, YAO])('鸡牌%s只有全场第一张标记，跟冲不冒充首张', tile => {
+describe('每种鸡的首张与本家首张跟冲横放；首张标记不递补；碰牌不指来源', () => {
+  it.each([0, 16, 18, YAO])('鸡牌%s只有全场第一张和本家首张跟冲横放', tile => {
     const s = table()
     for (let n = 0; n < 2; n++) {
       s.phase = 'discard'; s.current = 0; s.pending = null
@@ -67,10 +67,11 @@ describe('每种鸡的首张存活横放，不递补；碰牌不指来源', () =
       act(s, 0, { type: 'discard', index: 0 })
     }
     expect(s.players[0].river.map(d => d.firstChicken)).toEqual([true, false])
+    expect(s.players[0].river.map(d => d.followChicken)).toEqual([false, false])
     expect(yaotongReplayFrame(s).yaotongSidewaysDiscards![0]).toEqual([0])
   })
 
-  it('首张被碰走后不转给下一张；新的小局重新记录', () => {
+  it('首张被碰走后首张标记不递补；另一家的首张跟冲仍单独横放', () => {
     const s = table()
     s.players[0] = player('147m 258p 369s 2468s 1s')
     s.players[1] = player('11s 147m 258p 369s 24s')
@@ -81,10 +82,23 @@ describe('每种鸡的首张存活横放，不递补；碰牌不指来源', () =
     s.phase = 'discard'; s.current = 2; s.pending = null
     s.players[2].hand.push(18)
     act(s, 2, { type: 'discard', index: 13 })
-    expect(s.players[2].river[0].firstChicken).toBe(false)
+    expect(s.players[2].river[0]).toMatchObject({ firstChicken: false, followChicken: true, chicken: 4 })
+    expect(yaotongReplayFrame(s).yaotongSidewaysDiscards![2]).toEqual([0])
     s.phase = 'discard'; s.current = 0; s.players[0] = player('234567m 234s 66p 789s', { drawn: 26 })
     act(s, 0, { type: 'hu' })
     const next = continueGame(s)
     expect(next.seenChickenDiscards).toEqual([])
+  })
+
+  it('同一家之后打出的2分档固定鸡不再横放', () => {
+    const s = table()
+    s.players[0] = player('147m 258p 369s 2468s 1s')
+    act(s, 0, { type: 'discard', index: 13 })
+    s.phase = 'discard'; s.current = 0; s.pending = null
+    s.players[0].hand = player('147m 258p 369s 2468s 1s').hand
+    s.players[0].discards = 1
+    act(s, 0, { type: 'discard', index: 13 })
+    expect(s.players[0].river[1]).toMatchObject({ firstChicken: false, followChicken: false, chicken: 2 })
+    expect(yaotongReplayFrame(s).yaotongSidewaysDiscards![0]).toEqual([0])
   })
 })

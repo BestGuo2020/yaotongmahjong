@@ -14,7 +14,10 @@ export interface Meld {
   responsibility: number
 }
 export interface Discard {
+  /** 全场第一次打出的该种鸡，横放标记。 */
   firstChicken?: boolean
+  /** 本家首张跟冲的固定鸡（4分档），与首张一样横放。 */
+  followChicken?: boolean
   tile: Tile
   chicken: number
   /** Captured before the discard: a kong rush can also occur inside the first-discard cycle. */

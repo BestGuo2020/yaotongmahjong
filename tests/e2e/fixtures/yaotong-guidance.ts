@@ -48,6 +48,10 @@ createApp({ setup() {
       ]
       state.players[1].river = [{ tile: 16, chicken: 4, stage: 'normal', id: 4, firstChicken: true }]
       state.players[2].river = [{ tile: 18, chicken: 4, stage: 'normal', id: 5, firstChicken: true }]
+      state.players[3].river = [
+        { tile: 16, chicken: 4, stage: 'normal', id: 6, followChicken: true },
+        { tile: 16, chicken: 2, stage: 'normal', id: 7 },
+      ]
       state.players[3].melds = [{ kind: 'peng', tile: 4, from: 1, chicken: 0, responsibility: 0, pre: false }]
       if (name === 'river-claimed') state.players[0].river.shift()
     } else if (name === 'hu' || name === 'hu-response') {

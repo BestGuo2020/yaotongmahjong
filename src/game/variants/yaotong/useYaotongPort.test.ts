@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GAME_PORT_ACTION_KEYS, GAME_PORT_STATE_KEYS } from '../../core/contracts/gamePort'
 import { wallStackSlot, wallTilePlacement } from '../../core/rules/wallLayout'
 import { tileMarkerFor } from '../../../components/table/three/tileMarker'
-import { createGame } from './engine'
+import { act, createGame } from './engine'
 import { fromSharedTile, toSharedTile, useYaotongPort } from './useYaotongPort'
 import { meld, player, table } from './auditFixtures'
 import * as audioPresentation from '../../core/presentation/useAudio'
@@ -396,6 +396,23 @@ describe('幺筒复用原版GamePort与3D表现', () => {
     expect(port.result.value?.scoreChanges.reduce((sum, p) => sum + p.delta, 0)).toBe(0)
     expect(port.revealHands.value).toBe(true)
     scope.stop()
+  })
+  it('牌河横放标记同时覆盖全场首张与本家首张跟冲，2分档不横放', () => {
+    const scope = effectScope()
+    try {
+      const port = scope.run(() => useYaotongPort())!
+      const state = table()
+      state.players[0] = player('147m 258p 369s 2468s 1s')
+      act(state, 0, { type: 'discard', index: 13 })
+      state.phase = 'discard'; state.current = 1; state.pending = null
+      state.players[1] = player('147m 258p 369s 2468s 1s')
+      act(state, 1, { type: 'discard', index: 13 })
+      state.phase = 'discard'; state.current = 2; state.pending = null
+      state.players[2] = player('147m 258p 369s 2468s 1s', { discards: 1 })
+      act(state, 2, { type: 'discard', index: 13 })
+      port.local.state.value = state
+      expect(port.tableView.value.sidewaysDiscards).toEqual([[0], [0], [], []])
+    } finally { scope.stop() }
   })
   it('原报锁手通过共同入口保护，幺筒以癞标记而不是翻精', () => {
     expect(toSharedTile(9)).toBe('p1')

@@ -4,7 +4,7 @@ import { defaultAvatarForSeat } from '../../core/presentation/avatar'
 import type { ReplayFrameSource, ReplayRecorderHooks, ReplayStep } from '../../replay/types'
 import { observeGameEvents } from './engine'
 import { chickenMarks } from './chickenPresentation'
-import { giftAwards, reportKillTotals, winningPattern, yaotongRoundLabel } from './presentation'
+import { giftAwards, reportKillTotals, sidewaysDiscard, winningPattern, yaotongRoundLabel } from './presentation'
 import type { GameEvent, GameState } from './types'
 
 const sharedTile = (tile: number) => `${['m', 'p', 's'][Math.floor(tile / 9)]}${tile % 9 + 1}` as TileType
@@ -37,7 +37,7 @@ export function yaotongReplayFrame(state: GameState, characterId?: string, tailC
       giftAmount: gifts.find((gift) => gift.seat === seat)?.amount,
       killed: kills.some((kill) => kill.seat === seat && kill.paid > 0),
       killedAmount: kills.find((kill) => kill.seat === seat)?.paid })),
-    yaotongSidewaysDiscards: state.players.map(p => p.river.flatMap((d, index) => d.firstChicken ? [index] : [])),
+    yaotongSidewaysDiscards: state.players.map(p => p.river.flatMap((d, index) => sidewaysDiscard(d) ? [index] : [])),
     ...(state.result ? { yaotongState: state } : {}),
   }
 }
