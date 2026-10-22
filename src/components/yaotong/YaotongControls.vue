@@ -141,6 +141,16 @@ watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
   border: 1px solid var(--theme-border);
   border-radius: 20px;
 }
+/* PC 大屏：同一条操作行放大到约 2 倍，×2 也从胶囊改成方形，与方形按钮并排不违和。 */
+@media (hover: hover) and (pointer: fine) {
+  @container game (min-width: 1000px) and (min-height: 560px) {
+    .yaotong-double {
+      font-size: clamp(12px, 1.17cqw, 24px);
+      padding: clamp(4px, .4cqw, 8px) clamp(8px, .78cqw, 16px);
+      border-radius: 8px;
+    }
+  }
+}
 @container (max-width:700px) {
   .yaotong-help-trigger { max-width: 180px; padding: 4px 7px; }
   .yaotong-action-note {

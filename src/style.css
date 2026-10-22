@@ -3963,6 +3963,52 @@ button { font: inherit; }
   .game-app .yaotong-table .avatar-wrap .avatar,
   .game-app .yaotong-table .user-identity .avatar { width: 30px; height: 30px; }
 }
+/* PC 大屏操作按钮：2048 宽的牌桌上牌面已有 88px，52px 的碰/杠与 44px 的托管显得像图标。
+   这一档按视口把整条操作行放大到约 2 倍（2048 宽 ≈ 碰杠 108×104、托管 88），
+   同时把原来的椭圆/胶囊改成方形圆角。触屏、手机紧凑横屏与矮窗（<560px 高）仍走固定尺寸。 */
+@media (hover: hover) and (pointer: fine) {
+  @container game (min-width: 1000px) and (min-height: 560px) {
+    .game-app .yaotong-table .turn-action-row .action,
+    .game-app .yaotong-table .turn-action-row .action-bar .action.primary {
+      min-width: clamp(61px, 6cqw, 122px);
+      height: clamp(52px, 5cqw, 104px);
+      padding: clamp(5px, .5cqw, 10px) clamp(12px, 1.2cqw, 24px);
+      border-width: 2px;
+      border-radius: 14px;
+    }
+    .game-app .yaotong-table .turn-action-row .action b { font-size: clamp(26px, 2.55cqw, 52px); }
+    .game-app .yaotong-table .turn-action-row .action span { font-size: clamp(13px, 1.27cqw, 26px); }
+    .game-app .yaotong-table .turn-action-row .action-bar .action.primary { min-width: clamp(54px, 5.3cqw, 108px); }
+    .game-app .yaotong-table .turn-action-row .action-bar .action.primary b { font-size: clamp(24px, 2.35cqw, 48px); }
+    .game-app .yaotong-table .turn-action-row .action.autoplay-action {
+      min-width: clamp(44px, 4.3cqw, 88px);
+      height: clamp(44px, 4.3cqw, 88px);
+      padding: clamp(3px, .3cqw, 6px) clamp(7px, .7cqw, 14px);
+      border-radius: 12px;
+    }
+    .game-app .yaotong-table .turn-action-row .action.autoplay-action b { font-size: clamp(13px, 1.27cqw, 26px); }
+    /* 「等 + 秒数」是唯一带副标题的主操作，字号要收一点，副标题才不会顶出方形按钮的下边框。 */
+    .game-app .yaotong-table .turn-action-row .action.wait-action { padding: 6px 12px; }
+    .game-app .yaotong-table .turn-action-row .action.wait-action b { font-size: clamp(23px, 2.15cqw, 44px); }
+    .game-app .yaotong-table .turn-action-row .action.wait-action span { font-size: clamp(10px, .88cqw, 18px); }
+    .game-app .yaotong-table .turn-action-row .action.hu-plan {
+      min-width: clamp(110px, 10.75cqw, 220px);
+      min-height: clamp(48px, 4.7cqw, 96px);
+      height: auto;
+      padding: clamp(6px, .6cqw, 12px) clamp(10px, 1cqw, 20px);
+      border-radius: 14px;
+    }
+    .game-app .yaotong-table .turn-action-row .action.hu-plan b { font-size: clamp(15px, 1.47cqw, 30px); }
+    .game-app .yaotong-table .turn-action-row .action.hu-plan span { font-size: clamp(11px, 1.08cqw, 22px); }
+    .game-app .yaotong-table .turn-action-row .action.waiting-action {
+      width: clamp(54px, 5.3cqw, 108px);
+      height: clamp(60px, 5.9cqw, 120px);
+      padding: 2px;
+      border-radius: 0;
+    }
+    .game-app .yaotong-table .turn-action-row .waiting-action .action-icon { width: clamp(42px, 4.2cqw, 86px); height: clamp(42px, 4.2cqw, 86px); }
+  }
+}
 
 /* Text can grow independently of the tile canvas and touch targets. */
 @media (hover: none) and (pointer: coarse) {
