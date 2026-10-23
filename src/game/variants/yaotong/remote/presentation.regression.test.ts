@@ -7,6 +7,8 @@ import { useYaotongPort } from '../useYaotongPort'
 import { createReplayRecorder } from '../../../replay/recorder'
 import { buildReplayFrames } from '../../../replay/projection'
 import type { ReplayRound, ReplayMatch } from '../../../replay/types'
+import { useRemoteContinueCountdown } from '../../../online/presentation/useRemoteContinueCountdown'
+import type { GameMode } from '../../../core/contracts/activeGamePort'
 
 const external = () => ({ send: vi.fn(), nextRound: vi.fn(), leave: vi.fn(),
   openingDone: vi.fn(), auto: vi.fn(), hold: vi.fn() })
@@ -27,6 +29,28 @@ function settled() {
   return state
 }
 
+it('starts the shared WS continue countdown only after the reveal has finished', async () => {
+  const authority = external()
+  const remote = scope.run(() => useYaotongGame({ externalAuthority: authority }))!
+  const port = scope.run(() => useYaotongPort({}, remote))!
+  const countdown = scope.run(() => useRemoteContinueCountdown({
+    gameMode: ref<GameMode>('remote'), phase: port.phase, result: port.result,
+    matchFinished: port.matchFinished, waitingNextRound: ref(false), continueRound: () => { port.nextRound() },
+  }))!
+  remote.acceptRemoteState(settled())
+  expect(remote.showingSettlement.value).toBe(true)
+  await vi.advanceTimersByTimeAsync(1229)
+  expect(port.result.value).toBeNull()
+  expect(countdown.value).toBe(10)
+  await vi.advanceTimersByTimeAsync(1)
+  expect(port.result.value).not.toBeNull()
+  await vi.advanceTimersByTimeAsync(9000)
+  expect(countdown.value).toBe(1)
+  expect(authority.nextRound).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(authority.nextRound).toHaveBeenCalledOnce()
+})
+
 it('hybrid selection follows the active source in both directions', async () => {
   const mode = ref('local')
   const local = scope.run(() => useYaotongGame())!
@@ -43,6 +67,45 @@ it('hybrid selection follows the active source in both directions', async () => 
   expect(local.selected.value).toBe(-1)
   mode.value = 'local'
   expect(port.selectedIndex.value).toBe(-1)
+})
+
+it('hidden opponents show a separate drawn tile and the public added-kong tile during the rob window', () => {
+  const remote = scope.run(() => useYaotongGame({ externalAuthority: external() }))!
+  const port = scope.run(() => useYaotongPort({}, remote))!
+  const state = table()
+  state.current = 1
+  state.players[1].hand = []
+  state.players[1].drawn = null
+  state.players[1].concealedTileCount = 14
+  remote.acceptRemoteState(state)
+  expect(port.players[1].drawnTileIndex).toBe(13)
+  const kong = structuredClone(state)
+  kong.phase = 'transition'
+  kong.remoteFlowStep = 'before-rob'
+  kong.players[1].concealedTileCount = 11
+  kong.players[1].melds = [{ tile: 4, kind: 'peng', from: 3, pre: false, chicken: 0, responsibility: 0 }]
+  kong.pending = { kind: 'rob', tile: 4, from: 1, discard: null, options: {}, choices: {} }
+  remote.acceptRemoteState(kong)
+  expect(port.phase.value).toBe('kong')
+  expect(port.players[1].hand).toEqual([])
+  expect(port.players[1].concealedTileCount).toBe(10)
+  expect(port.players[1].melds[0]).toMatchObject({ pending: true, tiles: ['m5', 'm5', 'm5', 'm5'] })
+})
+
+it.each([false, true])('报牌等待期间收到快照，只有换局才取消声音：newHand=%s', async newHand => {
+  const remote = scope.run(() => useYaotongGame({ externalAuthority: external() }))!
+  const playSoundAndWait = vi.fn().mockResolvedValue(undefined)
+  scope.run(() => useYaotongPort({ playSoundAndWait }, remote))!
+  const state = table()
+  state.remoteMatchId = 'same-match'
+  state.serial = 2
+  state.events = [{ id: 2, seat: 1, kind: 'discard', tile: 4, text: '打出五万' }]
+  remote.acceptRemoteState(state)
+  const update = structuredClone(state)
+  if (newHand) { update.handNumber++; update.serial = 0; update.events = [] }
+  remote.acceptRemoteState(update)
+  await vi.advanceTimersByTimeAsync(80)
+  expect(playSoundAndWait).toHaveBeenCalledTimes(newHand ? 0 : 1)
 })
 
 it('continue and repeated snapshots keep one settlement; a new hand clears every display state', async () => {

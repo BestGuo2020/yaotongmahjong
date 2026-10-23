@@ -24,7 +24,7 @@ import {
 import { createRoomSocketTransport } from '../../../online/transport/roomSocket'
 import { useYaotongGame } from '../useYaotongGame'
 import { useYaotongPort } from '../useYaotongPort'
-import { convertSnapshot, toActionPayload, type YtSnapshot } from './protocol'
+import { convertSnapshot, hasCompleteSettlementHands, toActionPayload, type YtSnapshot } from './protocol'
 
 const remoteSessionStore = createRemoteSessionStore()
 const WS_BASE = API_BASE.replace(/^http/, 'ws')
@@ -80,6 +80,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   const currentRound = ref(0)
   let lastOpeningKey = ''
   let completedOpeningKey = ''
+  let pendingSnapshot: YtSnapshot | null = null
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
   function saveSession() {
@@ -119,6 +120,21 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     }
     if (kind === 'yt_snapshot') {
       const snapshot = message as YtSnapshot
+      if (!hasCompleteSettlementHands(snapshot)) {
+        // 旧服务或不完整终局包不能让三家的牌背消失，也不能冲掉已收到的终局牌面。
+        if (!inner.showingSettlement.value) inner.paused.value = true
+        sessionError.value = '结算手牌尚未完整同步'
+        return
+      }
+      sessionError.value = ''
+      const current = inner.state.value
+      const sameHand = current?.remoteMatchId === (snapshot.matchId ?? snapshot.roomId)
+        && current.handNumber === snapshot.round
+      if (inner.showingSettlement.value && !sameHand && !waitingNextRound.value) {
+        // 对齐经典 WS：结算演出/阅览期间的下一局，只暂存，不替换牌桌。
+        pendingSnapshot = snapshot
+        return
+      }
       if (typeof snapshot.seat === 'number') mySeat.value = snapshot.seat
       if (snapshot.matchLength) matchLength.value = snapshot.matchLength
       if (snapshot.yaotongMode) {
@@ -129,7 +145,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       if (snapshot.view?.players?.length === 4
           && snapshot.view.phase !== 'lobby') {
         try {
-          inner.acceptRemoteState(convertSnapshot(snapshot))
+          if (!sameHand || !inner.showingSettlement.value) inner.acceptRemoteState(convertSnapshot(snapshot))
         } catch (error) {
           sessionError.value = error instanceof Error
             ? error.message : '联机快照解析失败'
@@ -208,6 +224,13 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       },
       nextRound: () => {
         if (waitingNextRound.value || !inner.state.value?.result || inner.state.value.result.finished) return
+        if (pendingSnapshot) {
+          const snapshot = pendingSnapshot
+          pendingSnapshot = null
+          waitingNextRound.value = true
+          handleMessage(snapshot)
+          return
+        }
         // 仅发送成功才禁用按钮；重连快照会恢复服务端的实际确认状态。
         if (socket.send({ kind: 'continue', round: currentRound.value })) waitingNextRound.value = true
       },
@@ -285,7 +308,9 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     currentRound.value = 0
     lastOpeningKey = ''
     completedOpeningKey = ''
+    pendingSnapshot = null
     inner.state.value = null
+    inner.showingSettlement.value = false
     inner.autoplay.value = false
     inner.selected.value = -1
     inner.paused.value = false

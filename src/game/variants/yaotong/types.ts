@@ -145,6 +145,8 @@ export interface GameEvent {
   rush?: Discard['stage']
 }
 export interface GameState {
+  remoteFlowStep?: 'first-draw' | 'next-draw' | 'before-claim' | 'after-peng' | 'after-open-kong'
+    | 'before-rob' | 'between-robbers' | 'after-added-kong' | 'rob-win' | null
   /** 联机场次身份；用于区分同一房间重开后的第一个小局。 */
   remoteMatchId?: string
   players: Player[]

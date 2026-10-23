@@ -43,13 +43,15 @@ export function useYaotongGame(options: {
   const remote = Boolean(external)
   const state = shallowRef<GameState | null>(null)
   const paused = ref(false)
+  /** 表现层正在展示本局结算；联机据此暂存提前到达的下一局快照。 */
+  const showingSettlement = ref(false)
   const autoplay = ref(false)
   const mode = ref<YaotongMode>('easy')
   const protection = computed(() => mode.value === 'easy' && state.value
     ? actionProtection(state.value) : NO_PROTECTION)
   const protectionNotice = ref('')
   const pendingTransition = shallowRef<{ state: GameState; step: FlowStep; resume: () => void; readyAt: number } | null>(null)
-  const flowStep = computed(() => pendingTransition.value?.step ?? null)
+  const flowStep = computed(() => remote ? state.value?.remoteFlowStep ?? null : pendingTransition.value?.step ?? null)
   const selected = ref(-1)
   const error = ref('')
   const hold = shallowRef<{ game: GameState; seat: number; startedAt: number; initial: number } | null>(null)
@@ -207,6 +209,7 @@ export function useYaotongGame(options: {
     selected.value = -1
   }
   function leave() {
+    showingSettlement.value = false
     if (remote) {
       endHold(true)
       external!.leave()
@@ -344,6 +347,7 @@ export function useYaotongGame(options: {
     state,
     user,
     paused,
+    showingSettlement,
     autoplay,
     mode,
     remote,

@@ -257,7 +257,7 @@ export function useYaotongPort(
         const pendingKong =
           state.pending?.kind === 'rob' &&
           state.pending.from === seat &&
-          p.hand.includes(state.pending.tile) &&
+          (p.hand.includes(state.pending.tile) || (local.remote && p.concealedTileCount != null)) &&
           !outcome
         if (pendingKong) {
           hand = [...hand]
@@ -267,14 +267,16 @@ export function useYaotongPort(
           name: p.name,
           avatar: p.avatar || defaultAvatarForSeat(seat),
           seat,
-          concealedTileCount: openingActive.value ? dealCounts.value[seat] : p.concealedTileCount ?? hand.length,
+          concealedTileCount: openingActive.value ? dealCounts.value[seat]
+            : p.concealedTileCount == null ? hand.length : p.concealedTileCount - (pendingKong ? 1 : 0),
           // Engine settlement is atomic. Display transfers only when the shared reveal stage finishes.
           score: p.score - (outcome && !scoresReleased.value ? outcome.deltas[seat] : 0),
           redCount: 0,
           playerKind: p.playerKind ?? (seat === 0 ? 'human' : 'bot'),
           characterId: p.characterId ?? (seat === 0 ? options.getCharacterId?.() : undefined),
           hand: hand.map(toSharedTile),
-          drawnTileIndex: p.drawn !== null && !openingActive.value && !pendingKong ? hand.length - 1 : -1,
+          drawnTileIndex: openingActive.value || pendingKong ? -1 : p.drawn !== null ? hand.length - 1
+            : local.remote && (p.concealedTileCount ?? 0) > 13 - p.melds.length * 3 ? p.concealedTileCount! - 1 : -1,
           discards: [
             ...p.river.map((d) => toSharedTile(d.tile)),
             ...(claimWin && outcome.source === seat && outcome.winKind !== 'rob' && !winningDiscardMoved.value
@@ -478,6 +480,11 @@ export function useYaotongPort(
       endDraw: finalizeResult,
     })
   }
+  function isCurrentHand(game: GameState | null) {
+    const current = local.state.value
+    return current === game || Boolean(local.remote && game && current
+      && current.remoteMatchId === game.remoteMatchId && current.handNumber === game.handNumber)
+  }
   function present(event: GameEvent) {
     if (event.kind === 'draw') {
       if (event.text === '杠后补摸') tailDrawn.value++
@@ -492,7 +499,7 @@ export function useYaotongPort(
       lastDiscardSound.value = playDiscardName(toSharedTile(event.tile!), {
         playSound,
         playSoundAndWait,
-        current: () => local.state.value === game,
+        current: () => isCurrentHand(game),
       })
     }
     if (event.kind === 'peng' || (event.kind === 'kong' && event.text === '明杠')) {
@@ -530,10 +537,11 @@ export function useYaotongPort(
       token = generation
     if (performance) pendingChickens.value = [...pendingChickens.value, performance]
     const showChicken = () => {
-      if (!performance || generation !== token || local.state.value !== game) return
+      if (!performance || generation !== token || !isCurrentHand(game)) return
       pendingChickens.value = pendingChickens.value.filter((c) => c.id !== performance.id)
-      if (game?.result) return
-      if (performance.kind === 'rush' && !game?.players[event.seat].river.some((d) => d.id === event.id))
+      const current = local.state.value
+      if (current?.result) return
+      if (performance.kind === 'rush' && !current?.players[event.seat].river.some((d) => d.id === event.id))
         return
       chickenPerformances.value = [
         ...chickenPerformances.value.filter((c) => c.actorSeat !== performance.actorSeat),
@@ -613,6 +621,7 @@ export function useYaotongPort(
       for (const event of state.events.filter((e) => e.id > seenSerial)) present(event)
       seenSerial = state.serial
       if (!state.result || result.value || presentationPhase.value) return
+      local.showingSettlement.value = true
       kongWeather.value = []
       announcement.value = null
       seatCue.value = null
@@ -649,6 +658,7 @@ export function useYaotongPort(
   onScopeDispose(() => stopStateWatch?.())
 
   function resetPresentation() {
+    local.showingSettlement.value = false
     kongWeather.value = []
     settlementGeneration++
     scheduler.clear()

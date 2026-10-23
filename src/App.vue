@@ -17,6 +17,7 @@ import type { GameMode } from './game/core/contracts/activeGamePort'
 import type { TileType } from './game/core/contracts/types'
 import { useWakuDemoAuth } from './game/online/session/useWakuDemoAuth'
 import { useRoomAvailability } from './game/online/session/useRoomAvailability'
+import { useRemoteContinueCountdown } from './game/online/presentation/useRemoteContinueCountdown'
 import type { TableThemeName } from './components/table/three/tableTheme'
 import { readTableThemePreference, resolveInitialTableTheme } from './components/table/three/tableThemePreference'
 import { themePresentationByName, themePresentationCssVariables } from './theme/themePresentation'
@@ -121,6 +122,11 @@ const {
   userKongs, userCurrentWaits, userTingOptions, userDiscardWaits, dealAnimation, openingStage, diceValues, diceThrowerIndex, startGame, selectTile, clearUserSelection, userDiscard, userPass, userPeng, userGangFromDiscard,
   userGang, userHu, nextRound, returnToLobby,
 } = yaotongGame
+const continueCountdown = useRemoteContinueCountdown({
+  gameMode, phase, result, matchFinished,
+  waitingNextRound: online.waitingNextRound,
+  continueRound: () => { nextRound() },
+})
 // GamePort.players 是 getter；开局时才生成座位，必须保持响应式读取。
 const players = computed(() => yaotongGame.players)
 const allOccupiedReady = computed(() => {
@@ -432,7 +438,7 @@ function changeTableTheme(theme: TableThemeName) {
         :dealer="dealer"
         :waiting-next-round="gameMode === 'remote' ? online.waitingNextRound.value : false"
         :game-mode="gameMode"
-        :continue-countdown="0"
+        :continue-countdown="continueCountdown"
         :match-name="matchName"
         :standings="standings"
         :player-id="gameMode === 'remote' ? online.playerId.value : ''"

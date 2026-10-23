@@ -167,11 +167,18 @@ export interface YtSnapshot {
   roundResult: YtSettlementView | null
   continuation?: { requiredSeats: number[]; readySeats: number[] }
   view: YtView
+  flowStep?: GameState['remoteFlowStep']
   huWindow?: YtView | null
 }
 
 export const toLocalSeat = (serverSeat: number, mySeat: number) =>
   ((serverSeat - mySeat + 4) % 4 + 4) % 4
+
+/** 终局必须先公开四家的实体手牌，才可把暗牌切成牌面。 */
+export function hasCompleteSettlementHands(snapshot: YtSnapshot): boolean {
+  return !snapshot.roundResult || (snapshot.view.players.length === 4
+    && snapshot.view.players.every(player => player.hand.length === player.concealedTileCount))
+}
 
 const tile = (value: string | null | undefined): Tile | null =>
   value == null ? null : fromSharedTile(value as never)
@@ -339,6 +346,7 @@ export function convertSnapshot(snapshot: YtSnapshot): GameState {
   const result = snapshot.roundResult
     ? convertSettlement(snapshot.roundResult, mySeat) : null
   const state: GameState = {
+    remoteFlowStep: snapshot.flowStep,
     remoteMatchId: snapshot.matchId ?? snapshot.roomId,
     players,
     wall: Array.from({ length: view.wallCount }, () => 0),

@@ -239,4 +239,45 @@ describe('useYaotongRemoteGame', () => {
       expect(game.pendingOpeningRound.value).toBe(1)
     } finally { scope.stop() }
   })
+
+  it('waits for terminal faces and freezes the terminal table until continue', async () => {
+    const scope = effectScope()
+    const game = scope.run(() => useYaotongRemoteGame({ createPort: false,
+      socketFactory: () => (socket = new FakeSocket()),
+    }))!
+    try {
+      await game.createRoom(8, '甲')
+      socket.open()
+      socket.server(snapshot())
+      const live = game.inner.state.value
+      const terminal = snapshot({ roundResult: {
+        kind: 'draw', winners: [], source: null, winKind: null, tile: null, offender: null,
+        reason: '荒庄', indicator: null, chicken: null, ready: [false, false, false, false],
+        deltas: [0, 0, 0, 0], nextDealer: 0, finished: false, transfers: [], values: {},
+      } })
+      terminal.view.phase = 'settled'
+      const incomplete = structuredClone(terminal)
+      incomplete.view.players.slice(1).forEach(player => { player.hand = [] })
+      socket.server(incomplete)
+      expect(game.inner.state.value).toBe(live)
+      expect(game.inner.paused.value).toBe(true)
+      expect(game.sessionError.value).toContain('手牌')
+      socket.server(terminal)
+      expect(game.sessionError.value).toBe('')
+      expect(game.inner.state.value!.players.map(player => player.hand.length)).toEqual([3, 3, 3, 3])
+      game.inner.showingSettlement.value = true
+      const settled = game.inner.state.value
+      socket.server(incomplete)
+      expect(game.inner.state.value).toBe(settled)
+      const next = snapshot({ round: 2, opening: { dice: [1, 2], wallSide: 0, reservedStacks: 0 } })
+      next.view.handNumber = 2
+      socket.server(next)
+      expect(game.inner.state.value).toBe(settled)
+      expect(game.pendingOpeningRound.value).toBeNull()
+      game.inner.next()
+      expect(game.inner.state.value!.handNumber).toBe(2)
+      expect(game.pendingOpeningRound.value).toBe(2)
+      expect(socket.sent.filter(message => message.kind === 'continue')).toHaveLength(0)
+    } finally { scope.stop() }
+  })
 })
