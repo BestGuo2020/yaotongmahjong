@@ -19,6 +19,9 @@ import { actionProtection, NO_PROTECTION, protectionReason, type YaotongMode } f
 import { YAO } from './tiles'
 
 export const YAOTONG_AI_DISCARD_MS = 1000
+/** 杠后补摸的出牌间隔：开杠的天气/播报约 2.2s，沿用 1000ms 会让「杠 → 打一张」连成一拍，
+ *  牌被特效盖住、应牌窗口也被吃掉；这里拉到 2000ms，让杠结束再落牌。 */
+export const YAOTONG_AI_KONG_DISCARD_MS = 2000
 export const YAOTONG_REACTION_MS = 1000
 export const YAOTONG_EXTENDED_REACTION_MS = 2000
 export const YAOTONG_WAIT_BUDGET_MS = 15000
@@ -315,23 +318,26 @@ export function useYaotongGame(options: {
         : game.current === seat,
     )
     if (nextSeat === undefined) return
+    const delay = game.phase === 'response'
+      ? nextSeat === 0 && !autoplay.value
+        ? Math.max(0, reactionDeadline(game) - Date.now())
+        : game.pending?.kind === 'rob'
+        ? 0
+        : AI_DELAYS.claim
+      : game.players[nextSeat]?.afterKong
+        ? YAOTONG_AI_KONG_DISCARD_MS
+        : YAOTONG_AI_DISCARD_MS
     timer = setTimeout(
       () => {
         const command: Command | null = nextSeat === 0 && !autoplay.value && game.phase === 'response'
           ? { type: 'respond', action: 'pass', deferHu: true } : chooseAction(game, nextSeat)
         if (command && state.value === game) dispatch(command, nextSeat)
       },
-      game.phase === 'response'
-        ? nextSeat === 0 && !autoplay.value
-          ? Math.max(0, reactionDeadline(game) - Date.now())
-          : game.pending?.kind === 'rob'
-          ? 0
-          : AI_DELAYS.claim
-        : YAOTONG_AI_DISCARD_MS,
+      delay,
     )
     cleanup(() => clearTimeout(timer))
   })
-  onScopeDispose(() => { clearTimeout(timer); endHold() })
+  onScopeDispose(() => { clearTimeout(timer); endHold(true) })
   return {
     state,
     user,

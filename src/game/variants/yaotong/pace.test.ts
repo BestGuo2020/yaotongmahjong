@@ -17,7 +17,8 @@ import {
 } from '../../core/presentation/winEffect'
 import { createGame, makePlayer } from './engine'
 import { chooseAction } from './ai'
-import { YAOTONG_AI_DISCARD_MS, YAOTONG_REACTION_MS, YAOTONG_EXTENDED_REACTION_MS } from './useYaotongGame'
+import { YAOTONG_AI_DISCARD_MS, YAOTONG_AI_KONG_DISCARD_MS, YAOTONG_REACTION_MS, YAOTONG_EXTENDED_REACTION_MS } from './useYaotongGame'
+import { KONG_WEATHER_DURATION } from './kongPresentation'
 import { countsOf } from './tiles'
 import { ownedTiles } from './settlement'
 import { fromSharedTile, useYaotongPort } from './useYaotongPort'
@@ -103,7 +104,7 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     expect(state.players[1].river).toHaveLength(1)
   })
 
-  it('真人碰后350ms才开放出牌；明杠补牌550ms，补摸AI思考1000ms', async () => {
+  it('真人碰后350ms才开放出牌；明杠补牌550ms，补摸后2000ms才出牌', async () => {
     const human = setup(),
       s = fixture()
     s.current = 1
@@ -131,10 +132,12 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(state.wall).toHaveLength(wallCount - 1)
     expect(state.players[1].afterKong).toBe(true)
-    await vi.advanceTimersByTimeAsync(YAOTONG_AI_DISCARD_MS - 1)
+    await vi.advanceTimersByTimeAsync(YAOTONG_AI_KONG_DISCARD_MS - 1)
     expect(state.players[1].river).toHaveLength(0)
     await vi.advanceTimersByTimeAsync(1)
     expect(state.players[1].river).toHaveLength(1)
+    // 开杠天气/播报约 2.2s：补摸后的出牌不能落在特效里，否则玩家看不清也来不及应牌。
+    expect(PACE_MS.afterClaimGang + YAOTONG_AI_KONG_DISCARD_MS).toBeGreaterThan(KONG_WEATHER_DURATION)
   })
 
   it('补杠先宣告，2000ms处理抢杠，再等600ms补牌；不重复播杠声', async () => {
