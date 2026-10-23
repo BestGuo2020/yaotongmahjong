@@ -36,6 +36,8 @@ watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
     <button v-if="game.local.holding.value" class="action pass" data-action-role="secondary" @click="game.local.passHold()"><b>过</b></button>
     <span v-if="game.local.holding.value" class="wait-budget" role="timer" aria-label="本小局剩余等待时间">{{ Math.ceil(game.local.waitRemainingMs.value / 1000) }}秒</span>
     <template v-if="!game.local.holding.value && game.original.value && game.local.waiting.value.length">
+      <span v-if="game.local.decisionSeconds.value > 0" class="wait-budget" role="timer" aria-label="原报操作剩余时间"
+        title="操作超时后由 AI 代操作一次">操作 {{ game.local.decisionSeconds.value }}秒</span>
       <button
         class="action hu"
         data-action-role="major"

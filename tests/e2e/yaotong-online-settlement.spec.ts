@@ -26,6 +26,49 @@ async function leaveRoom(page: Page, roomId: string) {
   })
 }
 
+test('真实 WS 老手操作限时：等暂停读秒，过后续计，20秒用完自动出牌', async ({ page }) => {
+  test.skip(process.env.YAOTONG_SETTLEMENT_E2E !== '1', '需要 fixtures/yaotong-online-server.py')
+  test.setTimeout(70_000)
+  let remaining = 0
+  let paused = false
+  let discarded = false
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('websocket', socket => socket.on('framereceived', frame => {
+    const message = JSON.parse(String(frame.payload))
+    if (message.kind !== 'yt_snapshot') return
+    remaining = message.decisionRemainingMs
+    paused = message.decisionPaused
+    discarded ||= message.view.events.some((event: { kind: string; seat: number }) => event.kind === 'discard' && event.seat === 0)
+  }))
+  const roomId = await createSeededRoom(page, 'timeout')
+  try {
+    await page.getByRole('button', { name: '准备 / 取消准备' }).click()
+    await page.getByRole('button', { name: /开始对局/ }).click()
+    const timer = page.locator('.turn-timer')
+    await expect(timer).toBeVisible({ timeout: 30_000 })
+    await expect(timer).toHaveText(/^(20|19)$/)
+    const started = Date.now()
+    await expect(timer).toHaveText('14', { timeout: 9_000 })
+    await page.getByRole('button', { name: '等，暂停牌局并使用本局等待时间' }).click()
+    await expect.poll(() => paused).toBe(true)
+    const frozen = remaining
+    expect(frozen).toBeGreaterThan(12000)
+    expect(frozen).toBeLessThanOrEqual(14000)
+    const waitTimer = page.getByRole('timer', { name: '本小局剩余等待时间' })
+    await expect(waitTimer).toHaveText('13秒', { timeout: 4_000 })
+    await page.getByRole('button', { name: '过', exact: true }).click()
+    await expect.poll(() => paused).toBe(false)
+    expect(remaining).toBeLessThanOrEqual(frozen)
+    await expect(timer).toHaveText(/^(13|14)$/)
+    await expect.poll(() => discarded, { timeout: 16_000 }).toBe(true)
+    expect(Date.now() - started).toBeGreaterThanOrEqual(21000)
+    expect(Date.now() - started).toBeLessThan(25000)
+    await page.screenshot({ path: 'test-results/online-decision-timeout.png' })
+    expect(errors).toEqual([])
+  } finally { await leaveRoom(page, roomId) }
+})
+
 for (const kind of ['self', 'discard'] as const) {
   test(`真实 WS ${kind}：三家手牌完整亮出，演出结束后才开始继续倒计时`, async ({ page }) => {
     test.skip(process.env.YAOTONG_SETTLEMENT_E2E !== '1', '需要 fixtures/yaotong-online-server.py')

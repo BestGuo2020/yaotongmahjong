@@ -45,7 +45,7 @@ def tiles(text):
 
 class SeedRequest(BaseModel):
     roomId: str
-    kind: Literal['self', 'discard', 'open-kong', 'added-kong']
+    kind: Literal['self', 'discard', 'open-kong', 'added-kong', 'timeout']
 
 
 class AdvanceRequest(BaseModel):
@@ -73,6 +73,8 @@ def seed(body: SeedRequest):
     room = room_registry.get(body.roomId)
     if room is None or room.status != 'lobby':
         raise HTTPException(409)
+    if body.kind == 'timeout':
+        room.yaotong_mode = 'hard'
 
     def factory(options):
         if body.kind in ('open-kong', 'added-kong'):
@@ -98,6 +100,12 @@ def seed(body: SeedRequest):
                     remaining.remove(meld.tile)
         remaining.remove(26)
         state.wall = [26, *remaining]
+        if body.kind == 'timeout':
+            state.phase = 'discard'
+            state.current = 0
+            state.players[0].hand.append(state.wall.pop(0))
+            state.players[0].drawn = 26
+            state.players[0].draws = 2
         return state
 
     room.game_factory = factory

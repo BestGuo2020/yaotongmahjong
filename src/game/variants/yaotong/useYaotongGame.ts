@@ -63,6 +63,13 @@ export function useYaotongGame(options: {
   const waitRemainingMs = computed(() => hold.value?.seat === 0
     ? Math.max(0, hold.value.initial - (holdNow.value - hold.value.startedAt))
     : state.value?.waitRemainingMs?.[0] ?? YAOTONG_WAIT_BUDGET_MS)
+  const decisionNow = ref(Date.now())
+  const decisionSeconds = computed(() => {
+    const decision = state.value?.remoteDecision
+    if (!remote || !decision || paused.value || autoplay.value || state.value?.phase === 'settled') return 0
+    const elapsed = decision.paused ? 0 : Math.max(0, decisionNow.value - decision.receivedAt)
+    return Math.ceil(Math.max(0, decision.remainingMs - elapsed) / 1000)
+  })
   const reactionClocks = new WeakMap<GameState, { id: number; until: number }>()
   function reactionDeadline(game: GameState) {
     const event = [...game.events].reverse().find(e => e.kind === 'discard' || e.kind === 'kong-intent')
@@ -262,6 +269,17 @@ export function useYaotongGame(options: {
 
   let timer: ReturnType<typeof setTimeout> | undefined
   watchEffect(cleanup => {
+    const decision = state.value?.remoteDecision
+    if (!remote || !decision) return
+    decisionNow.value = Date.now()
+    if (decision.paused || decision.remainingMs <= 0) return
+    const interval = setInterval(() => {
+      decisionNow.value = Date.now()
+      if (decisionNow.value >= decision.receivedAt + decision.remainingMs) clearInterval(interval)
+    }, 100)
+    cleanup(() => clearInterval(interval))
+  })
+  watchEffect(cleanup => {
     const entry = hold.value
     if (!entry) return
     const tick = () => { holdNow.value = Date.now() }
@@ -365,7 +383,7 @@ export function useYaotongGame(options: {
     flowStep,
     selected,
     error,
-    holding, hardControls, waitRemainingMs, startHold,
+    holding, hardControls, waitRemainingMs, startHold, decisionSeconds,
     declareHu: (plan?: string) => holdDecision('declareHu', plan),
     passHold: () => holdDecision('passHu'),
     ownTurn,

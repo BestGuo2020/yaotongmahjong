@@ -69,6 +69,24 @@ it('hybrid selection follows the active source in both directions', async () => 
   expect(port.selectedIndex.value).toBe(-1)
 })
 
+it('hybrid operation countdown follows the remote source after entering a room', async () => {
+  const mode = ref('local')
+  const local = scope.run(() => useYaotongGame())!
+  const remote = scope.run(() => useYaotongGame({ externalAuthority: external() }))!
+  const proxy = new Proxy({} as typeof local, { get: (_, key) => (mode.value === 'remote' ? remote : local)[key as keyof typeof local] })
+  const port = scope.run(() => useYaotongPort({}, proxy))!
+  expect(port.turnSeconds.value).toBe(0)
+  mode.value = 'remote'
+  const state = table()
+  state.remoteDecision = { remainingMs: 20000, paused: false, receivedAt: Date.now() }
+  remote.acceptRemoteState(state)
+  expect(port.turnSeconds.value).toBe(20)
+  await vi.advanceTimersByTimeAsync(6000)
+  expect(port.turnSeconds.value).toBe(14)
+  mode.value = 'local'
+  expect(port.turnSeconds.value).toBe(0)
+})
+
 it('hidden opponents show a separate drawn tile and the public added-kong tile during the rob window', () => {
   const remote = scope.run(() => useYaotongGame({ externalAuthority: external() }))!
   const port = scope.run(() => useYaotongPort({}, remote))!

@@ -149,6 +149,8 @@ export interface GameState {
     | 'before-rob' | 'between-robbers' | 'after-added-kong' | 'rob-win' | null
   /** 联机场次身份；用于区分同一房间重开后的第一个小局。 */
   remoteMatchId?: string
+  /** 服务端给本人的操作剩余时间；接收时刻用本机时钟，避免两端时钟偏差。 */
+  remoteDecision?: { remainingMs: number; paused: boolean; receivedAt: number }
   players: Player[]
   wall: Tile[]
   dice: [number, number]

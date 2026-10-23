@@ -109,6 +109,38 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('useYaotongRemoteGame', () => {
+  it('按服务端本人剩余时间显示操作读秒，等期间冻结，续计与换局清理正确', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      // 故意令服务端墙钟相差一天；显示应使用权威剩余时长。
+      const active = snapshot({ decisionRemainingMs: 20000, decisionDeadlineAt: Date.now() + 86400000 })
+      socket.server(active)
+      expect(game.inner.decisionSeconds.value).toBe(20)
+      await vi.advanceTimersByTimeAsync(7000)
+      expect(game.inner.decisionSeconds.value).toBe(13)
+      socket.server({ ...active, decisionRemainingMs: 13000, decisionPaused: true, holdSeats: [1] })
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(game.inner.decisionSeconds.value).toBe(13)
+      socket.server({ ...active, decisionRemainingMs: 13000, decisionPaused: false, holdSeats: [] })
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(game.inner.decisionSeconds.value).toBe(11)
+      socket.server({ ...active, decisionRemainingMs: 11000 })
+      await vi.advanceTimersByTimeAsync(11000)
+      expect(game.inner.decisionSeconds.value).toBe(0)
+      // 读秒本身不能在客户端代打，服务端才有推进权。
+      expect(socket.sent.some(message => message.kind === 'action')).toBe(false)
+      socket.server(snapshot({ round: 2, decisionRemainingMs: 0 }))
+      expect(game.inner.decisionSeconds.value).toBe(0)
+    } finally { scope.stop() }
+  })
+
   it('服务端等状态按本人座位同步，重复快照不延长，解除等待立即生效', async () => {
     vi.useFakeTimers()
     api.getRoom.mockResolvedValue({

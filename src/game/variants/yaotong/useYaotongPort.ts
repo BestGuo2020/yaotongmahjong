@@ -766,7 +766,7 @@ export function useYaotongPort(
     wallCount: computed(() => wall.value.length),
     currentPlayer,
     selectedIndex: computed({ get: () => local.selected.value, set: value => { local.selected.value = value } }),
-    turnSeconds: ref(0),
+    turnSeconds: computed(() => local.decisionSeconds.value),
     lastDiscard,
     actionPrompt: computed(() =>
       local.response.value && !local.autoplay.value
