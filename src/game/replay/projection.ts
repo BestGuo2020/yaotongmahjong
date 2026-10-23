@@ -67,6 +67,7 @@ export function buildReplayFrames(
   const handOrder = [0, 1, 2, 3].map((index) => (humanSeat + index) % 4)
 
   const hands = round.anchor.hands.map((hand) => [...hand])
+  const concealedCounts = [...(round.anchor.concealedTileCounts ?? hands.map(hand => hand.length))]
   const melds = round.anchor.melds.map((list) => list.map(cloneMeld))
   const discards = round.anchor.discards.map((list) => [...list])
   const drawn = [...round.anchor.drawnTileIndex]
@@ -108,7 +109,8 @@ export function buildReplayFrames(
     const frameDiscards = input.finalDiscards ?? discards
     const frameDrawn = input.finalDrawn ?? drawn
     const frameScores = input.finalScores ?? scores
-    const revealHands = options.revealAll || Boolean(input.settled)
+    const revealHands = Boolean(input.settled) || (options.revealAll
+      && frameHands.every((hand, seat) => hand.length >= concealedCounts[seat]))
     const step = input.step
     const actorSeat = step ? step.seat : null
     const actionEvent: TableActionEvent | null = step?.actionType
@@ -131,7 +133,7 @@ export function buildReplayFrames(
       score: frameScores[seat] ?? 0,
       seat,
       hand: [...frameHands[seat]],
-      concealedTileCount: frameHands[seat].length,
+      concealedTileCount: input.finalHands ? frameHands[seat].length : concealedCounts[seat],
       discards: [...frameDiscards[seat]],
       melds: frameMelds[seat].map(cloneMeld),
       redCount: redCount[seat] ?? 0,
@@ -205,6 +207,7 @@ export function buildReplayFrames(
     if (step.snapshot) {
       for (let seat = 0; seat < 4; seat++) {
         hands[seat] = [...step.snapshot.hands[seat]]
+        concealedCounts[seat] = step.snapshot.concealedTileCounts?.[seat] ?? hands[seat].length
         melds[seat] = step.snapshot.melds[seat].map(cloneMeld)
         discards[seat] = [...step.snapshot.discards[seat]]
         drawn[seat] = step.snapshot.drawnTileIndex[seat]
@@ -216,6 +219,7 @@ export function buildReplayFrames(
     }
     if (step.state) {
       hands[step.seat] = [...step.state.hand]
+      concealedCounts[step.seat] = hands[step.seat].length
       melds[step.seat] = step.state.melds.map(cloneMeld)
       drawn[step.seat] = step.state.drawnTileIndex
       redCount[step.seat] = step.state.redCount

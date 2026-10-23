@@ -1,8 +1,9 @@
 import { effectScope } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useYaotongRemoteGame } from './useYaotongRemoteGame'
 import type { YtSnapshot } from './protocol'
+import { createRemoteSessionStore } from '../../../online/session/remoteSessionStore'
 
 const api = vi.hoisted(() => ({
   createRoom: vi.fn(),
@@ -105,6 +106,7 @@ beforeEach(() => {
   api.readyRoom.mockResolvedValue({ roomId: 'ABC123', seat: 0, ready: true })
   api.startRoom.mockResolvedValue({ roomId: 'ABC123', status: 'playing' })
 })
+afterEach(() => vi.unstubAllGlobals())
 
 describe('useYaotongRemoteGame', () => {
   it('creates/joins a room, receives snapshots and sends actions', async () => {
@@ -156,14 +158,85 @@ describe('useYaotongRemoteGame', () => {
         transfers: [], values: {},
       },
     }))
-    expect(game.waitingNextRound.value).toBe(true)
+    expect(game.waitingNextRound.value).toBe(false)
     game.inner.next()
+    expect(game.waitingNextRound.value).toBe(true)
     expect(socket.sent).toContainEqual({ kind: 'continue', round: 1 })
+    game.inner.next()
+    expect(socket.sent.filter(message => message.kind === 'continue')).toHaveLength(1)
 
     await game.leaveRoom()
     expect(api.leaveRoom).toHaveBeenCalled()
     expect(game.sessionStatus.value).toBe('idle')
     expect(game.roomId.value).toBe('')
     scope.stop()
+  })
+
+  it('loads the saved room for the lobby resume button without connecting', () => {
+    const data = new Map<string, string>()
+    vi.stubGlobal('window', { localStorage: {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => data.set(key, value),
+      removeItem: (key: string) => data.delete(key),
+    } })
+    createRemoteSessionStore().saveSession({ roomId: 'ABC123', rejoinCode: 'CODE',
+      nickname: '甲', playerId: 'p0', mode: 'east', rulesetId: 'yaotong', yaotongMode: 'hard' })
+    const scope = effectScope(), factory = vi.fn()
+    const game = scope.run(() => useYaotongRemoteGame({ createPort: false, socketFactory: factory }))!
+    expect(game.storedSession.value?.roomId).toBe('ABC123')
+    expect(game.roomId.value).toBe('')
+    expect(factory).not.toHaveBeenCalled()
+    scope.stop()
+  })
+
+  it('uses authoritative continue confirmations and clears them in the next round', async () => {
+    const scope = effectScope()
+    const game = scope.run(() => useYaotongRemoteGame({ createPort: false,
+      socketFactory: () => (socket = new FakeSocket()),
+    }))!
+    try {
+      await game.createRoom(8, '甲')
+      socket.open()
+      const end = snapshot({ roundResult: {
+        kind: 'draw', winners: [], source: null, winKind: null, tile: null, offender: null,
+        reason: '荒庄', indicator: null, chicken: null, ready: [false, false, false, false],
+        deltas: [0, 0, 0, 0], nextDealer: 0, finished: false, transfers: [], values: {},
+      }, continuation: { requiredSeats: [0, 1], readySeats: [1] } })
+      socket.server(end)
+      expect(game.waitingNextRound.value).toBe(false)
+      socket.readyState = 3
+      game.inner.next()
+      expect(game.waitingNextRound.value).toBe(false)
+      socket.open()
+      game.inner.next()
+      expect(game.waitingNextRound.value).toBe(true)
+      socket.server({ ...end, continuation: { requiredSeats: [0, 1], readySeats: [0] } })
+      expect(game.waitingNextRound.value).toBe(true)
+      socket.server(snapshot({ round: 2 }))
+      expect(game.waitingNextRound.value).toBe(false)
+    } finally { scope.stop() }
+  })
+
+  it('resends a completed opening acknowledgement after reconnect without replaying it', async () => {
+    const scope = effectScope()
+    const game = scope.run(() => useYaotongRemoteGame({ createPort: false,
+      socketFactory: () => (socket = new FakeSocket()),
+    }))!
+    try {
+      await game.createRoom(8, '甲')
+      socket.open()
+      const opening = snapshot({ opening: { dice: [1, 2], wallSide: 0, reservedStacks: 0 } })
+      socket.server(opening)
+      socket.readyState = 3
+      game.ackOpening(1)
+      expect(game.pendingOpeningRound.value).toBe(1)
+      expect(socket.sent).not.toContainEqual({ kind: 'opening_done', round: 1 })
+      socket.open()
+      socket.server(opening)
+      expect(game.pendingOpeningRound.value).toBeNull()
+      expect(socket.sent).toContainEqual({ kind: 'opening_done', round: 1 })
+      socket.server({ ...opening, matchId: 'new-match' })
+      expect(game.pendingOpeningRound.value).toBe(1)
+    } finally { scope.stop() }
   })
 })

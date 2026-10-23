@@ -141,6 +141,8 @@ function seatState(player: GamePlayer): ReplaySeatState {
 
 function anchorOf(frame: ReplayFrameSource): ReplayAnchor {
   return {
+    ...(frame.players.some(player => (player.concealedTileCount ?? player.hand.length) !== player.hand.length)
+      ? { concealedTileCounts: frame.players.map(player => player.concealedTileCount ?? player.hand.length) } : {}),
     ...(frame.yaotongSidewaysDiscards ? { yaotongSidewaysDiscards: toPlain(frame.yaotongSidewaysDiscards) } : {}),
     ...(frame.yaotongSeats ? { yaotongSeats: toPlain(frame.yaotongSeats) } : {}),
     hands: frame.players.map((player) => [...player.hand]),

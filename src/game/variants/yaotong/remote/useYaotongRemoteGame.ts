@@ -1,8 +1,8 @@
 // 幺筒 WS 服务端权威联机：房间生命周期 + yt_snapshot → useYaotongPort。
 //
-// MVP：真人 + 服务端 AI 补位；无 LLM 座位/回放。房间 REST 与 wakudemo 登录
+// 真人 + 服务端 AI 补位；回放按已收到的权威快照录制。房间 REST 与 wakudemo 登录
 // 复用 src/game/online；对局协议走本目录的 protocol.ts。
-import { ref } from 'vue'
+import { onScopeDispose, ref } from 'vue'
 
 import { API_BASE } from '../../../online/api/httpClient'
 import {
@@ -50,6 +50,7 @@ const ERROR_TEXT: Record<string, string> = {
   LLM_NOT_ENABLED: '本房间未启用大模型补位',
   ROOM_CLOSED: '房间已关闭',
   MATCH_FINISHING: '上一场仍在收尾，请稍后再试',
+  NOT_CREATOR: '只有房主可以开始对局',
 }
 
 function readableError(error: unknown, fallback: string): string {
@@ -72,11 +73,13 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   const roomStatus = ref<'lobby' | 'playing' | 'finished' | 'error' | 'closed'>('lobby')
   const matchLength = ref<4 | 8 | 16>(4)
   const yaotongMode = ref<YaotongRoomMode>('easy')
-  const storedSession = ref<StoredSession | null>(null)
+  const savedSession = remoteSessionStore.loadSession()
+  const storedSession = ref<StoredSession | null>(savedSession?.rulesetId === 'yaotong' ? savedSession : null)
   const waitingNextRound = ref(false)
   const pendingOpeningRound = ref<number | null>(null)
   const currentRound = ref(0)
-  let lastOpeningRound = 0
+  let lastOpeningKey = ''
+  let completedOpeningKey = ''
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
   function saveSession() {
@@ -110,7 +113,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       socket.confirmSession()
       sessionError.value = ''
       sessionStatus.value = roomStatus.value === 'playing' ? 'playing' : 'lobby'
-      void refreshRoom()
+      void refreshRoom().catch(() => { /* WS 快照仍可恢复对局 */ })
       if (inner.autoplay.value) socket.send({ kind: 'auto', enabled: true })
       return
     }
@@ -136,14 +139,19 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
         sessionStatus.value = snapshot.matchFinished ? 'finished' : 'playing'
         roomStatus.value = snapshot.matchFinished ? 'finished' : 'playing'
         waitingNextRound.value = Boolean(
-          snapshot.roundResult && !snapshot.matchFinished)
+          snapshot.roundResult && !snapshot.matchFinished
+          && snapshot.continuation?.readySeats.includes(snapshot.seat))
       } else {
         sessionStatus.value = 'lobby'
       }
-      if (snapshot.opening && lastOpeningRound !== snapshot.round) {
-        lastOpeningRound = snapshot.round
+      const openingKey = `${snapshot.matchId ?? snapshot.roomId}:${snapshot.round}`
+      if (snapshot.opening && lastOpeningKey !== openingKey) {
+        lastOpeningKey = openingKey
         // 等本家把单机同款开局演出播完，再由 App 回执，服务端才开原报窗。
         pendingOpeningRound.value = snapshot.round
+      } else if (snapshot.opening && completedOpeningKey === openingKey) {
+        // 演出已结束但回执遇到断线：按重连快照补发，不重播掷骰发牌。
+        if (socket.send({ kind: 'opening_done', round: snapshot.round })) pendingOpeningRound.value = null
       }
       return
     }
@@ -199,8 +207,9 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
         socket.send({ kind: 'action', action: toActionPayload(command) })
       },
       nextRound: () => {
-        if (!waitingNextRound.value) return
-        socket.send({ kind: 'continue', round: currentRound.value })
+        if (waitingNextRound.value || !inner.state.value?.result || inner.state.value.result.finished) return
+        // 仅发送成功才禁用按钮；重连快照会恢复服务端的实际确认状态。
+        if (socket.send({ kind: 'continue', round: currentRound.value })) waitingNextRound.value = true
       },
       leave: () => { void leaveRoom() },
       openingDone: (round) => {
@@ -238,7 +247,9 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
 
   async function refreshRoom() {
     if (!roomId.value) return
-    const info = await getRoom(roomId.value)
+    const requestedRoom = roomId.value
+    const info = await getRoom(requestedRoom)
+    if (roomId.value !== requestedRoom) return
     roomSeats.value = info.seats
     roomStatus.value = info.status
     creatorSeat.value = info.creatorSeat
@@ -248,15 +259,14 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       yaotongMode.value = info.yaotongMode
       inner.mode.value = info.yaotongMode
     }
-    if (info.status === 'playing') sessionStatus.value = 'playing'
-    else if (info.status === 'finished') sessionStatus.value = 'finished'
-    else if (info.status === 'lobby') sessionStatus.value = 'lobby'
+    // 入桌与小局状态由 WS 快照决定，不能被先发后到的大厅轮询覆盖。
+    if (!inner.state.value && info.status === 'lobby') sessionStatus.value = 'lobby'
   }
 
   function ackOpening(round: number) {
     if (pendingOpeningRound.value !== round) return
-    pendingOpeningRound.value = null
-    socket.send({ kind: 'opening_done', round })
+    completedOpeningKey = lastOpeningKey
+    if (socket.send({ kind: 'opening_done', round })) pendingOpeningRound.value = null
   }
 
   function resetSession() {
@@ -273,8 +283,12 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     waitingNextRound.value = false
     pendingOpeningRound.value = null
     currentRound.value = 0
-    lastOpeningRound = 0
+    lastOpeningKey = ''
+    completedOpeningKey = ''
     inner.state.value = null
+    inner.autoplay.value = false
+    inner.selected.value = -1
+    inner.paused.value = false
     sessionStatus.value = 'idle'
     remoteSessionStore.clearSession()
   }
@@ -377,8 +391,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   async function startMatch() {
     if (!roomId.value) return
     try {
-      await startRoom(roomId.value)
-      sessionStatus.value = 'playing'
+      await startRoom(roomId.value, undefined, playerId.value)
       await refreshRoom()
     } catch (error) {
       sessionError.value = readableError(error, '开局失败')
@@ -405,6 +418,8 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       sessionError.value = readableError(error, '关闭房间失败')
     }
   }
+
+  onScopeDispose(() => { stopPolling(); socket.close() })
 
   return {
     port,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { convertSnapshot, toActionPayload, type YtSnapshot } from './protocol'
+import { huWindow } from '../huWindow'
 
 function player(seat: number, hand: string[] = [], extra: Record<string, unknown> = {}) {
   return {
@@ -174,5 +175,39 @@ describe('yaotong remote protocol', () => {
     expect(toActionPayload({ type: 'kong', tile: 9 })).toEqual({
       type: 'kong', tile: 9,
     })
+  })
+
+  it('keeps passed hu scores numeric and preserves private structural restrictions', () => {
+    const wire = snapshot()
+    wire.view.players[1].passedHu = 65
+    wire.view.players[1].passedShape = 40
+    const state = convertSnapshot(wire)
+    expect(state.players[0].passedHu).toBe(65)
+    expect(state.players[0].passedShape).toBe(40)
+  })
+
+  it('reveals terminal hands and keeps remote seat identity after rotation', () => {
+    const wire = snapshot()
+    wire.view.players[0].avatar = 'https://example.com/owner.png'
+    wire.view.players[0].characterId = 'qwen'
+    wire.roundResult = { kind: 'draw', winners: [], source: null, winKind: null, tile: null,
+      offender: null, reason: '荒庄', indicator: null, chicken: null,
+      ready: [false, false, false, false], deltas: [0, 0, 0, 0], nextDealer: 0,
+      finished: false, transfers: [], values: {} }
+    const state = convertSnapshot(wire)
+    expect(state.players[3]).toMatchObject({ hand: [0, 1], playerKind: 'human',
+      avatar: 'https://example.com/owner.png', characterId: 'qwen' })
+  })
+
+  it('restores the own retained hu window from the server without changing the live phase', () => {
+    const wire = snapshot()
+    wire.huWindow = structuredClone(wire.view)
+    wire.huWindow.phase = 'response'
+    wire.view.pending = null
+    wire.view.ownOptions = null
+    const state = convertSnapshot(wire)
+    expect(state.phase).toBe('discard')
+    expect(huWindow(state, 0)?.pending).toMatchObject({ tile: 13, from: 2 })
+    expect(huWindow(state, 0)?.players[1].hand).toEqual([])
   })
 })

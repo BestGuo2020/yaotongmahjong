@@ -159,10 +159,14 @@ export function readyRoom(
   })
 }
 
-export function startRoom(roomId: string, llmSeats?: Array<LlmSeatRequest>): Promise<StartResult> {
+export function startRoom(roomId: string, llmSeats?: Array<LlmSeatRequest>, playerId?: string): Promise<StartResult> {
   return request<StartResult>(`/api/rooms/${encodeURIComponent(roomId)}/start`, {
     method: 'POST',
-    body: JSON.stringify(llmSeats && llmSeats.length ? { llmSeats } : {}),
+    body: JSON.stringify({
+      ...(llmSeats?.length ? { llmSeats } : {}),
+      // 仅开发登录旁路读取；正式环境身份仍由会话 Cookie 推导。
+      ...(playerId ? { playerId: playerId.replace(/^wakudemo-/, '') } : {}),
+    }),
   })
 }
 

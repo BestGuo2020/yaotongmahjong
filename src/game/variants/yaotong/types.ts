@@ -27,6 +27,9 @@ export interface Discard {
 }
 export interface Player {
   name: string
+  avatar?: string
+  characterId?: string
+  playerKind?: 'human' | 'llm' | 'bot'
   hand: Tile[]
   /** 联机快照里他人手牌不透明时，仍用于 3D 牌背数量。 */
   concealedTileCount?: number
@@ -142,6 +145,8 @@ export interface GameEvent {
   rush?: Discard['stage']
 }
 export interface GameState {
+  /** 联机场次身份；用于区分同一房间重开后的第一个小局。 */
+  remoteMatchId?: string
   players: Player[]
   wall: Tile[]
   dice: [number, number]

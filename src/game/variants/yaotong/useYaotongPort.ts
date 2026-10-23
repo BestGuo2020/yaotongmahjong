@@ -46,6 +46,7 @@ import { yaotongGuidance } from './guidance'
 import { isUntouchedFirstDraw } from './hands'
 import { offeredHuPlans } from './settlement'
 import { recordYaotongRound } from './replay'
+import { createYaotongRemoteRecorder } from './remote/replayRecorder'
 import type { ReplayRecorderHooks } from '../../replay/types'
 import { countsOf } from './tiles'
 import { kongSoundFile, kongWeatherKind, KONG_WEATHER_DURATION, REDUCED_KONG_WEATHER_DURATION, type KongWeatherCue } from './kongPresentation'
@@ -90,10 +91,16 @@ export function useYaotongPort(
   const activeState = computed(() => local.state.value)
   let recordedState = activeState.value
   let stopRecording: (() => void) | undefined
+  const recordRemote = options.recorder ? createYaotongRemoteRecorder(options.recorder, options.getCharacterId) : undefined
   watch(activeState, (state) => {
     if (state === recordedState) return
     stopRecording?.()
     recordedState = state
+    if (local.remote) {
+      recordRemote?.(state)
+      stopRecording = undefined
+      return
+    }
     stopRecording = state && options.recorder
       ? recordYaotongRound(state, options.recorder, options.getCharacterId?.()) : undefined
   }, { flush: 'sync' })
@@ -195,6 +202,7 @@ export function useYaotongPort(
     seenHand = 0,
     eventSequence = 0
   const declaredKongs = new Set<string>()
+  let remoteHandKey = ''
   const playSound = (name: string, volume?: number) => options.playSound?.(name, volume)
   const playSoundAndWait =
     options.playSoundAndWait ??
@@ -257,14 +265,14 @@ export function useYaotongPort(
         }
         return {
           name: p.name,
-          avatar: defaultAvatarForSeat(seat),
+          avatar: p.avatar || defaultAvatarForSeat(seat),
           seat,
-          concealedTileCount: p.concealedTileCount ?? hand.length,
+          concealedTileCount: openingActive.value ? dealCounts.value[seat] : p.concealedTileCount ?? hand.length,
           // Engine settlement is atomic. Display transfers only when the shared reveal stage finishes.
           score: p.score - (outcome && !scoresReleased.value ? outcome.deltas[seat] : 0),
           redCount: 0,
-          playerKind: seat === 0 ? 'human' : 'bot',
-          characterId: seat === 0 ? options.getCharacterId?.() : undefined,
+          playerKind: p.playerKind ?? (seat === 0 ? 'human' : 'bot'),
+          characterId: p.characterId ?? (seat === 0 ? options.getCharacterId?.() : undefined),
           hand: hand.map(toSharedTile),
           drawnTileIndex: p.drawn !== null && !openingActive.value && !pendingKong ? hand.length - 1 : -1,
           discards: [
@@ -298,7 +306,9 @@ export function useYaotongPort(
     const state = local.state.value
     if (!state) return []
     if (openingActive.value)
-      return [...state.players.flatMap((p) => p.hand), ...state.wall]
+      return [...state.players.flatMap((p) => Array.from(
+        { length: p.concealedTileCount ?? p.hand.length }, (_, index) => p.hand[index] ?? 0,
+      )), ...state.wall]
         .slice(visibleCount.value)
         .map(toSharedTile)
     const indicator = state.result?.indicator
@@ -585,6 +595,16 @@ export function useYaotongPort(
   }
   function handleState(state: GameState) {
     if (!state) return
+    if (local.remote) {
+      const key = `${state.remoteMatchId ?? ''}:${state.handNumber}`
+      if (remoteHandKey !== key) {
+        remoteHandKey = key
+        resetPresentation()
+        openingActive.value = false
+        seenHand = 0
+        seenSerial = 0
+      }
+    }
     if (seenHand !== state.handNumber) {
         seenHand = state.handNumber
         seenSerial = 0
@@ -674,7 +694,8 @@ export function useYaotongPort(
     const dealQueue: TileType[] = []
     for (let batch = 0; batch < 4; batch++)
       for (let offset = 0; offset < 4; offset++) {
-        const hand = state.players[(state.dealer + offset) % 4].hand
+        const player = state.players[(state.dealer + offset) % 4]
+        const hand = Array.from({ length: player.concealedTileCount ?? player.hand.length }, (_, index) => player.hand[index] ?? 0)
         dealQueue.push(
           ...(batch === 3 ? hand.slice(12) : hand.slice(batch * 4, batch * 4 + 4)).map(toSharedTile),
         )
@@ -734,7 +755,7 @@ export function useYaotongPort(
     wallHeadDrawn,
     wallCount: computed(() => wall.value.length),
     currentPlayer,
-    selectedIndex: local.selected,
+    selectedIndex: computed({ get: () => local.selected.value, set: value => { local.selected.value = value } }),
     turnSeconds: ref(0),
     lastDiscard,
     actionPrompt: computed(() =>
@@ -789,13 +810,11 @@ export function useYaotongPort(
     startGame(_mode?: MatchType, startOptions?: GameStartOptions) {
       // 联机对局由房间快照驱动；开局演出复用同一套 opening 时间线。
       if (local.remote) {
-        resetPresentation()
-        seenHand = 0
-        seenSerial = 0
-        if (startOptions?.skipOpening) {
-          openingActive.value = false
+        if (startOptions?.skipOpening || local.state.value?.result) {
+          // 状态 watcher 已按场次/小局初始化。重连不得取消正在播放的结算。
           return Promise.resolve()
         }
+        resetPresentation()
         return opening(startOptions)
       }
       resetPresentation()
@@ -841,15 +860,17 @@ export function useYaotongPort(
     },
     nextRound() {
       if (!result.value || local.state.value?.result?.finished) return
-      resetPresentation()
-      local.next()
       if (local.remote) {
-        openingActive.value = false
+        // 确认不代表所有人都已确认；保持本局展示，等新小局快照再清理。
+        local.next()
         return
       }
+      resetPresentation()
+      local.next()
       return opening()
     },
     returnToLobby() {
+      remoteHandKey = ''
       kongWeather.value = []
       settlementGeneration++
       scheduler.clear()

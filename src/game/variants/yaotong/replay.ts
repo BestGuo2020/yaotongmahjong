@@ -12,8 +12,9 @@ const sharedTile = (tile: number) => `${['m', 'p', 's'][Math.floor(tile / 9)]}${
 /** Read engine values directly, before animation hides/slices hands or delays score display. */
 export function yaotongReplayFrame(state: GameState, characterId?: string, tailCount?: number): ReplayFrameSource {
   const players: GamePlayer[] = state.players.map((p, seat) => ({
-    seat, name: p.name, avatar: defaultAvatarForSeat(seat), score: p.score, redCount: 0,
-    characterId: seat === 0 ? characterId : undefined, playerKind: seat === 0 ? 'human' : 'bot',
+    seat, name: p.name, avatar: p.avatar || defaultAvatarForSeat(seat), score: p.score, redCount: 0,
+    characterId: p.characterId ?? (seat === 0 ? characterId : undefined), playerKind: p.playerKind ?? (seat === 0 ? 'human' : 'bot'),
+    concealedTileCount: p.concealedTileCount ?? p.hand.length,
     hand: p.hand.map(sharedTile), drawnTileIndex: p.drawn !== null && p.hand.at(-1) === p.drawn ? p.hand.length - 1 : -1,
     discards: p.river.map((discard) => sharedTile(discard.tile)),
     melds: p.melds.map((meld) => ({ tile: sharedTile(meld.tile), from: meld.from,
@@ -66,24 +67,28 @@ export function recordYaotongRound(state: GameState, recorder: ReplayRecorderHoo
   return observeGameEvents(state, (current, event: GameEvent) => safe(() => {
     if (event.kind === 'draw' && current.players[event.seat].afterKong) tailDraws++
     const frame = yaotongReplayFrame(current, characterId, tailDraws)
-    const meldIndex = event.tile == null ? -1 : current.players[event.seat].melds.findIndex((meld) => meld.tile === event.tile)
-    const meld = current.players[event.seat].melds[meldIndex]
-    const actionType: TableActionType | undefined = event.kind === 'peng' ? 'peng' : event.kind === 'kong'
-      ? meld?.kind === 'open' ? 'discard-gang' : meld?.kind === 'added' ? 'added-gang' : 'concealed-gang'
-      : event.kind === 'hu' ? current.result?.winKind === 'self' ? 'self-draw'
-        : current.result?.winKind === 'rob' ? 'robbed-kong-win' : 'discard-win' : undefined
-    const kind: ReplayStep['kind'] = event.kind === 'peng' ? 'peng' : event.kind === 'kong'
-      ? meld?.kind === 'open' ? 'gang-discard' : meld?.kind === 'added' ? 'gang-added' : 'gang-concealed' : undefined
-    const tile = event.tile ?? (event.kind === 'draw' ? current.players[event.seat].drawn : null)
-    recorder.step?.({
-      t: event.kind === 'draw' || event.kind === 'discard' ? event.kind : event.kind === 'hu' ? 'win'
-        : event.kind === 'ready' ? 'ready' : kind ? 'meld' : 'notice',
-      seat: event.seat, tile: tile == null ? undefined : sharedTile(tile), actionType, kind, meldIndex,
-      from: event.kind === 'hu' ? current.result?.source : event.kind === 'peng' || event.kind === 'kong' ? meld?.from : undefined,
-      fromTail: event.kind === 'draw' && current.players[event.seat].afterKong,
-      lastDiscardId: event.kind === 'discard' ? event.id : undefined,
-      text: event.kind === 'draw' ? undefined : event.text,
-    }, frame)
+    recorder.step?.(yaotongReplayStep(current, event), frame)
     if (current.result) recorder.roundEnd(yaotongReplayResult(current), frame)
   }))
+}
+
+export function yaotongReplayStep(current: GameState, event: GameEvent): Parameters<NonNullable<ReplayRecorderHooks['step']>>[0] {
+  const meldIndex = event.tile == null ? -1 : current.players[event.seat].melds.findIndex((meld) => meld.tile === event.tile)
+  const meld = current.players[event.seat].melds[meldIndex]
+  const actionType: TableActionType | undefined = event.kind === 'peng' ? 'peng' : event.kind === 'kong'
+    ? meld?.kind === 'open' ? 'discard-gang' : meld?.kind === 'added' ? 'added-gang' : 'concealed-gang'
+    : event.kind === 'hu' ? current.result?.winKind === 'self' ? 'self-draw'
+      : current.result?.winKind === 'rob' ? 'robbed-kong-win' : 'discard-win' : undefined
+  const kind: ReplayStep['kind'] = event.kind === 'peng' ? 'peng' : event.kind === 'kong'
+    ? meld?.kind === 'open' ? 'gang-discard' : meld?.kind === 'added' ? 'gang-added' : 'gang-concealed' : undefined
+  const tile = event.tile ?? (event.kind === 'draw' ? current.players[event.seat].drawn : null)
+  return {
+    t: event.kind === 'draw' || event.kind === 'discard' ? event.kind : event.kind === 'hu' ? 'win'
+      : event.kind === 'ready' ? 'ready' : kind ? 'meld' : 'notice',
+    seat: event.seat, tile: tile == null ? undefined : sharedTile(tile), actionType, kind, meldIndex,
+    from: event.kind === 'hu' ? current.result?.source : event.kind === 'peng' || event.kind === 'kong' ? meld?.from : undefined,
+    fromTail: event.kind === 'draw' && current.players[event.seat].afterKong,
+    lastDiscardId: event.kind === 'discard' ? event.id : undefined,
+    text: event.kind === 'draw' ? undefined : event.text,
+  }
 }

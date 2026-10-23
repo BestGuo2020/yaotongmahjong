@@ -75,6 +75,15 @@ test.describe('幺筒联机', () => {
     await expect(waitButton).toBeVisible()
     await expect(waitButton).not.toContainText('15秒')
 
+    // 刷新后先显示已保存的房间，再恢复原座位与正在进行的牌桌。
+    await pageA.reload()
+    await expect(pageA.getByRole('button', { name: /继续对局/ })).toBeVisible()
+    await pageA.getByRole('button', { name: /继续对局/ }).click()
+    await expect(pageA.locator('canvas').first()).toBeVisible({ timeout: 30_000 })
+    await expect(pageA.getByText(roomId!).first()).toBeVisible()
+    await expect(pageA.locator('.table-loading')).toHaveCount(0, { timeout: 30_000 })
+    await expect(pageA.locator('.hand-rack .hand-tile-slot').first()).toBeVisible({ timeout: 15_000 })
+
     expect(errors).toEqual([])
     await contextA.close()
     await contextB.close()

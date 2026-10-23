@@ -2,8 +2,8 @@ import type { GameState, Seat } from './types'
 
 /** Expert silence is provisional until the next discard, even after a draw or peng. */
 const windows = new WeakMap<GameState, { seat: Seat; snapshot: GameState }>()
-export function retainHuWindow(state: GameState, seat: Seat) {
-  const snapshot: GameState = JSON.parse(JSON.stringify(state))
+export function retainHuWindow(state: GameState, seat: Seat, source: GameState = state) {
+  const snapshot: GameState = JSON.parse(JSON.stringify(source))
   snapshot.phase = 'response'
   delete snapshot.pending!.choices[seat]
   windows.set(state, { seat, snapshot })

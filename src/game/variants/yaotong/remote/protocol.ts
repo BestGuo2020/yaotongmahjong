@@ -17,6 +17,7 @@ import type {
   WinKind,
 } from '../types'
 import { fromSharedTile } from '../sharedTile'
+import { retainHuWindow } from '../huWindow'
 
 export interface YtMeldView {
   tile: string
@@ -55,7 +56,8 @@ export interface YtPlayerView {
   drawn: string | null
   afterKong: boolean
   burned: boolean
-  passedHu: string | null
+  passedHu: number | null
+  passedShape?: number | null
   chickenPeng: string[]
   chickenDiscard: string[]
 }
@@ -165,6 +167,7 @@ export interface YtSnapshot {
   roundResult: YtSettlementView | null
   continuation?: { requiredSeats: number[]; readySeats: number[] }
   view: YtView
+  huWindow?: YtView | null
 }
 
 export const toLocalSeat = (serverSeat: number, mySeat: number) =>
@@ -201,12 +204,15 @@ function convertDiscard(discard: YtDiscardView): Discard {
   }
 }
 
-function convertPlayer(view: YtPlayerView, mySeat: number): Player {
+function convertPlayer(view: YtPlayerView, mySeat: number, reveal: boolean): Player {
   const localSeat = toLocalSeat(view.seat, mySeat)
   const isSelf = localSeat === 0
   return {
     name: view.name,
-    hand: isSelf ? view.hand.map(tileRequired) : [],
+    avatar: view.avatar,
+    characterId: view.characterId,
+    playerKind: view.playerKind,
+    hand: isSelf || reveal ? view.hand.map(tileRequired) : [],
     concealedTileCount: view.concealedTileCount,
     melds: view.melds.map((meld) => convertMeld(meld, mySeat)),
     river: view.river.map(convertDiscard),
@@ -214,11 +220,11 @@ function convertPlayer(view: YtPlayerView, mySeat: number): Player {
     declaration: view.declaration,
     draws: view.draws,
     discards: view.discards,
-    drawn: isSelf ? tile(view.drawn) : null,
+    drawn: isSelf || reveal ? tile(view.drawn) : null,
     afterKong: view.afterKong,
     burned: view.burned,
-    passedHu: isSelf ? tile(view.passedHu) : null,
-    passedShape: null,
+    passedHu: isSelf ? view.passedHu : null,
+    passedShape: isSelf ? view.passedShape ?? null : null,
     chickenPeng: isSelf ? view.chickenPeng.map(tileRequired) : [],
     chickenDiscard: isSelf ? view.chickenDiscard.map(tileRequired) : [],
   }
@@ -328,11 +334,12 @@ export function convertSnapshot(snapshot: YtSnapshot): GameState {
         chickenPeng: [], chickenDiscard: [],
       }
     }
-    return convertPlayer(player, mySeat)
+    return convertPlayer(player, mySeat, Boolean(snapshot.roundResult))
   })
   const result = snapshot.roundResult
     ? convertSettlement(snapshot.roundResult, mySeat) : null
-  return {
+  const state: GameState = {
+    remoteMatchId: snapshot.matchId ?? snapshot.roomId,
     players,
     wall: Array.from({ length: view.wallCount }, () => 0),
     dice: view.dice,
@@ -357,6 +364,10 @@ export function convertSnapshot(snapshot: YtSnapshot): GameState {
     handNumber: view.handNumber,
     repeats: view.repeats,
   }
+  if (snapshot.huWindow && !result) {
+    retainHuWindow(state, 0, convertSnapshot({ ...snapshot, view: snapshot.huWindow, huWindow: null, roundResult: null }))
+  }
+  return state
 }
 
 /** 本地 Command → 服务端 action；座位由 WS 连接决定，不需要传 seat。 */
