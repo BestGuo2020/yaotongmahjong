@@ -56,6 +56,17 @@ test.describe('幺筒联机', () => {
     await pageA.waitForTimeout(600)
     await pageA.screenshot({ path: 'test-results/online-table-hard.png' })
 
+    // 老手“等”：点等暂停整桌，胡/过解除；额度按实际等待扣减。
+    const waitButton = pageA.locator('.wait-action')
+    await expect(waitButton).toBeVisible()
+    await waitButton.click()
+    await expect(pageA.locator('.action.hu').first()).toBeVisible()
+    await expect(pageA.locator('.action.pass')).toBeVisible()
+    await pageA.waitForTimeout(1200)
+    await pageA.locator('.action.pass').click()
+    await expect(waitButton).toBeVisible()
+    await expect(waitButton).not.toContainText('15秒')
+
     expect(errors).toEqual([])
     await contextA.close()
     await contextB.close()

@@ -11,6 +11,7 @@ const external = {
   leave: vi.fn(),
   openingDone: vi.fn(),
   auto: vi.fn(),
+  hold: vi.fn(),
 }
 
 afterEach(() => {
@@ -45,8 +46,16 @@ describe('useYaotongGame remote authority', () => {
     game.autoplay.value = true
     await nextTick()
     expect(external.auto).toHaveBeenCalledWith(true)
+    game.autoplay.value = false
+    await nextTick()
 
+    game.mode.value = 'hard'
+    game.startHold()
+    expect(external.hold).toHaveBeenCalledWith(true)
+    game.acceptRemoteState(createGame({ length: 4 }))
+    expect(game.holding.value).toBe(true)
     game.leave()
+    expect(external.hold).toHaveBeenLastCalledWith(false)
     expect(external.leave).toHaveBeenCalledTimes(1)
     expect(game.state.value).toBeNull()
     scope.stop()

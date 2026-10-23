@@ -29,6 +29,8 @@ export interface YaotongExternalAuthority {
   leave(): void
   openingDone(round: number): void
   auto(enabled: boolean): void
+  /** 老手“等”开始/结束；服务端按实际等待时长扣每小局 15 秒额度。 */
+  hold(holding: boolean): void
 }
 
 export function useYaotongGame(options: {
@@ -67,12 +69,13 @@ export function useYaotongGame(options: {
     reactionClocks.set(game, { id: event.id, until })
     return until
   }
-  function endHold() {
+  function endHold(sendRelease = false) {
     const entry = hold.value
     if (!entry) return
     entry.game.waitRemainingMs[entry.seat] = Math.max(0, entry.initial - (Date.now() - entry.startedAt))
     hold.value = null
     if (state.value === entry.game) triggerRef(state)
+    if (remote && sendRelease) external!.hold(false)
   }
   function startHold(seat = 0) {
     const game = state.value
@@ -81,6 +84,7 @@ export function useYaotongGame(options: {
     if (budget <= 0) return
     holdNow.value = Date.now()
     hold.value = { game, seat, startedAt: holdNow.value, initial: budget }
+    if (remote) external!.hold(true)
   }
   const user = computed(() => state.value?.players[0])
   const ownTurn = computed(() => state.value?.phase === 'discard' && state.value.current === 0)
@@ -187,6 +191,7 @@ export function useYaotongGame(options: {
   }
   function next() {
     if (remote) {
+      endHold(true)
       external!.nextRound()
       return
     }
@@ -198,6 +203,7 @@ export function useYaotongGame(options: {
   }
   function leave() {
     if (remote) {
+      endHold(true)
       external!.leave()
       state.value = null
       selected.value = -1
@@ -216,11 +222,20 @@ export function useYaotongGame(options: {
 
   /** 联机快照落地：远端模式唯一的 state 写入口。 */
   function acceptRemoteState(next: GameState) {
+    // 服务端额度耗尽/本局结束会释放等；本地别让倒计时继续跑。
+    if (hold.value) {
+      if (next.phase === 'settled'
+          || (next.waitRemainingMs?.[0] ?? YAOTONG_WAIT_BUDGET_MS) <= 0) {
+        hold.value = null
+      } else {
+        // 联机快照会换 GameState 对象；保持等状态跨快照，否则 watchdog 会把等误判为结束。
+        hold.value = { ...hold.value, game: next }
+      }
+    }
     state.value = next
     selected.value = -1
     paused.value = false
     pendingTransition.value = null
-    hold.value = null
     error.value = ''
     protectionNotice.value = ''
     triggerRef(state)
@@ -241,7 +256,7 @@ export function useYaotongGame(options: {
     cleanup(() => { clearInterval(interval); clearTimeout(expiry) })
   })
   watchEffect(() => {
-    if (hold.value && (state.value !== hold.value.game || paused.value || autoplay.value || mode.value !== 'hard' || state.value?.phase === 'settled')) endHold()
+    if (hold.value && (state.value !== hold.value.game || paused.value || autoplay.value || mode.value !== 'hard' || state.value?.phase === 'settled')) endHold(true)
   })
   watchEffect((cleanup) => {
     if (remote) return
