@@ -229,16 +229,23 @@ export function useYaotongGame(options: {
   }
 
   /** 联机快照落地：远端模式唯一的 state 写入口。 */
-  function acceptRemoteState(next: GameState) {
-    // 服务端额度耗尽/本局结束会释放等；本地别让倒计时继续跑。
-    if (hold.value) {
-      if (next.phase === 'settled'
-          || (next.waitRemainingMs?.[0] ?? YAOTONG_WAIT_BUDGET_MS) <= 0) {
-        hold.value = null
-      } else {
-        // 联机快照会换 GameState 对象；保持等状态跨快照，否则 watchdog 会把等误判为结束。
-        hold.value = { ...hold.value, game: next }
-      }
+  function acceptRemoteState(next: GameState, remoteHolding?: boolean) {
+    const entry = hold.value
+    const sameHand = entry?.game.remoteMatchId === next.remoteMatchId
+      && entry?.game.handNumber === next.handNumber
+    const budget = next.waitRemainingMs?.[0] ?? YAOTONG_WAIT_BUDGET_MS
+    // 以服务端为准恢复/结束等待；跨小局不能沿用旧计时器。
+    if (next.phase === 'settled' || budget <= 0 || remoteHolding === false) {
+      hold.value = null
+    } else if (remoteHolding || (entry && sameHand)) {
+      const now = Date.now()
+      holdNow.value = now
+      const remaining = entry && sameHand
+        ? Math.min(budget, Math.max(0, entry.initial - (now - entry.startedAt)))
+        : budget
+      hold.value = { game: next, seat: 0, startedAt: now, initial: remaining }
+    } else {
+      hold.value = null
     }
     state.value = next
     selected.value = -1
@@ -260,7 +267,8 @@ export function useYaotongGame(options: {
     const tick = () => { holdNow.value = Date.now() }
     tick()
     const interval = setInterval(tick, 50)
-    const expiry = setTimeout(() => { if (hold.value === entry) endHold() }, entry.initial)
+    const remaining = Math.max(0, entry.initial - (Date.now() - entry.startedAt))
+    const expiry = setTimeout(() => { if (hold.value === entry) endHold(true) }, remaining)
     cleanup(() => { clearInterval(interval); clearTimeout(expiry) })
   })
   watchEffect(() => {

@@ -106,9 +106,46 @@ beforeEach(() => {
   api.readyRoom.mockResolvedValue({ roomId: 'ABC123', seat: 0, ready: true })
   api.startRoom.mockResolvedValue({ roomId: 'ABC123', status: 'playing' })
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('useYaotongRemoteGame', () => {
+  it('服务端等状态按本人座位同步，重复快照不延长，解除等待立即生效', async () => {
+    vi.useFakeTimers()
+    api.getRoom.mockResolvedValue({
+      roomId: 'ABC123', status: 'playing', creatorSeat: 2,
+      seats: [], yaotongMode: 'hard', matchLength: 8,
+    })
+    const scope = effectScope()
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      const held = snapshot({ seat: 2, yaotongMode: 'hard', holdSeats: [2] })
+      held.view.waitRemainingMs[2] = 9000
+      socket.server(held)
+      expect(game.inner.holding.value).toBe(true)
+      expect(game.inner.waitRemainingMs.value).toBe(9000)
+      await vi.advanceTimersByTimeAsync(4000)
+      held.view.waitRemainingMs[2] = 5000
+      socket.server(held)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(game.inner.holding.value).toBe(false)
+      expect(game.inner.waitRemainingMs.value).toBe(0)
+      expect(socket.sent).toContainEqual({ kind: 'hold', holding: false })
+
+      // 断线/托管释放后，剩余额度非零也必须退出本地等状态。
+      held.view.waitRemainingMs[2] = 3000
+      socket.server(held)
+      expect(game.inner.holding.value).toBe(true)
+      socket.server({ ...held, holdSeats: [1] })
+      expect(game.inner.holding.value).toBe(false)
+      expect(game.inner.waitRemainingMs.value).toBe(3000)
+    } finally { scope.stop() }
+  })
+
   it('creates/joins a room, receives snapshots and sends actions', async () => {
     const scope = effectScope()
     const game = scope.run(() => useYaotongRemoteGame({

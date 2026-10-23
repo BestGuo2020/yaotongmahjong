@@ -145,7 +145,9 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       if (snapshot.view?.players?.length === 4
           && snapshot.view.phase !== 'lobby') {
         try {
-          if (!sameHand || !inner.showingSettlement.value) inner.acceptRemoteState(convertSnapshot(snapshot))
+          if (!sameHand || !inner.showingSettlement.value) {
+            inner.acceptRemoteState(convertSnapshot(snapshot), snapshot.holdSeats?.includes(snapshot.seat))
+          }
         } catch (error) {
           sessionError.value = error instanceof Error
             ? error.message : '联机快照解析失败'

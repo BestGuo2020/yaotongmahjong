@@ -17,9 +17,50 @@ const external = {
 
 afterEach(() => {
   vi.clearAllMocks()
+  vi.useRealTimers()
 })
 
 describe('useYaotongGame remote authority', () => {
+  it('同局快照不会延长等的截止时间，到期发送解除等待', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    try {
+      const game = scope.run(() => useYaotongGame({ externalAuthority: external }))!
+      game.mode.value = 'hard'
+      const state = createGame({ length: 4 })
+      game.acceptRemoteState(state)
+      game.startHold()
+      await vi.advanceTimersByTimeAsync(6000)
+      const updated = structuredClone(state)
+      updated.waitRemainingMs[0] = 9000
+      game.acceptRemoteState(updated)
+      await vi.advanceTimersByTimeAsync(8999)
+      expect(game.holding.value).toBe(true)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(game.holding.value).toBe(false)
+      expect(game.waitRemainingMs.value).toBe(0)
+      expect(external.hold).toHaveBeenLastCalledWith(false)
+    } finally { scope.stop() }
+  })
+
+  it('换局快照清掉上一局的等，不占用新局的15秒', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    try {
+      const game = scope.run(() => useYaotongGame({ externalAuthority: external }))!
+      game.mode.value = 'hard'
+      const state = createGame({ length: 4 })
+      game.acceptRemoteState(state)
+      game.startHold()
+      await vi.advanceTimersByTimeAsync(4000)
+      const next = createGame({ length: 4 })
+      next.handNumber = state.handNumber + 1
+      game.acceptRemoteState(next)
+      expect(game.holding.value).toBe(false)
+      expect(game.waitRemainingMs.value).toBe(15000)
+    } finally { scope.stop() }
+  })
+
   it('does not run the local engine; it sends commands and accepts snapshots', async () => {
     const scope = effectScope()
     const game = scope.run(() => useYaotongGame({
