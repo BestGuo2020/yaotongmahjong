@@ -121,12 +121,6 @@ function confirmJoin() {
   emit('joinRoom')
 }
 
-function viewRules() {
-  dialog.value = null
-  pickerReturn.value = null
-  emit('openRules')
-}
-
 function closeDialog() {
   if (dialog.value === 'match' || dialog.value === 'mode') {
     closePicker()
@@ -273,21 +267,9 @@ function toggleWakuDemoAuth() {
       <template v-if="dialog === 'create'">
         <GameSettingsSummary
           :match-name="matchOption.name" :match-description="matchOption.description"
-          rule-label="玩法" rule-name="幺筒麻将" rule-description="108 张 · 幺筒／固定鸡"
-          @select-match="openPicker('match', true)" @select-rule="viewRules"
+          rule-label="模式" :rule-name="modeOption.name" :rule-description="modeOption.summary"
+          @select-match="openPicker('match', true)" @select-rule="openPicker('mode', true)"
         />
-        <div class="create-mode-row">
-          <span>模式</span>
-          <div class="create-mode-options" role="radiogroup" aria-label="模式">
-            <button v-for="modeKey in (['easy', 'hard'] as const)" :key="modeKey"
-              type="button" role="radio" :aria-checked="yaotongMode === modeKey"
-              :class="{ active: yaotongMode === modeKey }"
-              @click="$emit('update:yaotongMode', modeKey)">
-              <b>{{ YAOTONG_MODES[modeKey].name }}</b>
-              <small>{{ YAOTONG_MODES[modeKey].summary }}</small>
-            </button>
-          </div>
-        </div>
         <label class="remote-llm-create-option disabled">
           <input type="checkbox" disabled>
           <span>
@@ -334,33 +316,4 @@ function toggleWakuDemoAuth() {
 
 <style scoped>
 .lobby-actions { min-width: 0; }
-.create-mode-row {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 11px 12px;
-  border: 1px solid rgba(211, 174, 87, .28);
-  border-radius: 7px;
-  background: rgba(5, 23, 16, .55);
-}
-.create-mode-row > span { color: #cfc3a5; font-size: 13px; letter-spacing: .1em; }
-.create-mode-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.create-mode-options button {
-  display: grid;
-  gap: 2px;
-  padding: 9px 10px;
-  border: 1px solid rgba(213, 184, 112, .3);
-  border-radius: 6px;
-  background: rgba(8, 28, 20, .72);
-  color: #cfc3a5;
-  cursor: pointer;
-  text-align: left;
-}
-.create-mode-options button.active {
-  border-color: #d2aa58;
-  background: linear-gradient(135deg, rgba(185, 135, 55, .88), rgba(217, 182, 93, .78));
-  color: #182218;
-}
-.create-mode-options b { font-size: 13px; }
-.create-mode-options small { font-size: 11px; opacity: .82; }
 </style>
