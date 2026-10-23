@@ -173,6 +173,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       }
       if (code === 'INVALID_ACTION' || code === 'STALE_ACTION'
           || code === 'PROTECTED_ACTION' || code === 'TABLE_HELD'
+          || code === 'HOLD_ACTION_NOT_ALLOWED'
           || code === 'NO_HOLD_BUDGET') {
         // 服务端窗口已推进/已自动跳过原报/新手模式已拦截输入时，迟到提交是预期竞态。
         console.warn(`[yaotong] 动作被服务端拒绝（预期竞态）：${code}`)

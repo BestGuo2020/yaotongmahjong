@@ -143,6 +143,9 @@ export function useYaotongGame(options: {
   }
   function dispatch(command: Command, seat = 0) {
     if (!state.value || paused.value) return false
+    // 等期间只能胡/过；联机也必须先拦，不能把摸打/碰杠发给服务端。
+    if (hold.value && (hold.value.seat !== seat
+        || (command.type !== 'declareHu' && command.type !== 'passHu'))) return false
     if (remote) {
       // 服务端权威：只发意图，本地不推进引擎。
       external!.send(command)
@@ -152,7 +155,6 @@ export function useYaotongGame(options: {
       return true
     }
     if (mode.value !== 'hard' && (command.type === 'declareHu' || command.type === 'passHu')) return false
-    if (hold.value && (hold.value.seat !== seat || (command.type !== 'declareHu' && command.type !== 'passHu'))) return false
     try {
       const reason = seat === 0 ? protectionReason(protection.value, command) : ''
       if (reason) {

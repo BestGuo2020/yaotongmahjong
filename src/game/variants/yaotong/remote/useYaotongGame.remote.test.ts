@@ -54,6 +54,9 @@ describe('useYaotongGame remote authority', () => {
     expect(external.hold).toHaveBeenCalledWith(true)
     game.acceptRemoteState(createGame({ length: 4 }))
     expect(game.holding.value).toBe(true)
+    const sentBefore = external.send.mock.calls.length
+    expect(game.dispatch({ type: 'discard', index: 0 })).toBe(false)
+    expect(external.send).toHaveBeenCalledTimes(sentBefore)
     game.leave()
     expect(external.hold).toHaveBeenLastCalledWith(false)
     expect(external.leave).toHaveBeenCalledTimes(1)
