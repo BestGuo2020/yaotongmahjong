@@ -56,7 +56,11 @@ test.describe('幺筒联机', () => {
     await expect(pageB.locator('canvas').first()).toBeVisible({ timeout: 30_000 })
     await expect(pageA.getByText(roomId!).first()).toBeVisible({ timeout: 15_000 })
     await expect(pageA.locator('.table-loading')).toHaveCount(0, { timeout: 30_000 })
-    await expect(pageA.locator('.hand-rack .hand-tile-slot').first()).toBeVisible()
+    await pageA.waitForFunction(() => {
+      const table = document.querySelector('[data-opening-stage]')
+      return (!table || table.getAttribute('data-opening-stage') === '')
+        && document.querySelectorAll('.hand-rack .hand-tile-slot').length >= 13
+    }, { timeout: 30_000 })
     await pageA.waitForTimeout(600)
     await pageA.screenshot({ path: 'test-results/online-table-hard.png' })
 

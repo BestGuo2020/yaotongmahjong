@@ -149,12 +149,28 @@ watch(() => online.storedSession.value?.nickname, (name) => {
 }, { immediate: true })
 const onlineRoomId = computed(() => gameMode.value === 'remote' ? online.roomId.value : '')
 const onlineSignal = computed(() => gameMode.value === 'remote' ? online.signalQuality.value : 3)
+let openingRoundInFlight: number | null = null
+async function playRemoteOpening(round: number) {
+  if (openingRoundInFlight === round) return
+  openingRoundInFlight = round
+  try {
+    await startGame('east', { waitForTableReady })
+    online.ackOpening(round)
+  } finally {
+    if (openingRoundInFlight === round) openingRoundInFlight = null
+  }
+}
+watch(() => online.pendingOpeningRound.value, (round) => {
+  if (gameMode.value === 'remote' && round != null) void playRemoteOpening(round)
+})
 watch(() => online.sessionStatus.value, (status) => {
   if (status === 'playing') {
     gameMode.value = 'remote'
     resetTableReady()
     startBgm()
-    void startGame()
+    const round = online.pendingOpeningRound.value
+    if (round != null) void playRemoteOpening(round)
+    else void startGame('east', { waitForTableReady, skipOpening: true })
   }
 })
 

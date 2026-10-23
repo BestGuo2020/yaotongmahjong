@@ -48,14 +48,14 @@ import { offeredHuPlans } from './settlement'
 import { recordYaotongRound } from './replay'
 import type { ReplayRecorderHooks } from '../../replay/types'
 import { countsOf } from './tiles'
-import { kongWeatherKind, KONG_WEATHER_DURATION, REDUCED_KONG_WEATHER_DURATION, type KongWeatherCue } from './kongPresentation'
+import { kongSoundFile, kongWeatherKind, KONG_WEATHER_DURATION, REDUCED_KONG_WEATHER_DURATION, type KongWeatherCue } from './kongPresentation'
 import {
   chickenMarks,
   chickenPerformance,
   CHICKEN_PERFORMANCE_MS,
   type ChickenPerformance,
 } from './chickenPresentation'
-import type { GameEvent, Wait } from './types'
+import type { GameEvent, GameState, Wait } from './types'
 import {
   chickenCue as makeChickenCue,
   settlementTitle,
@@ -575,17 +575,17 @@ export function useYaotongPort(
         toSharedTile(event.tile!),
         Math.max(0, local.state.value!.players[event.seat].melds.length - 1),
       )
+      // 报牌音效按杠型区分：转弯杠、补杠各有独立配音，其余杠型沿用普通杠。
+      const actionSound = event.kind === 'peng' ? 'peng.mp3' : kongSoundFile(event)
       if (performance?.kind === 'responsibility' || performance?.kind === 'peng') {
         // Keep the original action voice first; the short chicken cue follows its actual completion.
-        void playSoundAndWait(event.kind === 'peng' ? 'peng.mp3' : 'gang.mp3').then(showChicken, showChicken)
-      } else playSound(event.kind === 'peng' ? 'peng.mp3' : 'gang.mp3')
+        void playSoundAndWait(actionSound).then(showChicken, showChicken)
+      } else playSound(actionSound)
     }
   }
-  watch(
-    local.state,
-    (state) => {
-      if (!state) return
-      if (seenHand !== state.handNumber) {
+  function handleState(state: GameState) {
+    if (!state) return
+    if (seenHand !== state.handNumber) {
         seenHand = state.handNumber
         seenSerial = 0
         tailDrawn.value = 0
@@ -612,9 +612,21 @@ export function useYaotongPort(
           sourceFrom: r.winKind === 'discard' || r.winKind === 'hot' ? r.source! : undefined,
         })
       else timeline.endDraw()
+  }
+  let stopStateWatch: (() => void) | undefined
+  watch(
+    () => local.state,
+    (stateRef) => {
+      stopStateWatch?.()
+      stopStateWatch = watch(
+        stateRef,
+        (state) => { if (state) handleState(state) },
+        { flush: 'sync', immediate: true },
+      )
     },
-    { flush: 'sync' },
+    { flush: 'sync', immediate: true },
   )
+  onScopeDispose(() => stopStateWatch?.())
 
   function resetPresentation() {
     kongWeather.value = []
@@ -775,14 +787,16 @@ export function useYaotongPort(
     userKongs: computed(() => local.protection.value.kong || local.holding.value ? [] : local.kongs.value.map(toSharedTile)),
     capabilities: computed(() => ({})),
     startGame(_mode?: MatchType, startOptions?: GameStartOptions) {
-      // 联机对局由房间快照驱动；本地 start 只服务单机。
+      // 联机对局由房间快照驱动；开局演出复用同一套 opening 时间线。
       if (local.remote) {
         resetPresentation()
-        // 联机没有本地开局发牌时间线；resetPresentation 的 dealing 闸门会让手牌被裁成 0。
-        openingActive.value = false
         seenHand = 0
         seenSerial = 0
-        return Promise.resolve()
+        if (startOptions?.skipOpening) {
+          openingActive.value = false
+          return Promise.resolve()
+        }
+        return opening(startOptions)
       }
       resetPresentation()
       seenHand = 0

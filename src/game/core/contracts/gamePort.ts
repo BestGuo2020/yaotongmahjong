@@ -205,6 +205,8 @@ export interface GamePort {
 export interface GameStartOptions {
   /** 牌桌 3D 场景就绪前暂停开局时间线。 */
   waitForTableReady?: () => Promise<void>
+  /** 联机重进/续局时跳过开局演出（服务端已经在牌局中）。 */
+  skipOpening?: boolean
   /** 开局动画结束后、第一手开始前暂停（单机联调/夹具用）。 */
   waitForOpeningReady?: () => Promise<void>
   /**

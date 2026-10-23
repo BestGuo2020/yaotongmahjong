@@ -136,6 +136,9 @@ describe('useYaotongRemoteGame', () => {
     }))
     expect(game.inner.state.value?.players[0].hand).toEqual([0, 1, 2])
     expect(game.sessionStatus.value).toBe('playing')
+    expect(game.pendingOpeningRound.value).toBe(1)
+    game.ackOpening(1)
+    expect(game.pendingOpeningRound.value).toBeNull()
     expect(socket.sent).toContainEqual({ kind: 'opening_done', round: 1 })
 
     game.inner.dispatch({ type: 'original', declare: false })

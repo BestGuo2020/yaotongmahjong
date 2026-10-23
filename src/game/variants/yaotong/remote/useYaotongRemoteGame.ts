@@ -74,6 +74,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   const yaotongMode = ref<YaotongRoomMode>('easy')
   const storedSession = ref<StoredSession | null>(null)
   const waitingNextRound = ref(false)
+  const pendingOpeningRound = ref<number | null>(null)
   const currentRound = ref(0)
   let lastOpeningRound = 0
   let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -141,8 +142,8 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       }
       if (snapshot.opening && lastOpeningRound !== snapshot.round) {
         lastOpeningRound = snapshot.round
-        // MVP 暂不等待开局演出；收到首份开局快照即回执，服务端随后开原报窗。
-        socket.send({ kind: 'opening_done', round: snapshot.round })
+        // 等本家把单机同款开局演出播完，再由 App 回执，服务端才开原报窗。
+        pendingOpeningRound.value = snapshot.round
       }
       return
     }
@@ -252,6 +253,12 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     else if (info.status === 'lobby') sessionStatus.value = 'lobby'
   }
 
+  function ackOpening(round: number) {
+    if (pendingOpeningRound.value !== round) return
+    pendingOpeningRound.value = null
+    socket.send({ kind: 'opening_done', round })
+  }
+
   function resetSession() {
     stopPolling()
     socket.close()
@@ -264,6 +271,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     roomStatus.value = 'lobby'
     storedSession.value = null
     waitingNextRound.value = false
+    pendingOpeningRound.value = null
     currentRound.value = 0
     lastOpeningRound = 0
     inner.state.value = null
@@ -416,6 +424,8 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     yaotongMode,
     storedSession,
     waitingNextRound,
+    pendingOpeningRound,
+    ackOpening,
     signalQuality: socket.signalQuality,
     autoPlay: inner.autoplay,
     createRoom,

@@ -2,6 +2,7 @@ import { effectScope, nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createGame } from '../engine'
+import type { GameEvent } from '../types'
 import { useYaotongGame } from '../useYaotongGame'
 import { useYaotongPort } from '../useYaotongPort'
 
@@ -71,9 +72,26 @@ describe('useYaotongGame remote authority', () => {
     }))!
     const port = scope.run(() => useYaotongPort({}, game))!
     game.acceptRemoteState(createGame({ length: 4 }))
-    await port.startGame()
+    await port.startGame('east', { skipOpening: true })
     expect(port.players[0].hand.length).toBeGreaterThan(0)
     expect(port.phase.value).not.toBe('dealing')
+    scope.stop()
+  })
+
+  it('remote snapshots feed the shared presentation watcher', async () => {
+    const scope = effectScope()
+    const game = scope.run(() => useYaotongGame({
+      externalAuthority: external,
+    }))!
+    const port = scope.run(() => useYaotongPort({}, game))!
+    const state = createGame({ length: 4 })
+    state.serial = 1
+    state.events = [{
+      id: 1, seat: 1, kind: 'discard', text: '打出五万', tile: 4,
+    } as GameEvent]
+    game.acceptRemoteState(state)
+    await nextTick()
+    expect(port.lastDiscard.value).toMatchObject({ tile: 'm5', from: 1 })
     scope.stop()
   })
 })
