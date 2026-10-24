@@ -46,7 +46,7 @@ def tiles(text):
 
 class SeedRequest(BaseModel):
     roomId: str
-    kind: Literal['self', 'discard', 'open-kong', 'added-kong', 'timeout', 'mode-chicken', 'mode-mandatory']
+    kind: Literal['self', 'discard', 'open-kong', 'added-kong', 'timeout', 'mode-chicken', 'mode-mandatory', 'four-client']
     yaotongMode: Literal['easy', 'hard'] = 'easy'
 
 
@@ -77,10 +77,29 @@ def seed(body: SeedRequest):
         raise HTTPException(409)
     if body.kind == 'timeout':
         room.yaotong_mode = 'hard'
-    elif body.kind.startswith('mode-'):
+    elif body.kind.startswith('mode-') or body.kind == 'four-client':
         room.yaotong_mode = body.yaotongMode
 
     def factory(options):
+        if body.kind == 'four-client':
+            # 完整合法 108 张牌墙：两家起手听牌，庄家首摸可胡且可杀原报。
+            # 仅安排首局；之后完全走正常 continue_game 洗牌、轮庄与整场结束。
+            state = create_game(StartOptions(length=options.length, dice=(2, 3), dealer=0))
+            first = sorted(tiles('11123m 456789s 22p'))
+            second = sorted(tiles('234567m 234s 66p 78s'))
+            remaining = [tile for tile in range(27) for _ in range(4)]
+            for tile in [*first, *second, 0]:
+                remaining.remove(tile)
+            # 其余两家按确定的乱序配牌，避免人为构造额外胡牌状态。
+            import random
+            random.Random(20261024).shuffle(remaining)
+            hands = [first, second, sorted(remaining[:13]), sorted(remaining[13:26])]
+            state.players = [Player(name=f'P{seat}', hand=hand) for seat, hand in enumerate(hands)]
+            state.wall = [0, *remaining[26:]]
+            assert len(state.wall) == 56
+            all_tiles = [*state.wall, *(tile for player in state.players for tile in player.hand)]
+            assert len(all_tiles) == 108 and all(all_tiles.count(tile) == 4 for tile in range(27))
+            return state
         if body.kind.startswith('mode-'):
             return mode_scenario('peng-then-discard' if body.kind == 'mode-chicken' else 'kill-self-discard')[0]
         if body.kind in ('open-kong', 'added-kong'):
