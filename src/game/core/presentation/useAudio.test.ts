@@ -66,18 +66,18 @@ afterEach(() => {
 })
 
 describe('useAudio LLM 语音播放', () => {
-  it('one deal WAV spans consecutive batches without overlapping itself, then can restart after ending', () => {
+  it('one deal clip spans consecutive batches without overlapping itself, then can restart after ending', () => {
     const audio = useAudio()
     const first = audio.playEffect('deal.mp3') as unknown as MockAudio
-    expect(first.src).toContain('/sounds/fapai.wav')
+    expect(first.src).toContain('/sounds/fapai.ogg')
     expect(audio.playEffect('deal.mp3')).toBeNull()
     first.emit('ended')
     expect(audio.playEffect('deal.mp3')).not.toBeNull()
   })
   it.each([
-    ['hu.mp3', 'chihu.wav'],
-    ['game_start.mp3', 'game_start.wav'],
-  ])('%s uses its WAV and waits for ended; removed sounds finish immediately', async (name, file) => {
+    ['hu.mp3', 'chihu.ogg'],
+    ['game_start.mp3', 'game_start.ogg'],
+  ])('%s uses its Ogg asset and waits for ended; removed sounds finish immediately', async (name, file) => {
     const audio = useAudio()
     let completed = false
     const pending = audio.playEffectAndWait(name).then(() => { completed = true })

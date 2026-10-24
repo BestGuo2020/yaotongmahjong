@@ -27,6 +27,8 @@ const props = defineProps<{
   storage: ReplayStorage
   /** 本地存储可用（无 IndexedDB / 隐私模式 / 写入失败）。 */
   available: boolean
+  /** 面板先显示加载状态，再等待尚未写完的牌谱。 */
+  beforeLoad?: () => Promise<void>
   /** 独立分析区（§9.2）；未接线（联机或旧调用方）时为 null，行内不显示分析入口。 */
   analysis?: AnalysisStorage | null
   /**
@@ -68,6 +70,7 @@ function toggleAnalysis(next: boolean) {
 
 async function reload() {
   loading.value = true
+  await props.beforeLoad?.()
   matches.value = await props.storage.list()
   const statuses: Record<string, AnalysisAreaStatus> = {}
   if (props.analysis?.available()) {

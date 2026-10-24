@@ -113,12 +113,12 @@ describe('useAudio BGM 顺序切换（HTMLAudio 回退路径）', () => {
     // 淡出阶段：旧曲在降，且此刻新曲元素还没建（两曲不重叠）
     await vi.waitFor(() => expect(bg.volume).toBeLessThan(0.32))
     expect(bg.volume).toBeGreaterThan(0)
-    expect(MockAudio.instances.some(item => item.src.endsWith('/audio/bgm/ting_bgm.wav'))).toBe(false)
+    expect(MockAudio.instances.some(item => item.src.endsWith('/audio/bgm/ting_bgm.ogg'))).toBe(false)
 
     // 旧曲到 0 → 停旧曲 → 新曲才开始播、从 0 淡起
     await vi.waitFor(() => expect(bg.pause).toHaveBeenCalled(), { timeout: 2000 })
-    await vi.waitFor(() => expect(MockAudio.instances.some(item => item.src.endsWith('/audio/bgm/ting_bgm.wav'))).toBe(true))
-    const hu = MockAudio.instances.find(item => item.src.endsWith('/audio/bgm/ting_bgm.wav'))!
+    await vi.waitFor(() => expect(MockAudio.instances.some(item => item.src.endsWith('/audio/bgm/ting_bgm.ogg'))).toBe(true))
+    const hu = MockAudio.instances.find(item => item.src.endsWith('/audio/bgm/ting_bgm.ogg'))!
     expect(hu.loop).toBe(true)
     expect(hu.play).toHaveBeenCalledOnce()
     expect(hu.volume).toBeLessThan(0.32)
@@ -136,8 +136,8 @@ describe('useAudio BGM 顺序切换（HTMLAudio 回退路径）', () => {
     const audio = useAudio()
     await audio.startBgm()
     audio.fadeToBgm('HuMusic.ogg', 0.6)
-    await vi.waitFor(() => expect(MockAudio.instances.some(item => item.src.endsWith('/audio/bgm/ting_bgm.wav'))).toBe(true), { timeout: 2000 })
-    const hu = MockAudio.instances.find(item => item.src.endsWith('/audio/bgm/ting_bgm.wav'))!
+    await vi.waitFor(() => expect(MockAudio.instances.some(item => item.src.endsWith('/audio/bgm/ting_bgm.ogg'))).toBe(true), { timeout: 2000 })
+    const hu = MockAudio.instances.find(item => item.src.endsWith('/audio/bgm/ting_bgm.ogg'))!
     const early = hu.volume
     expect(early).toBeGreaterThanOrEqual(0)
     expect(early).toBeLessThan(0.32)
@@ -163,8 +163,8 @@ describe('useAudio BGM 顺序切换（HTMLAudio 回退路径）', () => {
     const audio = useAudio()
     await audio.startBgm()
     audio.fadeToBgm('HuMusic.ogg', 0.3)
-    await vi.waitFor(() => expect(MockAudio.instances.some(item => item.src.endsWith('/audio/bgm/ting_bgm.wav'))).toBe(true), { timeout: 2000 })
-    const hu = MockAudio.instances.find(item => item.src.endsWith('/audio/bgm/ting_bgm.wav'))!
+    await vi.waitFor(() => expect(MockAudio.instances.some(item => item.src.endsWith('/audio/bgm/ting_bgm.ogg'))).toBe(true), { timeout: 2000 })
+    const hu = MockAudio.instances.find(item => item.src.endsWith('/audio/bgm/ting_bgm.ogg'))!
     audio.bgmOn.value = false
     await vi.waitFor(() => expect(hu.pause).toHaveBeenCalled())
     // 关掉时把在飞的淡入结算到目标音量，避免重新开启后停在半音量
@@ -183,7 +183,7 @@ describe('useAudio BGM 顺序切换（HTMLAudio 回退路径）', () => {
     port!.preload?.('HuMusic.ogg')
     port!.fadeTo('HuMusic.ogg', 0.05)
     await wait(120)
-    expect(MockAudio.instances.filter(item => item.src.endsWith('/audio/bgm/ting_bgm.wav'))).toHaveLength(1)
+    expect(MockAudio.instances.filter(item => item.src.endsWith('/audio/bgm/ting_bgm.ogg'))).toHaveLength(1)
     expect(bg.pause).toHaveBeenCalled()
   })
 })
@@ -228,6 +228,6 @@ describe('useAudio BGM 顺序切换（Web Audio 路径）', () => {
     expect(ctx.sources[1].stopped).toHaveBeenCalled()
     expect(ctx.sources).toHaveLength(3)
     expect(ctx.decodeAudioData).toHaveBeenCalledWith(expect.any(ArrayBuffer))
-    expect(DEFAULT_BGM_FILE).toBe('bgm/bgm.wav')
+    expect(DEFAULT_BGM_FILE).toBe('bgm/bgm.ogg')
   })
 })

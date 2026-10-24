@@ -107,9 +107,11 @@ function robbedKongSourceTransform(effect: WinEffect) {
     const relativeSource = ['peng', 'gang', 'chi'].includes(meld.type) && Number.isInteger(meld.from)
       ? (meld.from - playerIndex + 4) % 4
       : -1
+    // 幺筒的碰与补杠都不指向来源，抢杠飞牌的起点也要落在同一张平放的第四张上。
+    const neutralMeld = Boolean(props.neutralPengOrientation && (meld.type === 'peng' || meld.added))
     let sourcePlacement: TableTransform | null = null
     laidTiles.forEach((_, tileIndex) => {
-      const pointsToSource = tileIndex === sourceTileIndex
+      const pointsToSource = tileIndex === sourceTileIndex && !neutralMeld
       const tileSpan = meldTileSpan(pointsToSource)
       const centerOffset = meldTileCenter(trackOffset, tileSpan)
       const sourceRot = pointsToSource ? sourceTileRotationOffset(relativeSource) : 0
@@ -118,7 +120,7 @@ function robbedKongSourceTransform(effect: WinEffect) {
         playerIndex,
         sourceRot !== 0,  // 仅横摆的来源牌需要底边对齐补偿
       )
-      if (pointsToSource) {
+      if (tileIndex === sourceTileIndex) {
         sourcePlacement = {
           x: transform.x,
           z: transform.z,
@@ -127,15 +129,25 @@ function robbedKongSourceTransform(effect: WinEffect) {
       }
       trackOffset += tileSpan
     })
-    if (meldIndex === effect.robbedKongMeldIndex && sourcePlacement) {
-      const offset = addedKongTileOffset(playerIndex, TABLE_LAYOUT.tilePitch)
-      return {
-        position: new THREE.Vector3(
-          sourcePlacement.x + offset.x,
-          .28,
-          sourcePlacement.z + offset.z + TILE_LAYER_Z,
-        ),
-        rotation: sourcePlacement.rotation,
+    if (meldIndex === effect.robbedKongMeldIndex) {
+      if (neutralMeld) {
+        // 幺筒补杠的第四张接在碰牌同一行，飞牌起点取空出来的第四个槽位。
+        const transform = meldTransform(playerIndex, meldTileCenter(trackOffset, TABLE_LAYOUT.tilePitch))
+        return {
+          position: new THREE.Vector3(transform.x, .28, transform.z + TILE_LAYER_Z),
+          rotation: transform.rotation,
+        }
+      }
+      if (sourcePlacement) {
+        const offset = addedKongTileOffset(playerIndex, TABLE_LAYOUT.tilePitch)
+        return {
+          position: new THREE.Vector3(
+            sourcePlacement.x + offset.x,
+            .28,
+            sourcePlacement.z + offset.z + TILE_LAYER_Z,
+          ),
+          rotation: sourcePlacement.rotation,
+        }
       }
     }
     trackOffset += TABLE_LAYOUT.groupGap

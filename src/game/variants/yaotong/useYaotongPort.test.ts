@@ -206,22 +206,22 @@ describe('幺筒复用原版GamePort与3D表现', () => {
           expect.objectContaining({ actorIndex: seat, type: declaration === 'original' ? 'original-ready' : 'ready' }),
         ])
         expect(port.tableActionEvent.value).toBeNull() // 声明不伪造碰牌事件或移动牌张。
-        expect(fadeTo).toHaveBeenCalledExactlyOnceWith('bgm/ting_bgm.wav')
+        expect(fadeTo).toHaveBeenCalledExactlyOnceWith('bgm/ting_bgm.ogg')
         state.players[(seat + 1) % 4].declaration = 'ready'
         triggerRef(port.local.state)
         await nextTick()
         expect(fadeTo).toHaveBeenCalledTimes(1)
         port.local.begin(4)
         await nextTick()
-        expect(fadeTo).toHaveBeenLastCalledWith('bgm/bgm.wav')
+        expect(fadeTo).toHaveBeenLastCalledWith('bgm/bgm.ogg')
         port.local.state.value!.players[seat].declaration = declaration
         triggerRef(port.local.state)
         await nextTick()
-        expect(fadeTo).toHaveBeenLastCalledWith('bgm/ting_bgm.wav')
+        expect(fadeTo).toHaveBeenLastCalledWith('bgm/ting_bgm.ogg')
         port.returnToLobby()
         await nextTick()
         expect(port.tableView.value.declarationCues).toEqual([])
-        expect(fadeTo).toHaveBeenLastCalledWith('bgm/bgm.wav')
+        expect(fadeTo).toHaveBeenLastCalledWith('bgm/bgm.ogg')
       } finally { scope.stop() }
     },
   )

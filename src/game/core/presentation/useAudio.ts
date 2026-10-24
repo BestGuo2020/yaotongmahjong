@@ -193,8 +193,8 @@ export function useAudio() {
     if (!soundOn.value || !effectsOn.value || !name) return null
     const file = resolveAudioAsset(name)
     if (!file || !file.startsWith('sounds/')) return null
-    // A full deal sample covers several batches; don't stack the same one-second WAV four times.
-    if (file === 'sounds/fapai.wav' && !onFinish && [...activeEffects].some((a) => a.dataset?.assetFile === file)) return null
+    // A full deal sample covers several batches; don't stack the same one-second clip four times.
+    if (file === 'sounds/fapai.ogg' && !onFinish && [...activeEffects].some((a) => a.dataset?.assetFile === file)) return null
     const template = effectTemplates.get(file)
     const audio = (template
       ? template.cloneNode(true)

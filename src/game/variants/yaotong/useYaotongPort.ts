@@ -592,6 +592,8 @@ export function useYaotongPort(
         local.state.value!.players[event.seat].melds.at(-1)?.from ?? null,
         toSharedTile(event.tile!),
         Math.max(0, local.state.value!.players[event.seat].melds.length - 1),
+        event.kind === 'kong-intent' || event.text === '补杠' ? '补杠'
+          : event.text === '转弯杠' ? '转弯杠' : undefined,
       )
       // 报牌音效按杠型区分：转弯杠、补杠各有独立配音，其余杠型沿用普通杠。
       const actionSound = event.kind === 'peng' ? 'peng.mp3' : kongSoundFile(event)

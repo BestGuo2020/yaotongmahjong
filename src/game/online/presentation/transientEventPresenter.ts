@@ -29,8 +29,9 @@ const ACTION_SOUNDS: Partial<Record<TableActionMessage['event']['type'], string>
   peng: 'peng.mp3',
   chi: 'chi.mp3',
   'discard-gang': 'gang.mp3',
+  // 服务端的 concealed-gang 不区分转弯杠与存杠，只有补杠能按类型单独配音。
   'concealed-gang': 'gang.mp3',
-  'added-gang': 'gang.mp3',
+  'added-gang': 'bugang.ogg',
   'flower-gang': 'gang.mp3',
 }
 

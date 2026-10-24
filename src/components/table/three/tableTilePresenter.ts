@@ -127,10 +127,12 @@ function addConcealedHand(playerIndex) {
   const exposedSpan = melds.reduce((span, meld, meldIndex) => {
     const laidTiles = meldDisplayTiles(meld)
     const sourceTileIndex = meldSourceTileIndex({ ...meld, tiles: laidTiles }, playerIndex)
+    const neutralMeld = Boolean(props.neutralPengOrientation && (meld.type === 'peng' || meld.added))
+    // 幺筒补杠的第四张接在同一行，副露带要多占一张牌宽。
     const meldSpan = laidTiles.reduce(
       (width, _, tileIndex) => width + (tileIndex === sourceTileIndex ? POINT_GAP_OFFSET : gap),
       0,
-    )
+    ) + (neutralMeld && meld.added ? gap : 0)
     return span + meldSpan + (meldIndex > 0 ? TABLE_LAYOUT.groupGap : 0)
   }, 0)
   const animatedFromIndex = Math.max(0, total - (props.dealAnimation.count || 0))
@@ -323,11 +325,13 @@ function addMelds(playerIndex) {
     const relativeSource = ['peng', 'gang', 'chi'].includes(meld.type) && Number.isInteger(meld.from)
       ? (meld.from - playerIndex + 4) % 4
       : -1
+    // 幺筒的碰不指向来源；补杠只是碰升级后的同一副露，也不能把来源指向带回来。
+    const neutralMeld = Boolean(props.neutralPengOrientation && (meld.type === 'peng' || meld.added))
     let sourcePlacement = null
     laidTiles.forEach((tileName, tileIndex) => {
       // 风杠（乱风杠）为亮明暗杠：四张全部亮出；普通暗杠首尾两张背朝上。
       const concealed = meld.type === 'angang' && !meld.windKong && (tileIndex === 0 || tileIndex === laidTiles.length - 1)
-      const pointsToSource = tileIndex === sourceTileIndex && !(props.neutralPengOrientation && meld.type === 'peng')
+      const pointsToSource = tileIndex === sourceTileIndex && !neutralMeld
       const face = concealed ? null : tileName
       const tileSpan = pointsToSource ? POINT_GAP_OFFSET : TILE_GAP_OFFSET
       const centerOffset = meldTileCenter(trackOffset, tileSpan)
@@ -377,33 +381,43 @@ function addMelds(playerIndex) {
       const offset=addedKongTileOffset(playerIndex,TILE_GAP_OFFSET)
       addedTransforms.set(`${playerIndex}/${meld.tile}`,{x:sourcePlacement.x+offset.x,y:.28,z:sourcePlacement.z+offset.z+TILE_LAYER_Z,rotation:sourcePlacement.rotation})
     }
-    if (meld.added && sourcePlacement) {
-      // 补杠牌与原横牌同样横摆，平放在它靠牌桌中心的一侧，形成 T/L 形。
-      const addedOffset = addedKongTileOffset(playerIndex, TILE_GAP_OFFSET)
-      const pos = new THREE.Vector3(
-        sourcePlacement.x + addedOffset.x,
-        .28,
-        sourcePlacement.z + addedOffset.z + TILE_LAYER_Z,
-      )
-      const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, sourcePlacement.rotation, 0))
-      const motionKey = `${motionPrefix}:added`
-      const continuing = continuingMelds.get(motionKey)
-      if (continuing || (animatesThisMeld && pendingTableActionAnimation.type === 'added-gang')) {
-        const inst = addTableTile(pos, quat, meld.tile, 1, new THREE.Vector3(pos.x, pos.y + .72, pos.z), .78)
-        meldTweens.push({
-          motionKey,
-          baseIndex: inst.baseIndex,
-          capIndex: inst.capIndex,
-          capMesh: inst.capMesh,
-          baseX: pos.x,
-          baseZ: pos.z,
-          targetY: pos.y,
-          quat,
-          startedAt: continuing?.startedAt ?? performance.now(),
-          duration: 430,
-        })
-      } else {
-        addTableTile(pos, quat, meld.tile)
+    if (meld.added) {
+      // 幺筒补杠把第 4 张接在碰牌同一行末尾；其他玩法仍横摆在来源牌前侧，形成 T/L 形。
+      let addedPosition: { x: number; z: number; rotation: number } | null = null
+      if (neutralMeld) {
+        const transform = meldTransform(playerIndex, meldTileCenter(trackOffset, TILE_GAP_OFFSET))
+        addedPosition = { x: transform.x, z: transform.z, rotation: transform.rotation }
+        trackOffset += TILE_GAP_OFFSET
+      } else if (sourcePlacement) {
+        const addedOffset = addedKongTileOffset(playerIndex, TILE_GAP_OFFSET)
+        addedPosition = {
+          x: sourcePlacement.x + addedOffset.x,
+          z: sourcePlacement.z + addedOffset.z,
+          rotation: sourcePlacement.rotation,
+        }
+      }
+      if (addedPosition) {
+        const pos = new THREE.Vector3(addedPosition.x, .28, addedPosition.z + TILE_LAYER_Z)
+        const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, addedPosition.rotation, 0))
+        const motionKey = `${motionPrefix}:added`
+        const continuing = continuingMelds.get(motionKey)
+        if (continuing || (animatesThisMeld && pendingTableActionAnimation.type === 'added-gang')) {
+          const inst = addTableTile(pos, quat, meld.tile, 1, new THREE.Vector3(pos.x, pos.y + .72, pos.z), .78)
+          meldTweens.push({
+            motionKey,
+            baseIndex: inst.baseIndex,
+            capIndex: inst.capIndex,
+            capMesh: inst.capMesh,
+            baseX: pos.x,
+            baseZ: pos.z,
+            targetY: pos.y,
+            quat,
+            startedAt: continuing?.startedAt ?? performance.now(),
+            duration: 430,
+          })
+        } else {
+          addTableTile(pos, quat, meld.tile)
+        }
       }
     }
     trackOffset += TABLE_LAYOUT.groupGap

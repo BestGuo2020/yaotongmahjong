@@ -141,11 +141,11 @@ describe('BGM 单轨不变量', () => {
     expect(livePlaying()).toHaveLength(1)
   })
 
-  it('默认循环曲目使用更新后的 bgm.wav', async () => {
+  it('默认循环曲目使用 Ogg 母带的 bgm.ogg', async () => {
     const audio = useAudio()
     await audio.startBgm()
 
-    expect(DEFAULT_BGM_FILE).toBe('bgm/bgm.wav')
+    expect(DEFAULT_BGM_FILE).toBe('bgm/bgm.ogg')
     expect(livePlaying()).toHaveLength(1)
   })
 })

@@ -80,6 +80,30 @@ describe('shared normal tile animations survive state refreshes', () => {
       expect(s.rendered.filter(t => t.face === 'p5' && t.rotation.angleTo(base) < .00001)).toHaveLength(2)
     },
   )
+  it.each([0, 1, 2, 3])('幺筒补杠四张同向排成一行：座位$seat', seat => {
+    const s = setup()
+    s.props.neutralPengOrientation = true
+    s.props.players[seat].melds = [{ type: 'peng', tile: 'p5', tiles: ['p5', 'p5', 'p5'], from: (seat + 1) % 4 }]
+    const base = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, [0, Math.PI / 2, Math.PI, -Math.PI / 2][seat], 0))
+    s.presenter.rebuild()
+    const pengPositions = s.rendered.filter(tile => tile.face === 'p5').map(tile => tile.position.clone())
+    s.props.players[seat].melds = [{ type: 'gang', added: true, tile: 'p5', tiles: ['p5', 'p5', 'p5', 'p5'], from: (seat + 1) % 4 }]
+    s.presenter.rebuild()
+    const tiles = s.rendered.filter(tile => tile.face === 'p5')
+    expect(tiles).toHaveLength(4)
+    for (const tile of tiles) expect(tile.rotation.angleTo(base)).toBeLessThan(.00001)
+    // 升级补杠不挪动原碰的三张牌；第四张接在同一行，四张等距。
+    tiles.slice(0, 3).forEach((tile, index) => {
+      expect(tile.position.distanceTo(pengPositions[index]), '原碰牌位置不变').toBeLessThan(.00001)
+    })
+    for (let index = 1; index < tiles.length; index += 1) {
+      expect(tiles[index].position.distanceTo(tiles[index - 1].position), '四张排成一行且等距').toBeCloseTo(.685, 5)
+    }
+    // 非幺筒玩法保留来源牌与补杠牌横摆的旧版式。
+    s.props.neutralPengOrientation = false
+    s.presenter.rebuild()
+    expect(s.rendered.filter(tile => tile.face === 'p5' && tile.rotation.angleTo(base) < .00001)).toHaveLength(2)
+  })
   it.each([1, 2, 3, 4])('对家亮牌与%d组副露在画面中保持水平，且横向不重叠', count => {
     const s = setup()
     s.props.revealHands = true

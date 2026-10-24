@@ -51,6 +51,8 @@ export type TableActionType =
 export interface TableActionEvent {
   id: number
   type: TableActionType
+  /** 玩法专属动作字；不改变副露动画使用的动作类型。 */
+  label?: string
   actorIndex: number
   sourceIndex: number | null
   tile: TileType

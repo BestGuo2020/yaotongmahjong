@@ -4,6 +4,9 @@ import GameShellHeader from './components/shell/GameShellHeader.vue'
 import OrientationGate from './components/shell/OrientationGate.vue'
 import GameTableHud from './components/table/GameTableHud.vue'
 import LobbyView from './components/lobby/LobbyView.vue'
+// 常用入口随大厅就绪，避免异步面板资源失败后按钮只更新状态却没有可见反馈。
+import RulesPanel from './components/RulesPanel.vue'
+import ReplayListView from './components/replay/ReplayListView.vue'
 import SettlementOverlay from './components/settlement/SettlementOverlay.vue'
 import YaotongControls from './components/yaotong/YaotongControls.vue'
 import YaotongLedger from './components/yaotong/YaotongLedger.vue'
@@ -27,8 +30,6 @@ import { preloadAnimeCharacterAssets } from './game/core/presentation/llmAnimeAs
 import { useReplayRecorder } from './game/replay/useReplayRecorder'
 import type { ReplayMatch, ReplayRound } from './game/replay/types'
 
-const RulesPanel = defineAsyncComponent(() => import('./components/RulesPanel.vue'))
-const ReplayListView = defineAsyncComponent(() => import('./components/replay/ReplayListView.vue'))
 const ReplayViewer = defineAsyncComponent(() => import('./components/replay/ReplayViewer.vue'))
 const replayOpen = ref(false)
 const replayView = shallowRef<{ match: ReplayMatch; rounds: ReplayRound[] } | null>(null)
@@ -190,9 +191,8 @@ onBeforeUnmount(() => window.removeEventListener('wakudemo-auth-required', handl
 onBeforeUnmount(() => replay.finishAuto())
 onBeforeUnmount(resetTableReady)
 
-async function showReplayList() {
+function showReplayList() {
   replayNotice.value = ''
-  await replay.flush()
   replayOpen.value = true
 }
 async function openReplay(id: string) {
@@ -459,7 +459,7 @@ function changeTableTheme(theme: TableThemeName) {
     </div>
     <RulesPanel :open="rulesOpen" @close="rulesOpen = false" />
     <ReplayListView v-model:open="replayOpen" :storage="replay.storage" :available="replay.available.value"
-      :notice="replayNotice" @view="openReplay" />
+      :before-load="replay.flush" :notice="replayNotice" @view="openReplay" />
     <ReplayViewer v-if="replayView" :match="replayView.match" :rounds="replayView.rounds"
       back-label="← 返回回放列表" @close="replayView = null; replayOpen = true" />
     <StatsOverlay v-model:open="statsOpen" :player-id="online.playerId.value"

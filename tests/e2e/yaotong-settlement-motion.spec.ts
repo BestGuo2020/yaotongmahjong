@@ -25,6 +25,20 @@ for (const theme of ['jade', 'rosewood', 'happyMahjong', 'llm', 'llmAnime']) {
         expect(sample.horizontal, `${sample.time}ms 不应有横向溢出`).toBeLessThanOrEqual(1)
         expect(sample.vertical, `${sample.time}ms 不应挤出纵向滚动条`).toBeLessThanOrEqual(1)
       }
+      if (viewport.width === 912) {
+        // 桌面窗口曾因「容器宽度 ≥620px」被排成三列横排；PC 必须保持竖向堆叠。
+        const [label, score, chips, chicken] = await Promise.all([
+          page.locator('.self-result-label').boundingBox(),
+          page.locator('.self-round-score').boundingBox(),
+          page.locator('.self-score-breakdown').boundingBox(),
+          page.locator('.overview-chicken').boundingBox(),
+        ])
+        expect(score!.y, '净得分在结果标题下方').toBeGreaterThanOrEqual(label!.y + label!.height - 1)
+        expect(chips!.y, '分项在净得分下方').toBeGreaterThanOrEqual(score!.y + score!.height - 1)
+        expect(chicken!.y, '翻鸡在分项下方').toBeGreaterThanOrEqual(chips!.y + chips!.height - 1)
+        const scoreLabel = (await page.locator('.self-round-score > span').first().boundingBox())!
+        expect(scoreLabel.width, '「本局净得分」保持横排').toBeGreaterThan(scoreLabel.height)
+      }
       for (const row of await page.locator('.round-rankings article').all()) await expect(row).toBeInViewport({ ratio: 1 })
       await expect(page.getByRole('button', { name: '继续', exact: true })).toBeInViewport({ ratio: 1 })
       await page.screenshot({ path: `tmp/settlement-motion-${theme}-${viewport.width}.png` })

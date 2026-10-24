@@ -2,7 +2,7 @@ import { effectScope, triggerRef } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useYaotongPort } from './useYaotongPort'
 import { meld, player, table } from './auditFixtures'
-import { kongWeatherKind } from './kongPresentation'
+import { kongSoundFile, kongWeatherKind } from './kongPresentation'
 import { YAOTONG_REACTION_MS, YAOTONG_EXTENDED_REACTION_MS } from './useYaotongGame'
 import { PACE_MS } from '../../core/local/localGameConfig'
 import type { GameEvent } from './types'
@@ -12,8 +12,11 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(
 
 describe('幺筒开杠天气特效', () => {
   it.each([
-    ['明杠', 'tornado'], ['补杠', 'tornado'], ['转弯杠', 'rain'], ['存杠', 'rain'],
-  ] as const)('%s成功后才播放%s，刷新不重复、离桌清除', async (kind, expected) => {
+    ['明杠', 'tornado', 'gang.ogg'],
+    ['补杠', 'tornado', 'bugang.ogg'],
+    ['转弯杠', 'rain', 'zhuanwangang.ogg'],
+    ['存杠', 'rain', 'gang.ogg'],
+  ] as const)('%s成功后才播放%s，刷新不重复、离桌清除', async (kind, expected, expectedKongSound) => {
     const scope = effectScope(), sound = vi.fn()
     try {
       const port = scope.run(() => useYaotongPort({ playSound: sound }))!
@@ -31,18 +34,26 @@ describe('幺筒开杠天气特效', () => {
         port.local.dispatch({ type: 'respond', action: 'kong' }, 0)
         await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS)
       } else port.userGang('m5')
+      const action = port.tableActionEvent.value
+      expect(action?.label).toBe(kind === '补杠' || kind === '转弯杠' ? kind : undefined)
       if (kind === '补杠') {
+        expect(action?.type).toBe('added-gang')
         expect(port.tableView.value.kongWeather).toEqual([])
         expect(sound.mock.calls.some(([name]) => name === 'mingang_windy.wav')).toBe(false)
         await vi.advanceTimersByTimeAsync(YAOTONG_EXTENDED_REACTION_MS)
+        expect(port.tableActionEvent.value).toBeNull()
+      } else {
+        expect(port.tableActionEvent.value).toBe(action)
       }
       expect(port.tableView.value.kongWeather).toEqual([expect.objectContaining({ seat: 0, kind: expected })])
+      expect(sound.mock.calls.filter(([name]) => name === expectedKongSound)).toHaveLength(1)
       const cue = port.tableView.value.kongWeather![0]
       const weatherSound = expected === 'rain' ? 'angang_rainy.wav' : 'mingang_windy.wav'
       expect(sound.mock.calls.filter(([name]) => name === weatherSound)).toHaveLength(1)
       triggerRef(port.local.state)
       expect(port.tableView.value.kongWeather![0]).toBe(cue)
       expect(sound.mock.calls.filter(([name]) => name === weatherSound)).toHaveLength(1)
+      expect(sound.mock.calls.filter(([name]) => name === expectedKongSound)).toHaveLength(1)
       port.local.paused.value = true
       await vi.advanceTimersByTimeAsync(cue.duration)
       expect(port.tableView.value.kongWeather).toEqual([])
@@ -61,6 +72,7 @@ describe('幺筒开杠天气特效', () => {
       state.players[1] = player('234567m 234s 66p 34m')
       port.local.state.value = state
       port.userGang('m5')
+      expect(port.tableActionEvent.value).toMatchObject({ type: 'added-gang', label: '补杠' })
       await vi.advanceTimersByTimeAsync(YAOTONG_EXTENDED_REACTION_MS)
       expect(state.pending?.kind).toBe('rob')
       port.local.dispatch({ type: 'respond', action: 'hu' }, 1)
@@ -89,5 +101,14 @@ describe('幺筒开杠天气特效', () => {
     for (const kind of ['peng', 'kong-intent', 'discard'] as const)
       expect(kongWeatherKind({ id: 1, seat: 0, kind, text: '补杠' })).toBeNull()
     expect(kongWeatherKind({ id: 1, seat: 0, kind: 'kong', text: '未知杠' } as GameEvent)).toBeNull()
+  })
+
+  it('杠报牌音效按规则区分：转弯杠、补杠独立，明杠和存杠用普通杠', () => {
+    const base = { id: 1, seat: 0 as const, tile: 4 }
+    expect(kongSoundFile({ ...base, kind: 'kong', text: '转弯杠' })).toBe('zhuanwangang.ogg')
+    expect(kongSoundFile({ ...base, kind: 'kong-intent', text: '宣告补杠' })).toBe('bugang.ogg')
+    expect(kongSoundFile({ ...base, kind: 'kong', text: '补杠' })).toBe('bugang.ogg')
+    expect(kongSoundFile({ ...base, kind: 'kong', text: '明杠' })).toBe('gang.ogg')
+    expect(kongSoundFile({ ...base, kind: 'kong', text: '存杠' })).toBe('gang.ogg')
   })
 })

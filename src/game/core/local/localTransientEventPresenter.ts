@@ -26,8 +26,10 @@ export function createLocalTransientEventPresenter(options: LocalTransientEventP
     sourceIndex: number | null,
     tile: TileType,
     meldIndex: number,
+    label?: string,
   ) {
-    const event = { id: tableActionSequence += 1, type, actorIndex, sourceIndex, tile, meldIndex }
+    const event = { id: tableActionSequence += 1, type, actorIndex, sourceIndex, tile, meldIndex,
+      ...(label ? { label } : {}) }
     state.tableActionEvent.value = event
     try { options.onTableAction?.(event) } catch { /* 表现失败不影响牌局 */ }
     options.later(() => {

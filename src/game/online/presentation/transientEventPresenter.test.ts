@@ -50,6 +50,20 @@ describe('transientEventPresenter', () => {
     expect(playSound).toHaveBeenCalledWith('chi.mp3')
   })
 
+  it('补杠播放独立音效，其他杠型沿用普通杠', () => {
+    const { presenter, playSound } = setup()
+    presenter.handleTableAction({
+      kind: 'table_action',
+      event: { id: 11, type: 'added-gang', actorIndex: 2, sourceIndex: 1, tile: 'm1', meldIndex: 0 },
+    })
+    expect(playSound).toHaveBeenCalledWith('bugang.ogg')
+    presenter.handleTableAction({
+      kind: 'table_action',
+      event: { id: 12, type: 'concealed-gang', actorIndex: 2, sourceIndex: 2, tile: 'm1', meldIndex: 0 },
+    })
+    expect(playSound).toHaveBeenCalledWith('gang.mp3')
+  })
+
   it('llmAnime 将动作交给固定文案出口且不播放 legacy 人声', () => {
     const onFixedAnimeAction = vi.fn()
     const { state, presenter, playSound } = setup({ themeName: 'llmAnime', onFixedAnimeAction })
