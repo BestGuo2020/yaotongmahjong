@@ -156,10 +156,31 @@ describe('回放播放状态机', () => {
     const { player, scope } = createPlayer()
     player.seek(3)
     expect(player.frames.value[3].table.revealHands).toBe(true)
+    expect(player.frames.value[3].omniscientAvailable).toBe(true)
     player.revealAll.value = false
     expect(player.frameIndex.value).toBe(3)
     expect(player.frames.value[3].table.revealHands).toBe(false)
     expect(player.frames.value[3].step?.t).toBe('draw')
     scope.stop()
+  })
+
+  it('缺少联机暗牌的帧不能冒充全知视角，但终局可以完整亮牌', () => {
+    const round = makeRound(1, [])
+    round.anchor.concealedTileCounts = [1, 13, 13, 13]
+    round.anchor.hands = [['m1'], [], [], []]
+    round.final = { hands: [['m1'], Array(13).fill('m2'), Array(13).fill('m3'), Array(13).fill('m4')],
+      melds: [[], [], [], []], discards: [[], [], [], []], drawnTileIndex: [-1, -1, -1, -1],
+      redCount: [0, 0, 0, 0], scores: [1000, 1000, 1000, 1000], draw: true }
+    const scope = effectScope()
+    try {
+      const player = scope.run(() => useReplayPlayer({ match: () => ({ ...MATCH, gameMode: 'remote' }), rounds: () => [round] }))!
+      expect(player.frame.value?.omniscientAvailable).toBe(false)
+      expect(player.frame.value?.table.revealHands).toBe(false)
+      player.revealAll.value = false
+      expect(player.frame.value?.table.revealHands).toBe(false)
+      player.last()
+      expect(player.frame.value?.omniscientAvailable).toBe(true)
+      expect(player.frame.value?.table.revealHands).toBe(true)
+    } finally { scope.stop() }
   })
 })

@@ -13,6 +13,8 @@ import type { Seat } from '../variants/lotus/bloodFlow/types'
 import type { SeatStatus } from '../variants/yaotong/presentation'
 
 export interface ReplayFrame {
+  /** 当前帧是否实际保存了四家手牌；不能把缺失的暗牌伪装成全知回放。 */
+  omniscientAvailable: boolean
   yaotongSeats?: SeatStatus[]
   /** 直接喂给 <MahjongTable3D>。 */
   table: TableProps
@@ -109,8 +111,8 @@ export function buildReplayFrames(
     const frameDiscards = input.finalDiscards ?? discards
     const frameDrawn = input.finalDrawn ?? drawn
     const frameScores = input.finalScores ?? scores
-    const revealHands = Boolean(input.settled) || (options.revealAll
-      && frameHands.every((hand, seat) => hand.length >= concealedCounts[seat]))
+    const omniscientAvailable = frameHands.every((hand, seat) => hand.length >= concealedCounts[seat])
+    const revealHands = Boolean(input.settled) || (options.revealAll && omniscientAvailable)
     const step = input.step
     const actorSeat = step ? step.seat : null
     const actionEvent: TableActionEvent | null = step?.actionType
@@ -142,6 +144,7 @@ export function buildReplayFrames(
 
     const localHand = [...frameHands[humanSeat]]
     frames.push({
+      omniscientAvailable,
       ...(yaotongSeats ? { yaotongSeats: yaotongSeats.map((seat) => ({ ...seat })) } : {}),
       table: {
         wallTotal: round.wallTotal ?? 136,
