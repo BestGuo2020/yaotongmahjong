@@ -1,7 +1,9 @@
 // 远程 REST 基础设施：统一服务地址、JSON 编解码与错误模型。
 const PAGE_ORIGIN = typeof location !== 'undefined' ? location.origin : 'http://localhost'
 
-export const API_BASE = import.meta.env.VITE_API_BASE || PAGE_ORIGIN
+// 两个正式站点共用这个后端，登录入口与已登记的回调必须落在同一个主机。
+const DEFAULT_API_BASE = import.meta.env.PROD ? 'https://www.bestguo.top:58000' : PAGE_ORIGIN
+export const API_BASE = import.meta.env.VITE_API_BASE || DEFAULT_API_BASE
 
 export class RemoteApiError extends Error {
   code: string

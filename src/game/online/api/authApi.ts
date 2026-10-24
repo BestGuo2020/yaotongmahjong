@@ -11,7 +11,9 @@ export type WakuDemoLoginSession =
   | { authenticated: true; account: WakuDemoAccount }
 
 export function beginWakuDemoLogin(): void {
-  window.location.assign(`${API_BASE}/api/login/wakudemo`)
+  // 返回当前站点/部署目录；地址必须在后端白名单中，不携带页面上的临时查询参数。
+  const returnTo = `${window.location.origin}${window.location.pathname}`
+  window.location.assign(`${API_BASE}/api/login/wakudemo?return_to=${encodeURIComponent(returnTo)}`)
 }
 
 export function getWakuDemoLoginSession(): Promise<WakuDemoLoginSession> {

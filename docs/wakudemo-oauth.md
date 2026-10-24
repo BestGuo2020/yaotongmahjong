@@ -27,6 +27,21 @@ WAKUDEMO_FRONTEND_URL=https://lianhuaguangdongmahjong.guoguo-labs.online/
 
 `WAKUDEMO_BASE_URL` 只填写 origin，不带末尾 `/`。回调地址必须与平台登记值逐字一致。
 
+旧站与幺筒新站共用原后端、原回调时，再增加：
+
+```dotenv
+WAKUDEMO_FRONTEND_URLS=https://yaotongmahjong.guoguo-labs.online/
+WAKUDEMO_COOKIE_SAMESITE=none
+WAKUDEMO_COOKIE_SECURE=true
+WAKUDEMO_LOGIN_BYPASS=false
+```
+
+`WAKUDEMO_FRONTEND_URL` 保留旧站作为默认返回地址；`WAKUDEMO_FRONTEND_URLS` 是额外返回地址白名单，多个完整地址用英文逗号分隔。这两个变量是我们自己的后端配置，不是平台申请项。部署新后端并更新服务器 `.env` 后，需要重新创建容器以加载环境；单纯 `docker restart` 不会重新读取 Compose 的 `env_file`。
+
+幺筒前端生产默认连接 `https://www.bestguo.top:58000`，开发仍使用同源代理；可用 `VITE_API_BASE` 覆盖。登录请求携带当前 `origin + pathname` 作为 `return_to`，后端精确匹配白名单并保存到 state 对应的临时事务；共用回调成功或失败后返回该站。旧版前端没有此参数时继续返回旧站，无需同步更新。回调地址、Client ID、PKCE 和平台 Token 请求保持原有方式。
+
+不要只将登录入口代理到新站域名：入口、回调和会话请求应访问同一共用 API 主机，否则临时 Cookie 不匹配。事务或 Cookie 丢失时返回默认旧站；两站共享后端会话，一站退出会结束该会话。完整部署和多站测试说明见 `backend/docs/wakudemo-oauth.md`。
+
 WebView 和浏览器对第三方 Cookie 的策略可能不同。最稳妥的生产部署是让游戏页面与
 `/api/login/*` 经反向代理保持同源；若必须分域，需保留 `SameSite=None; Secure`，并确认
 目标 WebView 允许跨站 Cookie，否则回调成功后前端可能读不到登录会话。
