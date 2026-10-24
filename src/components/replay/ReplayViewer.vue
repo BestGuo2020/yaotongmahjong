@@ -166,7 +166,8 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKeydown); compac
 
     <header class="replay-topbar">
       <button type="button" class="replay-back" data-action-role="secondary" :aria-label="backLabel ?? '← 返回大厅'" @click="emit('close')">
-        <span class="replay-back-full">{{ backLabel ?? '← 返回大厅' }}</span><span class="replay-back-short" aria-hidden="true">←</span>
+        <span class="replay-back-full">{{ backLabel ?? '← 返回大厅' }}</span>
+        <svg class="replay-back-short" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5.5-6.5 6.5 6.5 6.5" /></svg>
       </button>
       <div class="replay-title">
         <strong><span class="replay-game-name">{{ match.rulesetName }} · </span>{{ round?.roundLabel ?? '对局' }}<span class="replay-title-suffix">回放</span></strong>
@@ -288,7 +289,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKeydown); compac
   color: var(--theme-button-text);
   font-size: 13px;
 }
-.replay-back-short { display: none; }
+.replay-back-short { display: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .replay-title { display: grid; flex: 1; min-width: 0; gap: 4px; color: var(--theme-text-muted); font-size: 12px; }
 .replay-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--theme-accent-text); font-size: 16px; }
 .replay-title-suffix { margin-left: 8px; font-weight: 400; font-size: 12px; color: var(--theme-text-muted); }
@@ -374,9 +375,9 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKeydown); compac
 @media (max-width: 1000px), (max-height: 600px) {
   .replay-viewer { --replay-header-height: calc(52px + var(--safe-top)); --replay-controls-height: calc(56px + var(--safe-bottom)); --replay-hand-height: 70px; }
   .replay-topbar { gap: 10px; padding-inline: calc(12px + var(--safe-left)) calc(12px + var(--safe-right)); }
-  .replay-back { width: 40px; min-height: 40px; padding: 0; font-size: 22px; }
+  .replay-back { display: grid; place-items: center; width: 40px; min-height: 40px; padding: 0; }
   .replay-back-full, .replay-game-name { display: none; }
-  .replay-back-short { display: inline; }
+  .replay-back-short { display: block; }
   .replay-title strong { font-size: 15px; }
   .replay-subtitle { font-size: 11px; }
   .replay-view-mode { gap: 6px; }
