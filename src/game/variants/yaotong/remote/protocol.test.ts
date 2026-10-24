@@ -95,6 +95,21 @@ function snapshot(overrides: Partial<YtSnapshot> = {}): YtSnapshot {
 }
 
 describe('yaotong remote protocol', () => {
+  it('包牌责任人与三笔赔付按本人视角旋转，保留原因及连庄信息', () => {
+    const wire = snapshot()
+    wire.roundResult = { kind: 'penalty', winners: [], source: null, winKind: null, tile: null,
+      offender: 1, reason: '同巡碰鸡后打鸡', indicator: null, chicken: null,
+      ready: [false, false, false, false], deltas: [45, -135, 45, 45], nextDealer: 2,
+      finished: false, values: {}, transfers: [0, 2, 3].map(to => ({
+        from: 1, to, account: '一般包牌赔付', base: 45, multiplier: 1, amount: 45, reason: '同巡碰鸡后打鸡',
+      })) }
+    const result = convertSnapshot(wire).result!
+    expect(result).toMatchObject({ kind: 'penalty', offender: 0, reason: '同巡碰鸡后打鸡',
+      deltas: [-135, 45, 45, 45], nextDealer: 1 })
+    expect(result.transfers.map(item => [item.from, item.to, item.amount]))
+      .toEqual([[0, 3, 45], [0, 1, 45], [0, 2, 45]])
+  })
+
   it('rotates the local player to seat 0 and hides other hands', () => {
     const state = convertSnapshot(snapshot())
     expect(state.players).toHaveLength(4)

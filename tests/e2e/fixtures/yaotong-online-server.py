@@ -27,6 +27,7 @@ from app.game.room import room_registry
 from app.core.yaotong.engine import StartOptions, continue_game, create_game
 from app.core.yaotong.types import Meld, Player
 from tests.test_yaotong_pace import CASES, state_for
+from tests.test_yaotong_mode_online import scenario as mode_scenario
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
@@ -45,7 +46,8 @@ def tiles(text):
 
 class SeedRequest(BaseModel):
     roomId: str
-    kind: Literal['self', 'discard', 'open-kong', 'added-kong', 'timeout']
+    kind: Literal['self', 'discard', 'open-kong', 'added-kong', 'timeout', 'mode-chicken', 'mode-mandatory']
+    yaotongMode: Literal['easy', 'hard'] = 'easy'
 
 
 class AdvanceRequest(BaseModel):
@@ -75,8 +77,12 @@ def seed(body: SeedRequest):
         raise HTTPException(409)
     if body.kind == 'timeout':
         room.yaotong_mode = 'hard'
+    elif body.kind.startswith('mode-'):
+        room.yaotong_mode = body.yaotongMode
 
     def factory(options):
+        if body.kind.startswith('mode-'):
+            return mode_scenario('peng-then-discard' if body.kind == 'mode-chicken' else 'kill-self-discard')[0]
         if body.kind in ('open-kong', 'added-kong'):
             return state_for(next(case for case in CASES if case['name'] == body.kind))
         state = create_game(StartOptions(length=options.length, dice=(2, 3),

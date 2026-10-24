@@ -393,7 +393,6 @@ export function toActionPayload(command: Command): Record<string, unknown> {
     declare?: boolean
     action?: string
     plan?: string
-    deferHu?: boolean
     tile?: number
   }
   return {
@@ -402,7 +401,6 @@ export function toActionPayload(command: Command): Record<string, unknown> {
     ...(value.declare === undefined ? {} : { declare: value.declare }),
     ...(value.action === undefined ? {} : { action: value.action }),
     ...(value.plan === undefined ? {} : { plan: value.plan }),
-    ...(value.deferHu === undefined ? {} : { deferHu: value.deferHu }),
     ...(value.tile === undefined ? {} : { tile: value.tile }),
   }
 }

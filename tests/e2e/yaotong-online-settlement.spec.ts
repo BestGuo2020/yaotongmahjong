@@ -5,7 +5,7 @@ const paceCases: Array<{ name: string; events: Array<[number, string, number]> }
   readFileSync(new URL('../fixtures/yaotong-pace.json', import.meta.url), 'utf8'),
 )
 
-async function createSeededRoom(page: Page, kind: string) {
+async function createSeededRoom(page: Page, kind: string, yaotongMode = 'easy') {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/?cameraLab&theme=jade')
   await page.getByRole('radio', { name: /联机对战/ }).click()
@@ -15,7 +15,7 @@ async function createSeededRoom(page: Page, kind: string) {
   await page.getByTestId('lobby-create-confirm').click()
   await expect(page.getByTestId('room-code')).toHaveText(/[A-Z0-9]{6}/)
   const roomId = (await page.getByTestId('room-code').textContent())!
-  expect((await page.request.post('/api/test/seed', { data: { roomId, kind } })).ok()).toBe(true)
+  expect((await page.request.post('/api/test/seed', { data: { roomId, kind, yaotongMode } })).ok()).toBe(true)
   return roomId
 }
 
@@ -23,6 +23,61 @@ async function leaveRoom(page: Page, roomId: string) {
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('lgm_session') ?? 'null'))
   if (stored?.rejoinCode) await page.request.post(`/api/rooms/${roomId}/leave`, {
     data: { seat: 0, rejoinCode: stored.rejoinCode },
+  })
+}
+
+for (const mode of ['easy', 'hard']) for (const kind of ['mode-chicken', 'mode-mandatory']) {
+  test(`真实 WS 模式保护 ${mode} ${kind}：新手拦截，老手违规包牌`, async ({ page }) => {
+    test.skip(process.env.YAOTONG_SETTLEMENT_E2E !== '1', '需要 fixtures/yaotong-online-server.py')
+    test.setTimeout(60_000)
+    const errors: string[] = []
+    let result: { kind: string; offender: number; reason: string; deltas: number[] } | null = null
+    page.on('pageerror', error => errors.push(error.message))
+    page.on('websocket', socket => socket.on('framereceived', frame => {
+      const message = JSON.parse(String(frame.payload))
+      if (message.kind === 'yt_snapshot' && message.roundResult) result = message.roundResult
+    }))
+    const roomId = await createSeededRoom(page, kind, mode)
+    try {
+      await page.getByRole('button', { name: '准备 / 取消准备' }).click()
+      await page.getByRole('button', { name: /开始对局/ }).click()
+      await page.waitForFunction(() => {
+        const table = document.querySelector('.game-table-hud')
+        return table?.getAttribute('data-opening-stage') === ''
+          && table.getAttribute('data-phase') !== 'dealing'
+          && Number(table.getAttribute('data-deal-serial')) > 0
+      }, { timeout: 30_000 })
+      const last = page.locator('.hand-rack .hand-tile-slot').nth(13).locator('.mahjong-tile')
+      if (mode === 'easy') {
+        await expect(last).toBeDisabled()
+        await expect(page.getByRole('button', { name: /系统防护/ })).toBeVisible()
+        expect(result).toBeNull()
+        if (kind === 'mode-mandatory') {
+          await expect(page.getByRole('button', { name: '过', exact: true })).toHaveCount(0)
+          await expect(page.getByRole('button', { name: '杠', exact: true })).toHaveCount(0)
+          await page.getByRole('button', { name: /^胡/ }).first().click()
+          await expect.poll(() => result?.kind).toBe('win')
+        } else {
+          const safe = page.locator('.hand-rack .hand-tile-slot').nth(1).locator('.mahjong-tile')
+          await expect(safe).toBeEnabled()
+          await safe.click()
+          await expect(page.locator('.game-table-hud')).toHaveAttribute('data-discard-counts', /^1,/)
+          expect(result).toBeNull()
+        }
+      } else {
+        await expect(last).toBeEnabled()
+        await last.click()
+        await expect.poll(() => result?.kind).toBe('penalty')
+        expect(result!.offender).toBe(0)
+        expect(result!.deltas[0]).toBeLessThanOrEqual(-135)
+        expect(result!.deltas.reduce((a, b) => a + b, 0)).toBe(0)
+        await expect(page.locator('.round-settlement')).toBeVisible({ timeout: 15_000 })
+        await expect(page.locator('.round-settlement')).toContainText('包牌')
+        await expect(page.locator('.round-settlement')).not.toHaveClass(/modal-enter-active/)
+      }
+      await page.screenshot({ path: `test-results/online-protection-${mode}-${kind}.png` })
+      expect(errors).toEqual([])
+    } finally { await leaveRoom(page, roomId) }
   })
 }
 
