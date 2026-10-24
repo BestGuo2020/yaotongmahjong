@@ -1,18 +1,31 @@
 {
-  "name": "莲花广麻",
-  "short_name": "莲花广麻",
-  "description": "在线单机四人广东麻将游戏",
+  "id": "/",
+  "name": "幺筒麻将",
+  "short_name": "幺筒麻将",
+  "description": "幺筒麻将：108张牌，四人本地对局。一筒可作本牌或癞子，支持碰杠、报听、翻鸡与逐笔结算。",
   "lang": "zh-CN",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#071b14",
-  "theme_color": "#102b24",
+  "background_color": "#1c4937",
+  "theme_color": "#1c4937",
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/yaotong-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/yaotong-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any"
     }
   ]
