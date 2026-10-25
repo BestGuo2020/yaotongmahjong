@@ -94,6 +94,7 @@ const online = useYaotongRemoteGame({
 })
 const { roomMeta } = useRoomAvailability(gameMode, online.roomId, 'yaotong')
 const wakuAuth = useWakuDemoAuth()
+const pendingRemoteLogin = ref(false)
 const nicknameInput = ref('')
 const joinCode = ref('')
 const copied = ref(false)
@@ -204,10 +205,22 @@ async function openReplay(id: string) {
 
 function onGameModeChange(mode: GameMode) {
   if (mode === 'remote' && !wakuAuth.authenticated.value) {
+    pendingRemoteLogin.value = true
     wakuAuth.error.value = '联机对战需要先登录 WakuDemo 账号'
+    return
   }
+  pendingRemoteLogin.value = false
   gameMode.value = mode
 }
+
+// 登录状态检查完成后，继续玩家此前选择的联机入口。
+watch(() => wakuAuth.authenticated.value, (authenticated) => {
+  if (authenticated && pendingRemoteLogin.value) {
+    pendingRemoteLogin.value = false
+    wakuAuth.error.value = ''
+    gameMode.value = 'remote'
+  }
+})
 
 async function createRemoteRoom() {
   await online.createRoom(

@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  // 大厅联机面板以已登录身份验收；未登录与登录失效单独由 yaotong-auth 覆盖。
+  await page.route('**/api/login/session', route => route.fulfill({ json: {
+    authenticated: true,
+    account: { id: 'smoke-test', displayName: '测试玩家', avatarUrl: null },
+  } }))
+  await page.route('**/api/rooms/meta?*', route => route.fulfill({ json: { active: 0, max: 20 } }))
+})
+
 for (const theme of ['jade', 'rosewood', 'happyMahjong', 'llm', 'llmAnime']) {
   for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
     test(`最终排名默认完整可见：${theme} ${viewport.width}×${viewport.height}`, async ({ page }) => {
@@ -73,7 +82,7 @@ test('末局明细选项卡支持键盘切换，保留玩家视角且不改变�
   await expect(page.getByTestId('back-to-lobby')).toBeVisible()
 })
 
-test('大厅提供幺筒，联机入口进入真实房间面板', async ({ page }) => {
+test('大厅提供幺筒，登录后联机入口进入房间面板', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await page.goto('/?game=legacy')
