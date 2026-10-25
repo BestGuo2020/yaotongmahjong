@@ -92,7 +92,7 @@ const online = useYaotongRemoteGame({
   getCharacterId: () => animeCharacterId.value,
   createPort: false,
 })
-const { roomMeta } = useRoomAvailability(gameMode, online.roomId)
+const { roomMeta } = useRoomAvailability(gameMode, online.roomId, 'yaotong')
 const wakuAuth = useWakuDemoAuth()
 const nicknameInput = ref('')
 const joinCode = ref('')

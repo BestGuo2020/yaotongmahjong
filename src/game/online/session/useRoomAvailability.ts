@@ -1,15 +1,16 @@
 import { onUnmounted, ref, watch, type Ref } from 'vue'
 import type { GameMode } from '../../core/contracts/activeGamePort'
+import type { RuleVariant } from '../../core/rules/ruleVariants'
 import { materializeImages } from '../../core/presentation/imagePreload'
 import { getRoomMeta, type RoomMeta } from '../api/roomApi'
 
-export function useRoomAvailability(gameMode: Ref<GameMode>, roomId: Ref<string>) {
+export function useRoomAvailability(gameMode: Ref<GameMode>, roomId: Ref<string>, rulesetId?: RuleVariant) {
   const roomMeta = ref<RoomMeta | null>(null)
   let pollingTimer: number | null = null
 
   async function refresh() {
     try {
-      roomMeta.value = await getRoomMeta()
+      roomMeta.value = await getRoomMeta(rulesetId)
     } catch {
       // 网络抖动时保留上一次容量，大厅不因辅助查询失败而报错。
     }

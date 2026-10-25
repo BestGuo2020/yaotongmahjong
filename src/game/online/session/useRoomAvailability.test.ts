@@ -23,14 +23,16 @@ describe('useRoomAvailability', () => {
 
     const gameMode = ref<GameMode>('remote')
     const roomId = ref('ROOM01')
-    const { roomMeta } = useRoomAvailability(gameMode, roomId)
+    const { roomMeta } = useRoomAvailability(gameMode, roomId, 'yaotong')
     await nextTick()
     expect(getRoomMeta).toHaveBeenCalledTimes(1)
+    expect(getRoomMeta).toHaveBeenLastCalledWith('yaotong')
     expect(roomMeta.value?.llmAvailable).toBe(true)
 
     roomId.value = 'ROOM02'
     await nextTick()
     expect(getRoomMeta).toHaveBeenCalledTimes(2)
+    expect(getRoomMeta).toHaveBeenLastCalledWith('yaotong')
 
     gameMode.value = 'local'
     await nextTick()
