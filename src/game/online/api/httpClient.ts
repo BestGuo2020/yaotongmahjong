@@ -1,3 +1,5 @@
+import { browserSessionToken, saveBrowserSession } from '../session/browserAuthSession'
+
 // 远程 REST 基础设施：统一服务地址、JSON 编解码与错误模型。
 const PAGE_ORIGIN = typeof location !== 'undefined' ? location.origin : 'http://localhost'
 
@@ -20,10 +22,14 @@ export class RemoteApiError extends Error {
 export const AUTH_REQUIRED_EVENT = 'wakudemo-auth-required'
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers)
+  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  const token = browserSessionToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers,
   })
   if (!response.ok) {
     let code = `HTTP_${response.status}`
@@ -34,6 +40,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
       // 非 JSON 错误体，保留 HTTP 状态码。
     }
     if (response.status === 401 && code === 'AUTH_REQUIRED') {
+      saveBrowserSession(null)
       // 联机接口要求登录：通知应用层引导登录。
       window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT))
     }

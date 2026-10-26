@@ -157,7 +157,7 @@ function structuralValues(player: Player, ctx: WinContext): HandValue[] {
     if (ctx.kind === 'self' && ctx.isDealer !== undefined && isUntouchedFirstDraw(player))
       patterns.push({ name: ctx.isDealer ? '天胡' : '地胡', points: 40 })
     const hasKong = player.melds.some((m) => m.kind !== 'peng')
-    if (ctx.kind === 'discard' && !big && !hasKong && player.declaration === 'none') return
+    if (ctx.kind === 'discard' && !big && !hasKong && !player.followDealer && player.declaration === 'none') return
     const patternPoints = patterns.reduce((sum, p) => sum + p.points, 0)
     const uses =
       ctx.tile !== YAO

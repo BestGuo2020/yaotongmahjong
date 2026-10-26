@@ -19,6 +19,11 @@ export function yaotongGuidance(
   const hints: YaotongHint[] = []
   const player = state.players[0]
   const ownTurn = state.phase === 'discard' && state.current === 0
+  if (player.followDealer && state.phase !== 'settled') hints.push({
+    id: 'follow-dealer', protection: false, summary: '跟庄成立，已取得胡牌通行证',
+    reason: '首圈四家跟打同牌，庄家承担跟庄赔付；这四张跟牌不再参与结算计分。',
+    action: '本局鸡胡也可接普通点炮，仍须成胡并遵守过手规则。',
+  })
   const response = state.phase === 'response' && !state.pending?.choices[0]
     ? state.pending?.options[0] : undefined
   if (protection.pass) {

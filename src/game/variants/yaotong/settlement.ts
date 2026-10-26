@@ -1,5 +1,6 @@
 import { evaluateHand, contextAllows, waits } from './hands'
 import { huWindow } from './huWindow'
+import { followDealerBase } from './followDealer'
 import { countsOf, isFixed, nextTile, tileName, TILES, YAO } from './tiles'
 import type {
   Account,
@@ -62,7 +63,7 @@ export function ownedTiles(player: Player, exposedOnly = false): Tile[] {
   return [
     ...(exposedOnly ? [] : player.hand),
     ...player.melds.flatMap((m) => Array(m.kind === 'peng' ? 3 : 4).fill(m.tile)),
-    ...player.river.map((d) => d.tile),
+    ...player.river.filter(d => !d.followedDealer).map((d) => d.tile),
   ]
 }
 
@@ -100,6 +101,7 @@ export function chickenBreakdown(
     add(YAO, '本牌', naturalYaos, 10)
   }
   for (const d of player.river) {
+    if (d.followedDealer) continue
     if (d.tile === YAO)
       add(
         d.tile,
@@ -237,6 +239,12 @@ export function settle(state: GameState, ending: Ending): Settlement {
   const values: Record<number, HandValue> = {}
   const { transfers, add } = ledger(state.dice)
   const others = (seat: Seat) => [0, 1, 2, 3].filter((i) => i !== seat)
+
+  // 跟庄在首圈已成立，听牌、烧鸡和终局种类不撤销这笔独立赔付。
+  const followed = players[state.dealer].river.find(d => d.followedDealer)
+  if (players[state.dealer].followDealer && followed)
+    for (const to of others(state.dealer)) add(state.dealer, to, '跟庄赔付',
+      followDealerBase(followed.tile), `首圈跟庄·${tileName(followed.tile)}（跟牌不再计分）`)
 
   if (ending.kind === 'penalty') {
     const b = Math.max(45, ...info.filter((i) => i.ready).map((i) => i.price))

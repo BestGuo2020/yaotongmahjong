@@ -14,6 +14,8 @@ export interface Meld {
   responsibility: number
 }
 export interface Discard {
+  /** 首圈跟庄成立后保留展示，但不再参加结算计牌。 */
+  followedDealer?: boolean
   /** 全场第一次打出的该种鸡，横放标记。 */
   firstChicken?: boolean
   /** 本家首张跟冲的固定鸡（4分档），与首张一样横放。 */
@@ -26,6 +28,8 @@ export interface Discard {
   id: number
 }
 export interface Player {
+  /** 被跟庄后取得本小局普通点炮胡资格，不增加牌型分。 */
+  followDealer?: boolean
   name: string
   avatar?: string
   characterId?: string
@@ -100,6 +104,7 @@ export interface Pending {
   deferredHu?: Seat
 }
 export type Account =
+  | '跟庄赔付'
   | '胡牌分'
   | '鸡分'
   | '杠分'
@@ -139,7 +144,7 @@ export interface GameEvent {
   id: number
   seat: Seat
   text: string
-  kind: 'draw' | 'discard' | 'peng' | 'kong' | 'kong-intent' | 'hu' | 'ready' | 'penalty' | 'start'
+  kind: 'draw' | 'discard' | 'peng' | 'kong' | 'kong-intent' | 'hu' | 'ready' | 'penalty' | 'start' | 'follow-dealer'
   tile?: Tile
   chicken?: number
   rush?: Discard['stage']

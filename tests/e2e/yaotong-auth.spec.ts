@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { createHash } from 'node:crypto'
 
 const account = { id: 'auth-test', displayName: '测试玩家', avatarUrl: null }
 const loginRequired = '联机对战需要先登录 WakuDemo 账号'
@@ -40,7 +41,9 @@ test('登录后可点击联机进入房间大厅', async ({ page }) => {
   await page.route('**/api/login/wakudemo?*', route => {
     authenticated = true
     const returnTo = new URL(route.request().url()).searchParams.get('return_to')!
-    return route.fulfill({ status: 302, headers: { location: `${returnTo}?wakudemo_login=success` } })
+    // WebKit cannot fulfill an intercepted request with 302; emulate the provider's return page.
+    return route.fulfill({ contentType: 'text/html',
+      body: `<script>location.replace(${JSON.stringify(`${returnTo}?wakudemo_login=success`)})</script>` })
   })
   await page.route('**/api/rooms/meta?*', route => route.fulfill({ json: { active: 1, max: 20 } }))
   await page.goto('/')
@@ -89,4 +92,54 @@ test('已登录会话被房间接口拒绝时保留过期提示', async ({ page 
   await expect(page.locator('.waku-account')).toContainText('已安全登录')
   await page.getByRole('radio', { name: /联机对战/ }).click()
   await expect(page.locator('.waku-auth-error')).toHaveText('登录已过期，请重新登录 WakuDemo 账号')
+})
+
+test('跨站 Cookie 不可用时，授权回大厅、刷新和退出仍保持正确登录态', async ({ page, context }) => {
+  const token = 't'.repeat(43)
+  let challenge = '', exchanged = false, revoked = false
+  await page.route('**/api/login/session', route => route.fulfill({ json:
+    exchanged && !revoked && route.request().headers().authorization === `Bearer ${token}`
+      ? { authenticated: true, account: { id: 'safari-user', displayName: '苹果测试玩家', avatarUrl: null } }
+      : { authenticated: false },
+  }))
+  await page.route('**/api/login/wakudemo?*', route => {
+    const url = new URL(route.request().url())
+    challenge = url.searchParams.get('session_challenge')!
+    const target = new URL(url.searchParams.get('return_to')!)
+    target.searchParams.set('wakudemo_login', 'success')
+    target.hash = `wakudemo_ticket=${'k'.repeat(43)}`
+    return route.fulfill({ contentType: 'text/html',
+      body: `<script>location.replace(${JSON.stringify(target.href)})</script>` })
+  })
+  await page.route('**/api/login/exchange', async route => {
+    const payload = route.request().postDataJSON()
+    expect(createHash('sha256').update(payload.verifier).digest('base64url')).toBe(challenge)
+    expect(payload.ticket).toBe('k'.repeat(43))
+    expect(route.request().headers().cookie).toBeUndefined()
+    exchanged = true
+    await route.fulfill({ json: { sessionToken: token } })
+  })
+  await page.route('**/api/login/logout', async route => {
+    expect(route.request().headers().authorization).toBe(`Bearer ${token}`)
+    revoked = true
+    await route.fulfill({ json: { authenticated: false } })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.locator('.waku-account')).toContainText('苹果测试玩家')
+  await expect(page.locator('.waku-account')).toContainText('已安全登录')
+  expect(page.url()).not.toContain('wakudemo_')
+  expect(await context.cookies()).toEqual([])
+  await page.reload()
+  await expect(page.locator('.waku-account')).toContainText('已安全登录')
+  await page.getByRole('button', { name: '退出', exact: true }).click()
+  await expect(page.getByRole('button', { name: '登录', exact: true })).toBeEnabled()
+  expect(await page.evaluate(() => sessionStorage.getItem('yaotong.auth.session'))).toBeNull()
+})
+
+test('授权返回后会话仍失效时明确提示，不静默恢复为登录按钮', async ({ page }) => {
+  await page.route('**/api/login/session', route => route.fulfill({ json: { authenticated: false } }))
+  await page.goto('/?wakudemo_login=success')
+  await expect(page.getByRole('alert')).toContainText('登录会话未能恢复')
+  expect(page.url()).not.toContain('wakudemo_login')
 })

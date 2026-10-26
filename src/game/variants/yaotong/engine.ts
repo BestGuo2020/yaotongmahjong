@@ -3,6 +3,7 @@ import { settle, legalHuPlans, huPlanKey, type Ending } from './settlement'
 import { breakWall, countsOf, isChicken, isFixed, shuffledWall, sortHand, tileName, YAO } from './tiles'
 import type { ActionOptions, Command, GameEvent, GameState, Player, Seat, Tile } from './types'
 import { huWindow, retainHuWindow, takeHuWindow } from './huWindow'
+import { completeFollowDealer, followDealerBase } from './followDealer'
 
 type EventObserver = (state: GameState, event: GameEvent) => void
 const eventObservers = new WeakMap<GameState, EventObserver>()
@@ -364,7 +365,12 @@ function resolveResponses(state: GameState, flow?: EngineFlow) {
       advance(state, flow, 'after-peng', () => {
         state.phase = 'discard'
       })
-  } else advance(state, flow, 'next-draw', () => draw(state, (pending.from + 1) % 4))
+  } else {
+    const followed = completeFollowDealer(state)
+    if (followed !== null) event(state, state.dealer, 'follow-dealer',
+      `跟庄成立 · ${tileName(followed)} · 庄家赔每家${followDealerBase(followed) * (state.dice[0] === state.dice[1] ? 2 : 1)}分，取得胡牌通行证`, followed)
+    advance(state, flow, 'next-draw', () => draw(state, (pending.from + 1) % 4))
+  }
 }
 
 /** Invalid basic inputs do not mutate state; explicit expert declarations are judged for penalties. */

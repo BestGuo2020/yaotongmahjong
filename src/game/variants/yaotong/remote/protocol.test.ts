@@ -29,6 +29,16 @@ function player(seat: number, hand: string[] = [], extra: Record<string, unknown
   }
 }
 
+it('reconnection keeps the dealer passport and excluded follow tiles after seat rotation', () => {
+  const data = snapshot()
+  data.view!.players[2].followDealer = true
+  data.view!.players[2].river = [{ tile: 'p1', chicken: 0, stage: 'pre', id: 1,
+    firstChicken: true, followChicken: false, pre: true, followedDealer: true }]
+  const state = convertSnapshot(data)
+  expect(state.players[state.dealer].followDealer).toBe(true)
+  expect(state.players[state.dealer].river[0].followedDealer).toBe(true)
+})
+
 function snapshot(overrides: Partial<YtSnapshot> = {}): YtSnapshot {
   return {
     kind: 'yt_snapshot',

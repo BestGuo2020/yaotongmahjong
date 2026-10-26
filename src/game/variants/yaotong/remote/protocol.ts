@@ -29,6 +29,7 @@ export interface YtMeldView {
 }
 
 export interface YtDiscardView {
+  followedDealer?: boolean
   tile: string
   chicken: number
   stage: Discard['stage']
@@ -39,6 +40,7 @@ export interface YtDiscardView {
 }
 
 export interface YtPlayerView {
+  followDealer?: boolean
   seat: number
   name: string
   avatar: string
@@ -209,6 +211,7 @@ function convertDiscard(discard: YtDiscardView): Discard {
     id: discard.id,
     firstChicken: discard.firstChicken,
     followChicken: discard.followChicken,
+    followedDealer: discard.followedDealer,
     pre: discard.pre,
   }
 }
@@ -234,6 +237,7 @@ function convertPlayer(view: YtPlayerView, mySeat: number, reveal: boolean): Pla
     burned: view.burned,
     passedHu: isSelf ? view.passedHu : null,
     passedShape: isSelf ? view.passedShape ?? null : null,
+    followDealer: view.followDealer,
     chickenPeng: isSelf ? view.chickenPeng.map(tileRequired) : [],
     chickenDiscard: isSelf ? view.chickenDiscard.map(tileRequired) : [],
   }

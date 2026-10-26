@@ -26,3 +26,18 @@ it.each([
       credentials: 'include',
     }))
   })
+
+it('authenticates API requests without cookies and clears an expired explicit session', async () => {
+  vi.resetModules()
+  const removeItem = vi.fn()
+  vi.stubGlobal('sessionStorage', { getItem: () => 'browser-session', removeItem })
+  vi.stubGlobal('window', { dispatchEvent: vi.fn() })
+  const fetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+    .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ detail: { code: 'AUTH_REQUIRED' } }) })
+  vi.stubGlobal('fetch', fetch)
+  const { request } = await import('./httpClient')
+  await request('/api/me/stats')
+  expect(fetch.mock.calls[0]![1].headers.get('Authorization')).toBe('Bearer browser-session')
+  await expect(request('/api/me/stats')).rejects.toThrow('AUTH_REQUIRED')
+  expect(removeItem).toHaveBeenCalledWith('yaotong.auth.session')
+})

@@ -1,10 +1,12 @@
 import { onMounted, ref } from 'vue'
 import {
   beginWakuDemoLogin,
+  completeWakuDemoLogin,
   getWakuDemoLoginSession,
   logoutWakuDemo,
   type WakuDemoAccount,
 } from '../api/authApi'
+import { saveBrowserSession } from './browserAuthSession'
 
 const ERROR_MESSAGES: Record<string, string> = {
   authorization_cancelled: '已取消 WakuDemo 授权',
@@ -18,16 +20,23 @@ const ERROR_MESSAGES: Record<string, string> = {
   access_token_rejected: '登录已过期，请重新登录',
 }
 
-function consumeCallbackResult(): string {
+async function consumeCallbackResult(): Promise<{ error: string; success: boolean }> {
   const url = new URL(window.location.href)
   const result = url.searchParams.get('wakudemo_login')
   const code = url.searchParams.get('wakudemo_error')
-  if (!result) return ''
+  const fragment = new URLSearchParams(url.hash.slice(1))
+  const ticket = fragment.get('wakudemo_ticket')
+  if (!result && !ticket) return { error: '', success: false }
   url.searchParams.delete('wakudemo_login')
   url.searchParams.delete('wakudemo_error')
+  if (ticket) {
+    fragment.delete('wakudemo_ticket')
+    url.hash = fragment.toString()
+  }
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
-  if (result === 'error') return ERROR_MESSAGES[code ?? ''] ?? 'WakuDemo 登录失败，请稍后重试'
-  return ''
+  if (result === 'error') return { error: ERROR_MESSAGES[code ?? ''] ?? 'WakuDemo 登录失败，请稍后重试', success: false }
+  if (ticket) await completeWakuDemoLogin(ticket)
+  return { error: '', success: result === 'success' }
 }
 
 export function useWakuDemoAuth() {
@@ -42,6 +51,7 @@ export function useWakuDemoAuth() {
       const session = await getWakuDemoLoginSession()
       authenticated.value = session.authenticated
       account.value = session.authenticated ? session.account : null
+      if (!session.authenticated) saveBrowserSession(null)
     } catch {
       // 主页挂载时的被动检查：失败静默降级为未登录，不打扰玩家。
       // 只有玩家主动操作（登录/退出/401 引导）失败时才显示错误提示。
@@ -52,15 +62,22 @@ export function useWakuDemoAuth() {
     }
   }
 
-  function login() {
+  async function login() {
+    if (loading.value) return
+    loading.value = true
     error.value = ''
-    beginWakuDemoLogin()
+    try { await beginWakuDemoLogin() }
+    catch {
+      loading.value = false
+      error.value = '无法保存登录校验信息，请允许此站点使用浏览器存储后重试'
+    }
   }
 
   async function logout() {
     loading.value = true
     try {
       await logoutWakuDemo()
+      saveBrowserSession(null)
       authenticated.value = false
       account.value = null
       error.value = ''
@@ -71,9 +88,16 @@ export function useWakuDemoAuth() {
     }
   }
 
-  onMounted(() => {
-    error.value = consumeCallbackResult()
-    void refresh()
+  onMounted(async () => {
+    try {
+      const callback = await consumeCallbackResult()
+      error.value = callback.error
+      await refresh()
+      if (callback.success && !authenticated.value) error.value = '登录会话未能恢复，请重新登录'
+    } catch {
+      loading.value = false
+      error.value = '登录会话交接失败，请在当前页面重新登录'
+    }
   })
 
   return { authenticated, account, loading, error, login, logout, refresh }
