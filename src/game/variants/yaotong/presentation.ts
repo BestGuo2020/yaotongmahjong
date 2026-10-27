@@ -157,6 +157,7 @@ export function winningPattern(value?: HandValue): string | undefined {
         '双地龙',
         '三地龙',
         '素胡',
+        '杠开',
         '天胡',
         '地胡',
       ].includes(pattern.name),
