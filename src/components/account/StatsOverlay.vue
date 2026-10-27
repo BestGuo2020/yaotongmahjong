@@ -1,53 +1,63 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { getPlayerStats, getPlayerStatsById, type PlayerStats } from '../../game/online/api/accountApi'
+import { onBeforeUnmount, ref, watch } from 'vue'
+import { getMyStats, type PlayerStats } from '../../game/online/api/accountApi'
+import { RemoteApiError } from '../../game/online/api/httpClient'
 
 interface Props {
   open: boolean
-  playerId: string
-  nickname: string
-  fallbackNickname: string
+  authenticated: boolean
+  accountId: string
+  accountName: string
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
   'update:open': [value: boolean]
+  login: []
 }>()
 
 const stats = ref<PlayerStats | null>(null)
 const loading = ref(false)
+const error = ref('')
+const loginRequired = ref(false)
 let requestSerial = 0
 
-watch(() => props.open, async (open) => {
-  if (!open) return
+async function loadStats() {
   const serial = ++requestSerial
-  loading.value = true
   stats.value = null
+  error.value = ''
+  loading.value = false
+  loginRequired.value = !props.authenticated
+  if (!props.open || !props.authenticated) return
+  loading.value = true
   try {
-    let next = await getPlayerStatsById(props.playerId)
-    if (next.matches === 0) {
-      const name = props.nickname || props.fallbackNickname.trim()
-      if (name) {
-        const byName = await getPlayerStats(name)
-        if (byName.matches > 0) next = byName
-      }
-    }
+    const next = await getMyStats('yaotong')
     if (serial === requestSerial) stats.value = next
-  } catch {
-    if (serial === requestSerial) stats.value = null
+  } catch (cause) {
+    if (serial === requestSerial) {
+      loginRequired.value = cause instanceof RemoteApiError && cause.status === 401
+      error.value = loginRequired.value
+        ? '登录已过期，请重新登录 WakuDemo 账号'
+        : '战绩加载失败，请稍后重试'
+    }
   } finally {
     if (serial === requestSerial) loading.value = false
   }
-})
+}
+
+watch(() => [props.open, props.authenticated, props.accountId], loadStats, { immediate: true })
+onBeforeUnmount(() => { requestSerial++ })
 </script>
 
 <template>
   <Transition name="modal">
-    <div v-if="open" class="result-backdrop round-settlement">
-      <section class="result-card settlement-card stats-card">
+    <div v-if="open" class="result-backdrop round-settlement" @click.self="emit('update:open', false)">
+      <section class="result-card settlement-card stats-card" role="dialog" aria-modal="true" aria-label="个人战绩">
         <h2>个人战绩</h2>
-        <p class="stats-nickname">{{ nickname || fallbackNickname }}</p>
-        <div v-if="loading" class="stats-loading">加载中…</div>
+        <p class="stats-nickname">{{ authenticated ? (accountName || 'WakuDemo 玩家') : 'WakuDemo 账号' }} · 幺筒联机</p>
+        <div v-if="loading" class="stats-loading" role="status">加载中…</div>
+        <p v-else-if="loginRequired" class="stats-empty" role="status">{{ error || '登录 WakuDemo 账号后，可查看你的幺筒联机战绩。' }}</p>
+        <p v-else-if="error" class="stats-empty" role="alert">{{ error }}</p>
         <template v-else-if="stats">
           <div class="stats-grid">
             <article><b>{{ stats.matches }}</b><span>场次</span></article>
@@ -55,9 +65,11 @@ watch(() => props.open, async (open) => {
             <article><b>{{ stats.wins }}</b><span>胡牌局数</span></article>
             <article><b :class="{ positive: stats.totalDelta > 0, negative: stats.totalDelta < 0 }">{{ stats.totalDelta > 0 ? '+' : '' }}{{ stats.totalDelta }}</b><span>净胜分</span></article>
           </div>
+          <p v-if="stats.hands === 0" class="stats-empty">暂无幺筒联机战绩，完成一局后再来看看。</p>
         </template>
-        <p v-else class="stats-empty">暂无战绩记录，快去打一局吧！</p>
         <div class="result-actions">
+          <button v-if="loginRequired" @click="emit('login')">{{ authenticated ? '重新登录' : '登录' }}</button>
+          <button v-else-if="error" @click="loadStats">重试</button>
           <button @click="emit('update:open', false)">关闭</button>
         </div>
       </section>

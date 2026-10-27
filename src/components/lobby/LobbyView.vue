@@ -251,7 +251,7 @@ function toggleWakuDemoAuth() {
         </div>
 
         <div class="lobby-links">
-          <button v-if="gameMode === 'remote'" class="text-button" data-action-role="light"
+          <button class="text-button" data-action-role="light"
             @click="$emit('openStats')">我的战绩 →</button>
           <button class="text-button" data-action-role="light" data-testid="open-replay"
             @click="$emit('openReplay')">对局回放 →</button>

@@ -1,5 +1,6 @@
 import { DISCLAIMER_VERSION } from '../../../content/disclaimer'
 import { request } from './httpClient'
+import type { RuleVariant } from '../../core/rules/ruleVariants'
 
 export interface PlayerStats {
   nickname?: string
@@ -26,8 +27,9 @@ export function getPlayerStatsById(playerId: string): Promise<PlayerStats> {
 }
 
 /** 当前登录玩家的战绩（联机身份 wakudemo-<uid>）。 */
-export function getMyStats(): Promise<PlayerStats> {
-  return request<PlayerStats>('/api/me/stats')
+export function getMyStats(rulesetId?: RuleVariant): Promise<PlayerStats> {
+  const query = rulesetId ? `?rulesetId=${encodeURIComponent(rulesetId)}` : ''
+  return request<PlayerStats>(`/api/me/stats${query}`)
 }
 
 export function getDisclaimerAgreement(playerId: string): Promise<DisclaimerAgreement> {

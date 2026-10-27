@@ -475,7 +475,8 @@ function changeTableTheme(theme: TableThemeName) {
       :before-load="replay.flush" :notice="replayNotice" @view="openReplay" />
     <ReplayViewer v-if="replayView" :match="replayView.match" :rounds="replayView.rounds"
       back-label="← 返回回放列表" @close="replayView = null; replayOpen = true" />
-    <StatsOverlay v-model:open="statsOpen" :player-id="online.playerId.value"
-      :nickname="online.nickname.value" :fallback-nickname="nicknameInput" />
+    <StatsOverlay v-model:open="statsOpen" :authenticated="wakuAuth.authenticated.value"
+      :account-id="wakuAuth.account.value?.id ?? ''" :account-name="wakuAuth.account.value?.displayName ?? ''"
+      @login="wakuAuth.login" />
   </main>
 </template>
