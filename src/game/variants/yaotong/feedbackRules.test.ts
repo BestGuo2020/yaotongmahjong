@@ -6,6 +6,7 @@ import { evaluateHand } from './hands'
 import { settle } from './settlement'
 import { player, table, ready, meld } from './auditFixtures'
 import { YAO } from './tiles'
+import type { Discard, Player, Tile } from './types'
 
 describe('朋友实玩规则勘误', () => {
   it.each(['rob', 'hot'] as const)('%s优先于过手；手持幺筒必须胡，胡牌可正常结算', kind => {
@@ -68,6 +69,50 @@ describe('朋友实玩规则勘误', () => {
     expect(evaluateHand(p, { kind: 'self', tile: 26, chicken: 1 }).some(v => v.patterns[0].name === '素胡')).toBe(false)
     const open = player('234m 234s 66p 789s', { melds: [meld(4)] })
     expect(evaluateHand(open, { kind: 'self', tile: 26 }).some(v => v.patterns[0].name === '素胡')).toBe(false)
+  })
+  it('素胡是什么都没有：手牌、副露和牌河都不能有固定鸡、幺筒或翻牌鸡', () => {
+    const clean = (river: Discard[]) => player('234567m 234s 66p 789s', { river })
+    const hasPure = (p: Player, chicken: number | null = null) =>
+      evaluateHand(p, { kind: 'self', tile: 26, chicken }).some(v => v.patterns[0].name === '素胡')
+    const discard = (tile: Tile, extra: Partial<Discard> = {}): Discard =>
+      ({ tile, chicken: 0, stage: 'normal', id: 1, ...extra })
+    expect(hasPure(clean([discard(8), discard(20)]))).toBe(true)
+    // 牌河里的固定鸡（一条/八筒/一万）与幺筒都否掉素胡；翻牌鸡同理。
+    expect(hasPure(clean([discard(18)]))).toBe(false)
+    expect(hasPure(clean([discard(16)]))).toBe(false)
+    expect(hasPure(clean([discard(0)]))).toBe(false)
+    expect(hasPure(clean([discard(9)]))).toBe(false)
+    expect(hasPure(clean([discard(20)]), 20)).toBe(false)
+    // 跟庄跟牌留在牌河展示但不参与计分，不否定素胡。
+    expect(hasPure(clean([discard(18, { followedDealer: true })]))).toBe(true)
+  })
+  it('牌河有鸡的自摸不再按素胡结算（截图手牌：六七八万三筒碰四五五六六七筒五条对自摸五筒）', () => {
+    const s = table()
+    s.wall = [24, 0] // 指示牌七条 → 翻鸡八条
+    s.players[0] = player('', {
+      hand: [5, 6, 7, 11, 11, 11, 12, 13, 14, 14, 15, 22, 22, 13].sort((a, b) => a - b),
+      drawn: 13,
+      draws: 4,
+      river: [{ tile: 18, chicken: 4, stage: 'first', id: 1 }],
+    })
+    const r = settle(s, { kind: 'win', winKind: 'self', winners: [0], tile: 13 })
+    expect(r.values[0].patterns).toEqual([{ name: '硬胡', points: 10 }])
+    expect(r.values[0].h).toBe(15)
+    expect(r.transfers.filter(t => t.account === '胡牌分').map(t => t.amount)).toEqual([15, 15, 15])
+  })
+  it('翻牌鸡落在自己牌河时，翻前可选的素胡在翻鸡后降为硬胡结算', () => {
+    const s = table()
+    s.wall = [24, 0] // 指示牌七条 → 翻鸡八条
+    s.players[0] = player('', {
+      hand: [5, 6, 7, 11, 11, 11, 12, 13, 14, 14, 15, 22, 22, 13].sort((a, b) => a - b),
+      drawn: 13,
+      draws: 4,
+      river: [{ tile: 25, chicken: 0, stage: 'normal', id: 1 }],
+    })
+    const r = settle(s, { kind: 'win', winKind: 'self', winners: [0], tile: 13 })
+    expect(r.chicken).toBe(25)
+    expect(r.values[0].patterns).toEqual([{ name: '硬胡', points: 10 }])
+    expect(r.transfers.filter(t => t.account === '胡牌分').map(t => t.amount)).toEqual([15, 15, 15])
   })
   it('胡三条时幺筒择八筒替代，计八筒底鸡', () => {
     const s = table()

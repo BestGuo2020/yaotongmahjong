@@ -37,15 +37,15 @@ function kongDraw(kind: KongKind, double = false) {
   return s
 }
 
-describe('杠开牌型加25分，基础5另计', () => {
+describe('杠开牌型加20分，基础5另计', () => {
   it.each(['open', 'turn', 'stored', 'added'] as const)('%s杠补摸自摸计杠开，杠分独立保留', kind => {
     const s = kongDraw(kind)
-    expect(selfOptions(s, 0).h).toBe(40)
+    expect(selfOptions(s, 0).h).toBe(35)
     expect(act(s, 0, { type: 'hu' })).toBe(true)
     const value = s.result!.values[0]
-    expect(value.patterns).toContainEqual({ name: '杠开', points: 25 })
-    expect(handScoreFormula(value)).toBe('基础 5 + 硬胡 10 + 杠开 25')
-    expect(s.result!.transfers.filter(t => t.account === '胡牌分').map(t => t.amount)).toEqual([40, 40, 40])
+    expect(value.patterns).toContainEqual({ name: '杠开', points: 20 })
+    expect(handScoreFormula(value)).toBe('基础 5 + 硬胡 10 + 杠开 20')
+    expect(s.result!.transfers.filter(t => t.account === '胡牌分').map(t => t.amount)).toEqual([35, 35, 35])
     expect(s.result!.transfers.filter(t => t.account === '杠分').map(t => t.amount))
       .toEqual(kind === 'stored' ? [] : kind === 'open' ? [5] : [5, 5, 5])
     expect(s.result!.deltas.reduce((a, b) => a + b)).toBe(0)
@@ -60,18 +60,18 @@ describe('杠开牌型加25分，基础5另计', () => {
     s.players[0].hand = player('234678m 99m 123m').hand
     s.players[0].drawn = 2
     expect(act(s, 0, { type: 'hu' })).toBe(true)
-    expect(s.result!.values[0].h).toBe(60)
-    expect(s.result!.transfers.filter(t => t.account === '胡牌分').map(t => t.amount)).toEqual([120, 120, 120])
+    expect(s.result!.values[0].h).toBe(55)
+    expect(s.result!.transfers.filter(t => t.account === '胡牌分').map(t => t.amount)).toEqual([110, 110, 110])
     expect(s.result!.transfers.filter(t => t.account === '杠分').map(t => t.amount)).toEqual([10, 10, 10])
   })
 
-  it('使用赖子的杠开是基础5＋牌型25，不误计硬胡', () => {
+  it('使用赖子的杠开是基础5＋牌型20，不误计硬胡', () => {
     const s = kongDraw('turn')
     s.players[0].hand = player('234m 234s 66p 78s 1p').hand
     s.players[0].drawn = 9
     expect(act(s, 0, { type: 'hu' })).toBe(true)
-    expect(s.result!.values[0].h).toBe(30)
-    expect(s.result!.values[0].patterns).toEqual([{ name: '杠开', points: 25 }])
+    expect(s.result!.values[0].h).toBe(25)
+    expect(s.result!.values[0].patterns).toEqual([{ name: '杠开', points: 20 }])
   })
 
   it.each(['discard', 'rob', 'hot', 'ready'] as WinKind[])('%s场景不套用补摸自摸加分', kind => {
@@ -82,7 +82,7 @@ describe('杠开牌型加25分，基础5另计', () => {
     expect(readyInfo(s.players[0]).price).toBe(10)
   })
 
-  it('补摸后出牌就结束杠开时点，后来普通自摸不加25', () => {
+  it('补摸后出牌就结束杠开时点，后来普通自摸不加20', () => {
     const s = kongDraw('turn')
     const p = s.players[0]
     act(s, 0, { type: 'discard', index: p.hand.indexOf(26) })
@@ -96,7 +96,7 @@ describe('杠开牌型加25分，基础5另计', () => {
     const p = player('234m 66p 789s', { drawn: 26, afterKong: true,
       melds: [meld(4, { kind: 'turn' }), meld(12, { kind: 'added' })] })
     const value = evaluateHand(p, { kind: 'self', tile: 26 })[0]
-    expect(value.h).toBe(40)
-    expect(value.patterns.filter(p => p.name === '杠开')).toEqual([{ name: '杠开', points: 25 }])
+    expect(value.h).toBe(35)
+    expect(value.patterns.filter(p => p.name === '杠开')).toEqual([{ name: '杠开', points: 20 }])
   })
 })

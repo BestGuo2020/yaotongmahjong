@@ -109,6 +109,17 @@ function pairs(counts: number[], wild: number): Shape[] {
   return result
 }
 
+/** 素胡＝什么都没有：手牌、副露和牌河都不含固定鸡、幺筒或本局翻牌鸡。 */
+function pureHoldings(player: Player, chicken: Tile | null | undefined) {
+  const tiles = [
+    ...player.hand,
+    ...player.melds.flatMap((m) => Array<Tile>(m.kind === 'peng' ? 3 : 4).fill(m.tile)),
+    // 跟庄的跟牌留在牌河展示，但不再参与任何计分，也不影响素胡。
+    ...player.river.filter((d) => !d.followedDealer).map((d) => d.tile),
+  ]
+  return !tiles.some((t) => isChicken(t) || (chicken != null && t === chicken))
+}
+
 function structuralValues(player: Player, ctx: WinContext): HandValue[] {
   const hand = player.hand
   if (
@@ -125,6 +136,8 @@ function structuralValues(player: Player, ctx: WinContext): HandValue[] {
   const yaoCount = raw[YAO]
   const exposedSuits = player.melds.reduce((bits, m) => bits | suitBit(m.tile), 0)
   const result: HandValue[] = []
+  // 素胡的前置条件与拆解无关，整手只算一次；翻鸡后再按 ctx.chicken 复核。
+  const cleanHolding = pureHoldings(player, ctx.chicken)
 
   function add(
     shape: Shape,
@@ -158,7 +171,7 @@ function structuralValues(player: Player, ctx: WinContext): HandValue[] {
       patterns.push({ name: ctx.isDealer ? '天胡' : '地胡', points: 40 })
     const hasKong = player.melds.some((m) => m.kind !== 'peng')
     if (ctx.kind === 'self' && hasKong && player.afterKong && player.drawn === ctx.tile)
-      patterns.push({ name: '杠开', points: 25 })
+      patterns.push({ name: '杠开', points: 20 })
     if (ctx.kind === 'discard' && !big && !hasKong && !player.followDealer && player.declaration === 'none') return
     const patternPoints = patterns.reduce((sum, p) => sum + p.points, 0)
     const uses =
@@ -181,13 +194,12 @@ function structuralValues(player: Player, ctx: WinContext): HandValue[] {
         resolvedHand: [...shape.groups.flat(), ...(structure === 'earth' ? [player.melds[0].tile] : [])],
       }
       result.push(value)
-      const used = [...hand, ...player.melds.flatMap((m) => Array(3).fill(m.tile))]
       if (
         ctx.kind === 'self' &&
         player.melds.length === 0 &&
         !hasKong &&
         !ctx.killsReport &&
-        !used.some((t) => isChicken(t) || t === ctx.chicken)
+        cleanHolding
       ) {
         result.push({ ...value, h: 25, patternPoints: 20, patterns: [{ name: '素胡', points: 20 }] })
       }
