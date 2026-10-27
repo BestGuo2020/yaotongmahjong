@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useYaotongSeatAnchors } from './useYaotongSeatAnchors'
 import type { GamePlayer } from '../../game/core/contracts/types'
 import {
@@ -41,6 +41,84 @@ const effects = computed(() =>
     .filter((effect) => anchors.value[effect.seat]),
 )
 const plannedFlights = computed(() => settlementFlights(props.cue))
+type Box = { x: number; y: number; width: number; height: number }
+const labelSizes = shallowRef<Record<number, { width: number; height: number }>>({})
+const controls = shallowRef<Box[]>([])
+const insets = shallowRef({ top: 8, right: 8, bottom: 8, left: 8 })
+let labelObserver: ResizeObserver | undefined
+const observedLabels = new Set<Element>()
+function measureLabels() {
+  const host = root.value
+  if (!host) return
+  const next: typeof labelSizes.value = {}
+  host.querySelectorAll<HTMLElement>('[data-effect-label-seat]').forEach(label => {
+    // offset sizes exclude the entrance animation's scale, so labels do not jump mid-animation.
+    next[Number(label.dataset.effectLabelSeat)] = { width: label.offsetWidth, height: label.offsetHeight }
+    if (labelObserver && !observedLabels.has(label)) {
+      labelObserver.observe(label)
+      observedLabels.add(label)
+    }
+  })
+  labelSizes.value = next
+  const style = getComputedStyle(host)
+  insets.value = { top: parseFloat(style.paddingTop), right: parseFloat(style.paddingRight),
+    bottom: parseFloat(style.paddingBottom), left: parseFloat(style.paddingLeft) }
+  const rect = host.getBoundingClientRect()
+  if (!rect.width || !rect.height) return
+  const elements = [...(host.parentElement?.querySelectorAll('.hand-rack, .turn-action-row') ?? []),
+    ...(host.closest('.game-app')?.querySelectorAll('.top-bar') ?? [])]
+  controls.value = elements.map(element => {
+    const r = element.getBoundingClientRect()
+    return { x: (r.left - rect.left) * size.value.width / rect.width,
+      y: (r.top - rect.top) * size.value.height / rect.height,
+      width: r.width * size.value.width / rect.width, height: r.height * size.value.height / rect.height }
+  })
+}
+watch([anchors, () => props.cue], measureLabels, { flush: 'post' })
+onMounted(() => { labelObserver = new ResizeObserver(measureLabels); measureLabels() })
+onBeforeUnmount(() => { labelObserver?.disconnect(); observedLabels.clear() })
+
+const labelPositions = computed(() => {
+  const placed: Record<number, Box> = {}
+  const obstacles = [...Object.values(anchors.value).map(a => a.card), ...controls.value]
+  const gap = 8
+  const overlap = (a: Box, b: Box) => Math.max(0, Math.min(a.x + a.width, b.x + b.width + gap) - Math.max(a.x, b.x - gap))
+    * Math.max(0, Math.min(a.y + a.height, b.y + b.height + gap) - Math.max(a.y, b.y - gap))
+  for (const effect of effects.value) {
+    const dimensions = labelSizes.value[effect.seat]
+    if (!dimensions) continue
+    const { width, height } = dimensions, card = anchors.value[effect.seat].card
+    const x = effect.seat === 1 ? card.x + card.width - width
+      : effect.seat === 2 ? card.x + (card.width - width) / 2 : card.x
+    const y = effect.seat === 0 ? card.y - height - gap : card.y + card.height + gap
+    const candidates = [
+      { x, y }, { x: card.x + card.width + gap, y: card.y + card.height - height },
+      { x: card.x - width - gap, y: card.y }, { x, y: card.y - height - gap },
+    ]
+    // A burn can coincide with gifts and report fees. Fit the full measured stack, and
+    // move later seats' labels around it instead of painting one account over another.
+    for (const other of Object.values(placed)) {
+      candidates.push({ x: other.x + other.width + gap, y }, { x: other.x - width - gap, y },
+        { x, y: other.y - height - gap }, { x, y: other.y + other.height + gap })
+    }
+    const fitted = candidates.map(p => ({ ...dimensions,
+      x: Math.max(insets.value.left, Math.min(size.value.width - insets.value.right - width, p.x)),
+      y: Math.max(insets.value.top, Math.min(size.value.height - insets.value.bottom - height, p.y)),
+    }))
+    const cost = (box: Box) => obstacles.reduce((total, other) => total + overlap(box, other), 0) * 1000
+      + Math.hypot(box.x - x, box.y - y)
+    const best = fitted.sort((a, b) => cost(a) - cost(b))[0]
+    placed[effect.seat] = best
+    obstacles.push(best)
+  }
+  return placed
+})
+const effectSize = (seat: number) => anchors.value[seat].avatarSize + 8
+function labelStyle(seat: number) {
+  const box = labelPositions.value[seat], anchor = anchors.value[seat]
+  return box ? { left: `${box.x - anchor.x + effectSize(seat) / 2}px`,
+    top: `${box.y - anchor.y + effectSize(seat) / 2}px` } : { visibility: 'hidden' as const }
+}
 const payments = computed(() =>
   plannedFlights.value.flatMap((payment) => {
     const from = anchors.value[payment.from],
@@ -50,8 +128,13 @@ const payments = computed(() =>
       dy = to.y - from.y,
       length = Math.hypot(dx, dy) || 1
     const inset = Math.min(30, length / 4)
-    const start = { x: from.x + (dx / length) * inset, y: from.y + (dy / length) * inset }
-    const end = { x: to.x - (dx / length) * inset, y: to.y - (dy / length) * inset }
+    const halfWidth = payment.kind === 'gift' ? 29 : 41
+    const within = (p: { x: number; y: number }) => ({
+      x: Math.max(insets.value.left + halfWidth, Math.min(size.value.width - insets.value.right - halfWidth, p.x)),
+      y: Math.max(insets.value.top + 17, Math.min(size.value.height - insets.value.bottom - 17, p.y)),
+    })
+    const start = within({ x: from.x + (dx / length) * inset, y: from.y + (dy / length) * inset })
+    const end = within({ x: to.x - (dx / length) * inset, y: to.y - (dy / length) * inset })
     // Gift, kill and responsibility fees can share a pair, even in opposite directions.
     // Bend against a canonical seat order so their account lines never collapse onto one another.
     const mixedPair = plannedFlights.value.some(
@@ -63,7 +146,7 @@ const payments = computed(() =>
     const bend = mixedPair
       ? (payment.from < payment.to ? 1 : -1) * { kill: -0.16, responsibility: 0, gift: 0.16 }[payment.kind]
       : 0.08
-    const control = { x: (start.x + end.x) / 2 - dy * bend, y: (start.y + end.y) / 2 + dx * bend }
+    const control = within({ x: (start.x + end.x) / 2 - dy * bend, y: (start.y + end.y) / 2 + dx * bend })
     const middle = { x: (start.x + 2 * control.x + end.x) / 4, y: (start.y + 2 * control.y + end.y) / 4 }
     return [
       {
@@ -78,7 +161,7 @@ const payments = computed(() =>
 const position = (seat: number) => ({
   left: `${anchors.value[seat].x}px`,
   top: `${anchors.value[seat].y}px`,
-  '--card-bottom': `${anchors.value[seat].cardBottom}px`,
+  '--effect-size': `${effectSize(seat)}px`,
   '--responsibility-credit-delay': `${SETTLEMENT_FLIGHT_MS + Math.max(0, ...plannedFlights.value.filter((p) => p.to === seat && p.kind === 'responsibility').map((p) => p.delayMs))}ms`,
   '--gift-credit-delay': `${SETTLEMENT_FLIGHT_MS + Math.max(0, ...plannedFlights.value.filter((p) => p.to === seat && p.kind === 'gift').map((p) => p.delayMs))}ms`,
   '--kill-credit-delay': `${SETTLEMENT_FLIGHT_MS + Math.max(0, ...plannedFlights.value.filter((p) => p.to === seat && p.kind === 'kill').map((p) => p.delayMs))}ms`,
@@ -214,7 +297,7 @@ const position = (seat: number) => ({
         :style="{ '--angle': `${n * 45}deg`, '--delay': `${n * 0.025}s` }"
         aria-hidden="true"
       ></span>
-      <div class="seat-effect-label">
+      <div class="seat-effect-label" :data-effect-label-seat="effect.seat" :style="labelStyle(effect.seat)">
         <div v-if="effect.responsibilityPaid" class="seat-account-total responsibility-debit">
           <strong>责</strong><b>−{{ effect.responsibilityPaid }}</b>
         </div>
@@ -246,6 +329,9 @@ const position = (seat: number) => ({
   z-index: 47;
   pointer-events: none;
   overflow: hidden;
+  box-sizing: border-box;
+  padding: max(8px, var(--safe-top, 0px)) max(8px, var(--safe-right, 0px))
+    max(8px, var(--safe-bottom, 0px)) max(8px, var(--safe-left, 0px));
 }
 .gift-flights {
   position: absolute;
@@ -398,8 +484,8 @@ const position = (seat: number) => ({
 }
 .seat-special-effect {
   position: absolute;
-  width: 80px;
-  height: 80px;
+  width: var(--effect-size);
+  height: var(--effect-size);
   transform: translate(-50%, -50%);
   color: #f2c76e;
 }
@@ -441,6 +527,8 @@ const position = (seat: number) => ({
   flex-direction: column;
   align-items: center;
   white-space: nowrap;
+  width: max-content;
+  max-width: calc(100cqw - 32px);
   filter: drop-shadow(0 3px 5px #000);
   animation: seat-label-in 0.25s ease-out both;
 }
@@ -469,35 +557,6 @@ const position = (seat: number) => ({
   box-shadow:
     0 0 20px #f2c76e,
     inset 0 0 12px #f17a56;
-}
-.from-right .seat-effect-label {
-  right: calc(100% + 10px);
-  top: 12px;
-}
-.from-left .seat-effect-label {
-  left: calc(100% + 10px);
-  top: 12px;
-}
-.responsibility-seat.from-right .seat-effect-label,
-.killed-report.from-right .seat-effect-label,
-.kill-credit-seat.from-right .seat-effect-label {
-  top: calc(50% + var(--card-bottom) + 8px);
-  right: 0;
-}
-.responsibility-seat.from-left .seat-effect-label,
-.killed-report.from-left .seat-effect-label,
-.kill-credit-seat.from-left .seat-effect-label {
-  top: calc(50% + var(--card-bottom) + 8px);
-  left: 0;
-}
-.from-top .seat-effect-label {
-  top: calc(50% + var(--card-bottom) + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-}
-.from-bottom .seat-effect-label {
-  bottom: calc(100% + 10px);
-  left: 0;
 }
 .gift-tiles {
   display: flex;
@@ -535,7 +594,7 @@ const position = (seat: number) => ({
 @keyframes burn-out {
   0% {
     opacity: 0;
-    translate: 0 12px;
+    translate: 0 calc(var(--effect-size) * 0.15);
   }
   25% {
     opacity: 0.75;
@@ -545,21 +604,21 @@ const position = (seat: number) => ({
   }
   100% {
     opacity: 0;
-    translate: 0 -20px;
+    translate: 0 calc(var(--effect-size) * -0.25);
     filter: grayscale(1);
   }
 }
 @keyframes seat-spark {
   0% {
     opacity: 0;
-    transform: rotate(var(--angle)) translateY(-30px);
+    transform: rotate(var(--angle)) translateY(calc(var(--effect-size) * -0.4));
   }
   20% {
     opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: rotate(var(--angle)) translateY(-65px) scale(0.2);
+    transform: rotate(var(--angle)) translateY(calc(var(--effect-size) * -0.8)) scale(0.2);
   }
 }
 @keyframes seat-label-in {
@@ -602,16 +661,16 @@ const position = (seat: number) => ({
     opacity: 0;
   }
 }
-@container game (max-height:600px) {
-  .seat-special-effect {
-    width: 58px;
-    height: 58px;
-  }
+@container game (max-height:600px) or (max-width:600px) {
   .seat-effect-label strong {
-    font-size: 20px;
+    font-size: 16px;
   }
   .seat-effect-label b {
-    font-size: 20px;
+    font-size: 16px;
+  }
+  .seat-account-total {
+    gap: 4px;
+    margin-top: 2px;
   }
   .gift-tiles {
     margin-bottom: 3px;

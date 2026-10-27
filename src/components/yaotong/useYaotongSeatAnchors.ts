@@ -2,7 +2,10 @@ import { onMounted, onBeforeUnmount, shallowRef, type Ref } from 'vue'
 
 export function useYaotongSeatAnchors(root: Ref<HTMLElement | null>) {
   const size = shallowRef({ width: 1, height: 1 })
-  const anchors = shallowRef<Record<number, { x: number; y: number; cardBottom: number }>>({})
+  const anchors = shallowRef<Record<number, {
+    x: number; y: number; avatarSize: number
+    card: { x: number; y: number; width: number; height: number }
+  }>>({})
   let observer: ResizeObserver | undefined
   function measure() {
     const host = root.value
@@ -17,10 +20,14 @@ export function useYaotongSeatAnchors(root: Ref<HTMLElement | null>) {
       const avatar = card?.querySelector('.avatar')
       if (!avatar) continue
       const a = avatar.getBoundingClientRect()
+      const c = (avatar.closest('.avatar-wrap, .user-identity') ?? card!).getBoundingClientRect()
+      const scaleX = width / rect.width, scaleY = height / rect.height
       found[seat] = {
         x: ((a.left + a.width / 2 - rect.left) * width) / rect.width,
         y: ((a.top + a.height / 2 - rect.top) * height) / rect.height,
-        cardBottom: ((card!.getBoundingClientRect().bottom - a.top - a.height / 2) * height) / rect.height,
+        avatarSize: Math.max(a.width * scaleX, a.height * scaleY),
+        card: { x: (c.left - rect.left) * scaleX, y: (c.top - rect.top) * scaleY,
+          width: c.width * scaleX, height: c.height * scaleY },
       }
     }
     size.value = { width, height }
