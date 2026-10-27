@@ -24,7 +24,7 @@ describe('任意听开杠的真实计分比较', () => {
   const winds: TileType[] = ['east','south','west','m2','m3','m4','p4','p5','p6','s6','s7','s8','red','north']
   const smaller: TileType[] = ['m1','m1','m1','m2','m2','m3','m3','m4','m4','p5','p5','red','green','m1']
   const kong: BloodFlowAction = { kind: 'concealed-kong', tile: 'm1' }
-  it.each([false, true])('锁手=%s 时，暗杠和风杠保留任意听且不降倍就杠开', locked => {
+  it.each([false, true])('锁手=%s 时，暗杠和风杠保留任意听且不降倍就杠上开花', locked => {
     for (const [hand, action] of [[concealed, kong], [winds, { kind: 'wind-kong' }]] as [TileType[], BloodFlowAction][]) {
       const view = turn(hand, action, 40, locked)
       expect(preferredAnyWaitKong(view, view.ownActions)).toEqual(action)
@@ -32,11 +32,11 @@ describe('任意听开杠的真实计分比较', () => {
       expect(decideBloodFlowAction(view)).toEqual(action)
     }
   })
-  it('还有后续摸牌时，不用一次杠开换取续胡降倍', () => {
+  it('还有后续摸牌时，不用一次杠上开花换取续胡降倍', () => {
     const view = turn(smaller, kong)
     expect(preferredAnyWaitKong(view, view.ownActions)).toBeNull()
   })
-  it('墙余一张时允许降低常规倍数，补牌仍保证杠开且期望收益不低于立即胡', () => {
+  it('墙余一张时允许降低常规倍数，补牌仍保证杠上开花且期望收益不低于立即胡', () => {
     const view = turn(smaller, kong, 1, true)
     expect(preferredAnyWaitKong(view, view.ownActions)).toEqual(kong)
     expect(decideBloodFlowActionEv(view)).toEqual(kong)
@@ -47,7 +47,7 @@ describe('任意听开杠的真实计分比较', () => {
     expect(preferredAnyWaitKong(view, view.ownActions)).toBeNull()
     expect(decideBloodFlowActionEv(view)).toEqual({ kind: 'win' })
   })
-  it('拆散豪华七对的暗杠即使末张也不保证杠开', () => {
+  it('拆散豪华七对的暗杠即使末张也不保证杠上开花', () => {
     const view = turn(['m1','m1','m1','m1','p2','p2','p5','p5','s3','s3','s8','s8','red','m7'], kong, 1, true)
     expect(preferredAnyWaitKong(view, view.ownActions)).toBeNull()
     expect(decideBloodFlowActionEv(view)).toEqual({ kind: 'win' })

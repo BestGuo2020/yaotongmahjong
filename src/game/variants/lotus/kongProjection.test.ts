@@ -43,7 +43,7 @@ describe('杠后全听投影', () => {
     expect(result.guaranteedKongBloom).toBe(true)
   })
 
-  it.each(STYLES)('%s：大明杠、暗杠、风杠后全听时均直接博杠开', async (style) => {
+  it.each(STYLES)('%s：大明杠、暗杠、风杠后全听时均直接博杠上开花', async (style) => {
     const fetchSpy = vi.fn(() => { throw new Error('全听强制策略不应请求 LLM') })
     vi.stubGlobal('fetch', fetchSpy)
     const llm = controller(style)

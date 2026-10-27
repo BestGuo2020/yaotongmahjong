@@ -187,7 +187,7 @@ export function offeredHuPlans(state: GameState, seat: Seat) {
   }))
   if (viable.length < 2) return []
   return viable.map(([key, value]) => ({ key, value,
-    label: value.patterns.filter(p => !['报听', '原报', '天胡', '地胡', '抢杠', '热炮', '杠开'].includes(p.name))
+    label: value.patterns.filter(p => !['报听', '原报', '天胡', '地胡', '抢杠', '热炮', '杠上开花'].includes(p.name))
       .map(p => p.name).join('＋') || '鸡胡' }))
 }
 

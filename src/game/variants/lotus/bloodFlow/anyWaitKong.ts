@@ -5,7 +5,7 @@ import { postKongState } from './kongState'
 import { visibleTiles, type BloodFlowSeatView } from './seatView'
 import type { BloodFlowAction } from './state'
 
-/** 任意听的确定杠开：不读取未来牌墙，逐张检查本座不可见的补牌。 */
+/** 任意听的确定杠上开花：不读取未来牌墙，逐张检查本座不可见的补牌。 */
 export function preferredAnyWaitKong(view: BloodFlowSeatView, actions: readonly BloodFlowAction[]) {
   if (view.window?.kind !== 'turn' || view.window.source.kind !== 'draw' || view.wallCount <= 0) return null
   const kongs = actions.filter(action => action.kind === 'concealed-kong' || action.kind === 'wind-kong')
@@ -20,7 +20,7 @@ export function preferredAnyWaitKong(view: BloodFlowSeatView, actions: readonly 
   const normalWin = current ? forecastWinIncome(before, player.melds, view.jokers, view.window.source.tile, 'self-draw') : 0
   let best: { action: BloodFlowAction; income: number } | null = null
   for (const action of kongs) {
-    // 暗杠/风杠不能被抢；补杠需要另算抢杠风险，不使用这一保证杠开的策略。
+    // 暗杠/风杠不能被抢；补杠需要另算抢杠风险，不使用这一保证杠上开花的策略。
     if (action.kind !== 'concealed-kong' && action.kind !== 'wind-kong') continue
     const post = postKongState({ kind: action.kind, hand: player.hand, melds: player.melds,
       tile: action.kind === 'concealed-kong' ? action.tile : undefined })
@@ -30,7 +30,7 @@ export function preferredAnyWaitKong(view: BloodFlowSeatView, actions: readonly 
     for (const { tile, count } of counts) {
       const after = forecastWinIncome(post.hand, post.melds, view.jokers, tile, 'self-draw')
       const replacement = forecastWinIncome(post.hand, post.melds, view.jokers, tile, 'kong-bloom')
-      // 平时保护后续续胡的牌型收益；仅剩末张时，只比较这次杠开的期望收益。
+      // 平时保护后续续胡的牌型收益；仅剩末张时，只比较这次杠上开花的期望收益。
       const baseline = Math.max(normalWin, forecastWinIncome(before, player.melds, view.jokers, tile, 'self-draw'))
       if (!replacement || (view.wallCount > 1 && after < baseline)) {
         safe = false; break

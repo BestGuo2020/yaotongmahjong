@@ -34,7 +34,7 @@ export function evaluateWin(input: WinEvaluationInput, config: BloodFlowRuleConf
   const external = input.source === 'discard' || input.source === 'robbed-kong'
   // Fast legality filter is the existing rules implementation, never a score cutoff.
   if (!isWinningHand([...input.concealed, input.winningTile], input.melds.length, [...input.jokers], external ? [input.winningTile] : [], ['white'])) return null
-  // 精吊任意听与普通翻精一致：吃胡（含地胡）和抢杠均禁止；杠开属于自摸。
+  // 精吊任意听与普通翻精一致：吃胡（含地胡）和抢杠均禁止；杠上开花属于自摸。
   if (external && selfDrawOnly(input)) return null
   let best: WinEvaluation | null = null
   visitDecompositions(input, decomposition => {

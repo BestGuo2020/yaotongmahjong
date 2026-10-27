@@ -69,7 +69,7 @@ describe('精吊任意听只能自摸', () => {
 
 describe('听任意开杠与锁手保护', () => {
   const safe: TileType[] = ['m1','m1','m1','m1','m2','m3','m4','p1','p2','p3','east','east','east','red']
-  it('普通 AI 在保留听任意且倍数不降时选择暗杠，并实际杠开', () => {
+  it('普通 AI 在保留听任意且倍数不降时选择暗杠，并实际杠上开花', () => {
     const engine = scenario([safe, null, null, null])
     const before = bloodFlowSeatView(engine, 0).ownScore!
     const action = decideBloodFlowActionEv(bloodFlowSeatView(engine, 0))!

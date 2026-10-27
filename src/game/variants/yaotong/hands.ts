@@ -171,7 +171,7 @@ function structuralValues(player: Player, ctx: WinContext): HandValue[] {
       patterns.push({ name: ctx.isDealer ? '天胡' : '地胡', points: 40 })
     const hasKong = player.melds.some((m) => m.kind !== 'peng')
     if (ctx.kind === 'self' && hasKong && player.afterKong && player.drawn === ctx.tile)
-      patterns.push({ name: '杠开', points: 20 })
+      patterns.push({ name: '杠上开花', points: 20 })
     if (ctx.kind === 'discard' && !big && !hasKong && !player.followDealer && player.declaration === 'none') return
     const patternPoints = patterns.reduce((sum, p) => sum + p.points, 0)
     const uses =
@@ -278,7 +278,7 @@ export function discardWaits(player: Player): Array<{ index: number; waits: Wait
     .filter((entry) => entry.waits.length)
 }
 
-const SCENE_PATTERNS = new Set(['抢杠', '热炮', '杠开', '天胡', '地胡', '天胡／地胡', '报听', '原报', '素胡'])
+const SCENE_PATTERNS = new Set(['抢杠', '热炮', '杠上开花', '天胡', '地胡', '天胡／地胡', '报听', '原报', '素胡'])
 export const shapePoints = (value: HandValue) =>
   value.patterns
     .filter((pattern) => !SCENE_PATTERNS.has(pattern.name))
