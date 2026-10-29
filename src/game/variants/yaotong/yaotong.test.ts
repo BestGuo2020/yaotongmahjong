@@ -158,7 +158,7 @@ describe('幺筒：文档计分算例', () => {
     expect(amount(r, 1, 0, '鸡分')).toBe(4)
     expect(amount(r, 2, 0, '鸡分')).toBe(0)
   })
-  it('幺筒补杠继承责任，成功后不重复碰分；存杠不收杠分', () => {
+  it('幺筒转弯杠继承责任，成功后不重复碰分；存杠不收杠分', () => {
     const s = table()
     s.wall = []
     s.players[0] = player('234567m 66p 78s', {
@@ -370,7 +370,7 @@ describe('幺筒：抢杠、多响与点炮责任', () => {
     expect(amount(r, 3, 1, '见面礼')).toBe(0)
     expect(r.transfers.some((t) => t.account === '一般包牌赔付')).toBe(false)
   })
-  it('补杠幺筒被抢，保留原碰，不收成功杠分、不收四张见面礼', () => {
+  it('转弯杠幺筒被抢，保留原碰，不收成功杠分、不收四张见面礼', () => {
     const s = table()
     s.players[0] = player('147m 258p 369s 2s 1p', {
       drawn: YAO,

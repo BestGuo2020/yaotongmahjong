@@ -118,7 +118,7 @@ function event(
   kind: GameEvent['kind'],
   text: string,
   tile?: Tile,
-  details?: Pick<GameEvent, 'chicken' | 'rush' | 'afterKong'>,
+  details?: Pick<GameEvent, 'chicken' | 'rush' | 'afterKong' | 'kongKind'>,
   notify = true,
 ) {
   const value = { id: ++state.serial, seat, kind, text, tile, ...details }
@@ -321,7 +321,7 @@ function resolveResponses(state: GameState, flow?: EngineFlow) {
     meld.kind = 'added'
     meld.chicken = pending.tile === YAO ? (meld.pre ? 120 : 60) : isFixed(pending.tile) ? 10 : 0
     state.pending = null
-    event(state, pending.from, 'kong', '补杠', pending.tile)
+    event(state, pending.from, 'kong', '转弯杠', pending.tile, { kongKind: 'added' })
     advance(state, flow, 'after-added-kong', () => draw(state, pending.from, true))
     return
   }
@@ -359,7 +359,8 @@ function resolveResponses(state: GameState, flow?: EngineFlow) {
     if (!kong && isChicken(pending.tile)) p.chickenPeng.push(pending.tile)
     state.current = claimant
     state.phase = 'discard'
-    event(state, claimant, kong ? 'kong' : 'peng', kong ? '明杠' : '碰', pending.tile)
+    event(state, claimant, kong ? 'kong' : 'peng', kong ? '明杠' : '碰', pending.tile,
+      kong ? { kongKind: 'open' } : undefined)
     if (kong) advance(state, flow, 'after-open-kong', () => draw(state, claimant, true))
     else
       advance(state, flow, 'after-peng', () => {
@@ -493,7 +494,7 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
     if (meld) {
       if (!closeHuWindow(state)) return true
       state.pending = { kind: 'rob', tile: command.tile, from: seat, discard: null, options: {}, choices: {} }
-      if (flow) event(state, seat, 'kong-intent', '宣告补杠', command.tile)
+      if (flow) event(state, seat, 'kong-intent', '宣告转弯杠', command.tile, { kongKind: 'added' })
       advance(state, flow, 'before-rob', () => offerResponses(state, flow))
     } else {
       const kind = p.drawn === command.tile ? 'turn' : 'stored'
@@ -505,7 +506,7 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
         responsibility: 0,
         chicken: command.tile === YAO ? 60 : isFixed(command.tile) ? 10 : 0,
       })
-      event(state, seat, 'kong', kind === 'turn' ? '转弯杠' : '存杠', command.tile)
+      event(state, seat, 'kong', kind === 'turn' ? '转弯杠' : '存杠', command.tile, { kongKind: kind })
       draw(state, seat, true)
     }
     return true

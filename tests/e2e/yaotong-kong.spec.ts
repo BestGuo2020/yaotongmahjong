@@ -2,17 +2,17 @@ import { test, expect } from '@playwright/test'
 
 for (const theme of ['happyMahjong', 'llmAnime']) {
   for (const mobile of [false, true]) {
-    test(`${theme} ${mobile ? '手机横屏' : '桌面'}：转弯杠和补杠显示专属动作字`, async ({ page }) => {
+    test(`${theme} ${mobile ? '手机横屏' : '桌面'}：两种转弯杠显示统一动作字`, async ({ page }) => {
       await page.setViewportSize(mobile ? { width: 844, height: 390 } : { width: 1280, height: 720 })
       await page.goto(`/tests/e2e/fixtures/yaotong-kong.html?theme=${theme}`)
       await expect(page.getByRole('button', { name: '转弯杠', exact: true })).toBeEnabled({ timeout: 30000 })
-      for (const [name, type, seat] of [['转弯杠', 'concealed-gang', 0], ['补杠', 'added-gang', 1]] as const) {
+      for (const [name, type, seat] of [['转弯杠', 'concealed-gang', 0], ['碰后转弯杠', 'added-gang', 1]] as const) {
         await page.getByRole('combobox', { name: '开杠玩家' }).selectOption(String(seat))
         await page.getByRole('button', { name, exact: true }).click()
         const cue = page.locator(`.named-gang[data-action-type="${type}"][data-action-seat="${seat}"]`)
         await expect(cue).toBeVisible()
         const copy = cue.locator(theme === 'llmAnime' ? '.anime-action-copy strong' : 'span')
-        await expect(copy).toHaveText(name)
+        await expect(copy).toHaveText('转弯杠')
         await expect(copy).toHaveCSS('white-space', 'nowrap')
         await expect(cue).toHaveCount(0)
         await page.getByRole('button', { name: '清除', exact: true }).click()
@@ -26,7 +26,7 @@ test('成功开杠才出现对应天气，切换玩家与清除正确', async ({
   const canvas = page.locator('canvas.mahjong-scene')
   await expect(page.getByRole('button', { name: '明杠', exact: true })).toBeEnabled({ timeout: 30000 })
   await page.getByLabel('保留验收画面').check()
-  for (const [name, kind, seat] of [['明杠', 'tornado', 0], ['补杠', 'tornado', 1], ['转弯杠', 'rain', 2], ['存杠', 'rain', 3]] as const) {
+  for (const [name, kind, seat] of [['明杠', 'tornado', 0], ['碰后转弯杠', 'tornado', 1], ['转弯杠', 'rain', 2], ['存杠', 'rain', 3]] as const) {
     await page.getByRole('combobox', { name: '开杠玩家' }).selectOption(String(seat))
     await page.getByRole('button', { name, exact: true }).click()
     await expect(canvas).toHaveAttribute('data-kong-weather', JSON.stringify([{ seat, kind }]))

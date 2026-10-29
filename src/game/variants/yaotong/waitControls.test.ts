@@ -45,7 +45,7 @@ describe('弃牌观察间隔', () => {
     expect(s.players[0].melds[0].kind).toBe('peng')
     expect(s.players[1].river).toEqual([])
   })
-  it('补杠先留两秒观察，再正式成杠和补摸', async () => {
+  it('转弯杠先留两秒观察，再正式成杠和补摸', async () => {
     const { port, s } = setup(); port.local.mode.value = 'easy'
     s.players[0] = player('5m 147s 258p 369s 2p', { drawn: 4, melds: [meld(4, { from: 1 })] })
     port.userGang('m5')
@@ -250,7 +250,7 @@ describe('老手常驻等与每人每小局累计15秒', () => {
     expect(other.port.local.dispatch({ type: 'declareHu' })).toBe(false)
     expect(other.s.result).toBeNull()
   })
-  it('抢杠观察窗口可按等再胡，不会遗留原补杠计时器', async () => {
+  it('抢杠观察窗口可按等再胡，不会遗留原转弯杠计时器', async () => {
     const { port, s } = setup()
     s.current = 1
     s.players[1] = player('5m 147s 258p 369s 2p', { drawn: 4, melds: [meld(4, { from: 2 })] })

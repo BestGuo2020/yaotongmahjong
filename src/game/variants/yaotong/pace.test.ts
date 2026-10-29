@@ -140,7 +140,7 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     expect(PACE_MS.afterClaimGang + YAOTONG_AI_KONG_DISCARD_MS).toBeGreaterThan(KONG_WEATHER_DURATION)
   })
 
-  it('补杠先宣告，2000ms处理抢杠，再等600ms补牌；不重复播补杠声', async () => {
+  it('转弯杠先宣告，2000ms处理抢杠，再等600ms补牌；不重复播转弯杠声', async () => {
     const sound = vi.fn(),
       port = setup({ playSound: sound }),
       state = fixture()
@@ -161,7 +161,7 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     expect(state.wall.length).toBe(n)
     await vi.advanceTimersByTimeAsync(1)
     expect(state.wall.length).toBe(n - 1)
-    expect(sound.mock.calls.filter(([name]) => name === 'bugang.ogg')).toHaveLength(1)
+    expect(sound.mock.calls.filter(([name]) => name === 'zhuanwangang.ogg')).toHaveLength(1)
     expect(sound.mock.calls.some(([name]) => name === 'gang.ogg')).toBe(false)
   })
 

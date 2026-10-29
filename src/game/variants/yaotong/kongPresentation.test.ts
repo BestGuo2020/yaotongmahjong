@@ -13,7 +13,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(
 describe('幺筒开杠天气特效', () => {
   it.each([
     ['明杠', 'tornado', 'gang.ogg'],
-    ['补杠', 'tornado', 'bugang.ogg'],
+    ['碰后转弯杠', 'tornado', 'zhuanwangang.ogg'],
     ['转弯杠', 'rain', 'zhuanwangang.ogg'],
     ['存杠', 'rain', 'gang.ogg'],
   ] as const)('%s成功后才播放%s，刷新不重复、离桌清除', async (kind, expected, expectedKongSound) => {
@@ -25,7 +25,7 @@ describe('幺筒开杠天气特效', () => {
         state.current = 1
         state.players[1].hand.push(4)
         state.players[0] = player('555m 147s 258p 369s 2p')
-      } else if (kind === '补杠') {
+      } else if (kind === '碰后转弯杠') {
         state.players[0] = player('5m 147s 258p 369s 2p', { drawn: 4, melds: [meld(4, { from: 1 })] })
       } else state.players[0] = player('5555m 147s 258p 369s 2p', { drawn: kind === '转弯杠' ? 4 : 10 })
       port.local.state.value = state
@@ -35,8 +35,8 @@ describe('幺筒开杠天气特效', () => {
         await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS)
       } else port.userGang('m5')
       const action = port.tableActionEvent.value
-      expect(action?.label).toBe(kind === '补杠' || kind === '转弯杠' ? kind : undefined)
-      if (kind === '补杠') {
+      expect(action?.label).toBe(kind === '碰后转弯杠' || kind === '转弯杠' ? '转弯杠' : undefined)
+      if (kind === '碰后转弯杠') {
         expect(action?.type).toBe('added-gang')
         expect(port.tableView.value.kongWeather).toEqual([])
         expect(sound.mock.calls.some(([name]) => name === 'mingang_windy.wav')).toBe(false)
@@ -63,7 +63,7 @@ describe('幺筒开杠天气特效', () => {
     } finally { scope.stop() }
   })
 
-  it('补杠被抢胡时不出现龙卷风，也不播放成功杠的风声', async () => {
+  it('碰后转弯杠被抢胡时不出现龙卷风，也不播放成功杠的风声', async () => {
     const scope = effectScope(), sound = vi.fn()
     try {
       const port = scope.run(() => useYaotongPort({ playSound: sound }))!
@@ -72,7 +72,7 @@ describe('幺筒开杠天气特效', () => {
       state.players[1] = player('234567m 234s 66p 34m')
       port.local.state.value = state
       port.userGang('m5')
-      expect(port.tableActionEvent.value).toMatchObject({ type: 'added-gang', label: '补杠' })
+      expect(port.tableActionEvent.value).toMatchObject({ type: 'added-gang', label: '转弯杠' })
       await vi.advanceTimersByTimeAsync(YAOTONG_EXTENDED_REACTION_MS)
       expect(state.pending?.kind).toBe('rob')
       port.local.dispatch({ type: 'respond', action: 'hu' }, 1)
@@ -97,17 +97,17 @@ describe('幺筒开杠天气特效', () => {
     } finally { scope.stop() }
   })
 
-  it('碰牌、补杠宣告和未知事件均不触发天气', () => {
+  it('碰牌、碰后转弯杠宣告和未知事件均不触发天气', () => {
     for (const kind of ['peng', 'kong-intent', 'discard'] as const)
-      expect(kongWeatherKind({ id: 1, seat: 0, kind, text: '补杠' })).toBeNull()
+      expect(kongWeatherKind({ id: 1, seat: 0, kind, text: '碰后转弯杠' })).toBeNull()
     expect(kongWeatherKind({ id: 1, seat: 0, kind: 'kong', text: '未知杠' } as GameEvent)).toBeNull()
   })
 
-  it('杠报牌音效按规则区分：转弯杠、补杠独立，明杠和存杠用普通杠', () => {
+  it('杠报牌音效按规则区分：两种转弯杠统一，明杠和存杠用普通杠', () => {
     const base = { id: 1, seat: 0 as const, tile: 4 }
     expect(kongSoundFile({ ...base, kind: 'kong', text: '转弯杠' })).toBe('zhuanwangang.ogg')
-    expect(kongSoundFile({ ...base, kind: 'kong-intent', text: '宣告补杠' })).toBe('bugang.ogg')
-    expect(kongSoundFile({ ...base, kind: 'kong', text: '补杠' })).toBe('bugang.ogg')
+    expect(kongSoundFile({ ...base, kind: 'kong-intent', text: '宣告转弯杠', kongKind: 'added' })).toBe('zhuanwangang.ogg')
+    expect(kongSoundFile({ ...base, kind: 'kong', text: '转弯杠', kongKind: 'added' })).toBe('zhuanwangang.ogg')
     expect(kongSoundFile({ ...base, kind: 'kong', text: '明杠' })).toBe('gang.ogg')
     expect(kongSoundFile({ ...base, kind: 'kong', text: '存杠' })).toBe('gang.ogg')
   })

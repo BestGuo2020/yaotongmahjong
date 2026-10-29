@@ -128,7 +128,7 @@ function addConcealedHand(playerIndex) {
     const laidTiles = meldDisplayTiles(meld)
     const sourceTileIndex = meldSourceTileIndex({ ...meld, tiles: laidTiles }, playerIndex)
     const neutralMeld = Boolean(props.neutralPengOrientation && (meld.type === 'peng' || meld.added))
-    // 幺筒补杠的第四张接在同一行，副露带要多占一张牌宽。
+    // 幺筒碰后转弯杠的第四张接在同一行，副露带要多占一张牌宽。
     const meldSpan = laidTiles.reduce(
       (width, _, tileIndex) => width + (tileIndex === sourceTileIndex ? POINT_GAP_OFFSET : gap),
       0,
@@ -325,7 +325,7 @@ function addMelds(playerIndex) {
     const relativeSource = ['peng', 'gang', 'chi'].includes(meld.type) && Number.isInteger(meld.from)
       ? (meld.from - playerIndex + 4) % 4
       : -1
-    // 幺筒的碰不指向来源；补杠只是碰升级后的同一副露，也不能把来源指向带回来。
+    // 幺筒的碰不指向来源；碰后转弯杠只是碰升级后的同一副露，也不能把来源指向带回来。
     const neutralMeld = Boolean(props.neutralPengOrientation && (meld.type === 'peng' || meld.added))
     let sourcePlacement = null
     laidTiles.forEach((tileName, tileIndex) => {
@@ -382,7 +382,7 @@ function addMelds(playerIndex) {
       addedTransforms.set(`${playerIndex}/${meld.tile}`,{x:sourcePlacement.x+offset.x,y:.28,z:sourcePlacement.z+offset.z+TILE_LAYER_Z,rotation:sourcePlacement.rotation})
     }
     if (meld.added) {
-      // 幺筒补杠把第 4 张接在碰牌同一行末尾；其他玩法仍横摆在来源牌前侧，形成 T/L 形。
+      // 幺筒碰后转弯杠把第 4 张接在碰牌同一行末尾；其他玩法仍横摆在来源牌前侧，形成 T/L 形。
       let addedPosition: { x: number; z: number; rotation: number } | null = null
       if (neutralMeld) {
         const transform = meldTransform(playerIndex, meldTileCenter(trackOffset, TILE_GAP_OFFSET))

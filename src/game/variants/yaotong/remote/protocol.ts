@@ -18,6 +18,7 @@ import type {
 } from '../types'
 import { fromSharedTile } from '../sharedTile'
 import { retainHuWindow } from '../huWindow'
+import { eventKongKind } from '../kongPresentation'
 
 export interface YtMeldView {
   tile: string
@@ -116,6 +117,7 @@ export interface YtEventView {
   id: number
   seat: number
   kind: GameEvent['kind']
+  kongKind?: GameEvent['kongKind']
   text: string
   afterKong: boolean
   tile: string | null
@@ -308,7 +310,7 @@ function convertSettlement(
       base: transfer.base,
       multiplier: transfer.multiplier,
       amount: transfer.amount,
-      reason: transfer.reason,
+      reason: transfer.reason.replaceAll('补杠', '转弯杠'),
     })),
     values: Object.fromEntries(
       Object.entries(result.values).map(([seat, value]) => [
@@ -323,7 +325,8 @@ function convertEvent(event: YtEventView, mySeat: number): GameEvent {
     id: event.id,
     seat: toLocalSeat(event.seat, mySeat),
     kind: event.kind,
-    text: event.text,
+    text: event.text.replaceAll('补杠', '转弯杠'),
+    kongKind: eventKongKind(event) ?? undefined,
     afterKong: event.afterKong,
     tile: tile(event.tile) ?? undefined,
     chicken: event.chicken ?? undefined,

@@ -49,7 +49,7 @@ import { recordYaotongRound } from './replay'
 import { createYaotongRemoteRecorder } from './remote/replayRecorder'
 import type { ReplayRecorderHooks } from '../../replay/types'
 import { countsOf } from './tiles'
-import { kongSoundFile, kongWeatherKind, KONG_WEATHER_DURATION, REDUCED_KONG_WEATHER_DURATION, type KongWeatherCue } from './kongPresentation'
+import { eventKongKind, kongSoundFile, kongWeatherKind, KONG_WEATHER_DURATION, REDUCED_KONG_WEATHER_DURATION, type KongWeatherCue } from './kongPresentation'
 import {
   chickenMarks,
   chickenPerformance,
@@ -571,17 +571,18 @@ export function useYaotongPort(
       }, weather.duration)
     }
     const kongKey = `${event.seat}/${event.tile}`
+    const kongKind = eventKongKind(event)
     if (event.kind === 'kong-intent') declaredKongs.add(kongKey)
-    if (event.kind === 'kong' && event.text === '补杠' && declaredKongs.delete(kongKey)) return
+    if (event.kind === 'kong' && kongKind === 'added' && declaredKongs.delete(kongKey)) return
     const type: TableActionEvent['type'] | null =
       event.kind === 'peng'
         ? 'peng'
         : event.kind === 'kong-intent'
           ? 'added-gang'
           : event.kind === 'kong'
-            ? event.text === '补杠'
+            ? kongKind === 'added'
               ? 'added-gang'
-              : event.text === '明杠'
+              : kongKind === 'open'
                 ? 'discard-gang'
                 : 'concealed-gang'
             : null
@@ -592,10 +593,9 @@ export function useYaotongPort(
         local.state.value!.players[event.seat].melds.at(-1)?.from ?? null,
         toSharedTile(event.tile!),
         Math.max(0, local.state.value!.players[event.seat].melds.length - 1),
-        event.kind === 'kong-intent' || event.text === '补杠' ? '补杠'
-          : event.text === '转弯杠' ? '转弯杠' : undefined,
+        kongKind === 'added' || kongKind === 'turn' ? '转弯杠' : undefined,
       )
-      // 报牌音效按杠型区分：转弯杠、补杠各有独立配音，其余杠型沿用普通杠。
+      // 两种转弯杠共用报牌配音，动画仍按原杠型区分。
       const actionSound = event.kind === 'peng' ? 'peng.mp3' : kongSoundFile(event)
       if (performance?.kind === 'responsibility' || performance?.kind === 'peng') {
         // Keep the original action voice first; the short chicken cue follows its actual completion.

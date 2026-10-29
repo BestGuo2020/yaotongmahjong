@@ -141,6 +141,8 @@ export interface Settlement {
 }
 export interface GameEvent {
   afterKong?: boolean
+  /** 杠型独立于显示名称，碰后加杠与当次暗杠都称转弯杠。 */
+  kongKind?: KongKind
   id: number
   seat: Seat
   text: string
