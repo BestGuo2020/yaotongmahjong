@@ -1,5 +1,6 @@
 import type { GameEvent, GameState } from './types'
 import { isFixed, YAO } from './tiles'
+import { eventKongKind } from './kongPresentation'
 
 /** A presentation runs alongside the original turn timers; it never delays an action. */
 export const CHICKEN_PERFORMANCE_MS = 1800
@@ -55,7 +56,7 @@ export function chickenPerformance(event: GameEvent, state: GameState): ChickenP
       : null
   }
   // Only a successful exposed claim creates a new responsibility. An added kong inherits it.
-  if (event.tile !== YAO || (event.kind !== 'peng' && !(event.kind === 'kong' && event.text === '明杠')))
+  if (event.tile !== YAO || (event.kind !== 'peng' && !(event.kind === 'kong' && eventKongKind(event) === 'open')))
     return null
   const meld = state.players[event.seat].melds.find(
     (m) =>

@@ -502,7 +502,7 @@ export function useYaotongPort(
         current: () => isCurrentHand(game),
       })
     }
-    if (event.kind === 'peng' || (event.kind === 'kong' && event.text === '明杠')) {
+    if (event.kind === 'peng' || (event.kind === 'kong' && eventKongKind(event) === 'open')) {
       lastDiscard.value = null
       seatCue.value = null
       chickenPerformances.value = chickenPerformances.value.filter(
@@ -593,9 +593,9 @@ export function useYaotongPort(
         local.state.value!.players[event.seat].melds.at(-1)?.from ?? null,
         toSharedTile(event.tile!),
         Math.max(0, local.state.value!.players[event.seat].melds.length - 1),
-        kongKind === 'added' || kongKind === 'turn' ? '转弯杠' : undefined,
+        kongKind === 'added' ? '补杠' : undefined,
       )
-      // 两种转弯杠共用报牌配音，动画仍按原杠型区分。
+      // 动作字与报牌只区分杠和补杠，动画仍按原杠型区分。
       const actionSound = event.kind === 'peng' ? 'peng.mp3' : kongSoundFile(event)
       if (performance?.kind === 'responsibility' || performance?.kind === 'peng') {
         // Keep the original action voice first; the short chicken cue follows its actual completion.

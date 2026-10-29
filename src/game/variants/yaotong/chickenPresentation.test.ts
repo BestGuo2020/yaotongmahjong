@@ -57,7 +57,7 @@ describe('小鸡动作来自实际规则事件与公开归属', () => {
     expect(chickenMarks(state, 3)).toEqual({ rushCount: 0, responsibilityCount: 1 })
     expect(chickenMarks(state, 0)).toEqual({ rushCount: 0, responsibilityCount: 0 })
     expect(chickenPerformance({ ...event, kind: 'kong-intent' }, state)).toBeNull()
-    expect(chickenPerformance({ ...event, kind: 'kong', text: '转弯杠' }, state)).toBeNull()
+    expect(chickenPerformance({ ...event, kind: 'kong', text: '补杠', kongKind: 'added' }, state)).toBeNull()
     expect(chickenPerformance({ ...event, tile: 18 }, state)).toBeNull()
     state.result = settle(state, { kind: 'penalty', offender: 0 })
     expect(chickenPerformance(event, state)).toBeNull()

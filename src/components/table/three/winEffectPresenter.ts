@@ -107,7 +107,7 @@ function robbedKongSourceTransform(effect: WinEffect) {
     const relativeSource = ['peng', 'gang', 'chi'].includes(meld.type) && Number.isInteger(meld.from)
       ? (meld.from - playerIndex + 4) % 4
       : -1
-    // 幺筒的碰与转弯杠都不指向来源，抢杠飞牌的起点也要落在同一张平放的第四张上。
+    // 幺筒的碰与补杠都不指向来源，抢杠飞牌的起点也要落在同一张平放的第四张上。
     const neutralMeld = Boolean(props.neutralPengOrientation && (meld.type === 'peng' || meld.added))
     let sourcePlacement: TableTransform | null = null
     laidTiles.forEach((_, tileIndex) => {
@@ -131,7 +131,7 @@ function robbedKongSourceTransform(effect: WinEffect) {
     })
     if (meldIndex === effect.robbedKongMeldIndex) {
       if (neutralMeld) {
-        // 幺筒转弯杠的第四张接在碰牌同一行，飞牌起点取空出来的第四个槽位。
+        // 幺筒补杠的第四张接在碰牌同一行，飞牌起点取空出来的第四个槽位。
         const transform = meldTransform(playerIndex, meldTileCenter(trackOffset, TABLE_LAYOUT.tilePitch))
         return {
           position: new THREE.Vector3(transform.x, .28, transform.z + TILE_LAYER_Z),

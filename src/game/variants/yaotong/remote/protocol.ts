@@ -310,7 +310,7 @@ function convertSettlement(
       base: transfer.base,
       multiplier: transfer.multiplier,
       amount: transfer.amount,
-      reason: transfer.reason.replaceAll('补杠', '转弯杠'),
+      reason: transfer.reason.replace(/转弯杠|明杠|暗杠|存杠/g, '杠'),
     })),
     values: Object.fromEntries(
       Object.entries(result.values).map(([seat, value]) => [
@@ -321,12 +321,14 @@ function convertSettlement(
 }
 
 function convertEvent(event: YtEventView, mySeat: number): GameEvent {
+  const kongKind = eventKongKind(event) ?? undefined
   return {
     id: event.id,
     seat: toLocalSeat(event.seat, mySeat),
     kind: event.kind,
-    text: event.text.replaceAll('补杠', '转弯杠'),
-    kongKind: eventKongKind(event) ?? undefined,
+    text: event.kind === 'kong-intent' ? '宣告补杠'
+      : event.kind === 'kong' ? kongKind === 'added' ? '补杠' : '杠' : event.text,
+    kongKind,
     afterKong: event.afterKong,
     tile: tile(event.tile) ?? undefined,
     chicken: event.chicken ?? undefined,

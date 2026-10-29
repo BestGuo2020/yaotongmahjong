@@ -42,12 +42,12 @@ describe('固定鸡碰牌有独立碰鸡动画，不产生责任关系', () => {
       expect(responsibilityPayments(settle(state, { kind: 'win' }).transfers)).toEqual([])
     },
   )
-  it('普通牌、杠、转弯杠意图及包牌终局不触发碰鸡动画', () => {
+  it('普通牌、杠、补杠意图及包牌终局不触发碰鸡动画', () => {
     const ordinary = peng(5)
     expect(chickenPerformance(ordinary.events.find((e) => e.kind === 'peng')!, ordinary)).toBeNull()
     const state = peng(18),
       event = state.events.find((e) => e.kind === 'peng')!
-    for (const text of ['明杠', '转弯杠', '存杠'])
+    for (const text of ['明杠', '补杠', '存杠'])
       expect(chickenPerformance({ ...event, kind: 'kong', text }, state)).toBeNull()
     expect(chickenPerformance({ ...event, kind: 'kong-intent' }, state)).toBeNull()
     state.result = settle(state, { kind: 'penalty', offender: 0 })

@@ -119,7 +119,7 @@ export function chickenBreakdown(
           ? isFixed(m.tile) && m.chicken === 8
             ? '首碰'
             : '碰'
-          : { open: '明杠', turn: '转弯杠', stored: '存杠', added: '转弯杠' }[m.kind]
+          : { open: '杠', turn: '杠', stored: '杠', added: '补杠' }[m.kind]
       add(m.tile, `${m.pre && m.tile === YAO ? '预冲' : ''}${label}`, 1, m.chicken)
     } else if (!exposedOnly && m.tile === flipped) add(m.tile, '副露翻鸡', m.kind === 'peng' ? 3 : 4, 1)
   }
@@ -342,7 +342,7 @@ export function settle(state: GameState, ending: Ending): Settlement {
             ready[owner] ? owner : from,
             '杠分',
             m.tile === YAO ? 20 : 5,
-            `${ready[owner] ? '' : '未听反赔：'}${tileName(m.tile)}${({ open: '明杠', turn: '转弯杠', added: '转弯杠' } as const)[m.kind]}`,
+            `${ready[owner] ? '' : '未听反赔：'}${tileName(m.tile)}${({ open: '杠', turn: '杠', added: '补杠' } as const)[m.kind]}`,
           )
         }
       }

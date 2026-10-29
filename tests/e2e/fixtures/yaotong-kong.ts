@@ -39,10 +39,10 @@ createApp({ setup() {
       state.current = from
       state.players[from].hand.push(4)
       state.players[seat.value] = player('555m 147s 258p 369s 2p', { name })
-    } else if (kind === '碰后转弯杠' || kind === '抢杠') {
+    } else if (kind === '补杠' || kind === '抢杠') {
       state.players[seat.value] = player('5m 147s 258p 369s 2p', { name, drawn: 4, melds: [meld(4, { from })] })
       if (kind === '抢杠') state.players[from] = player('234567m 234s 66p 34m', { name: state.players[from].name })
-    } else state.players[seat.value] = player('5555m 147s 258p 369s 2p', { name, drawn: kind === '转弯杠' ? 4 : 10 })
+    } else state.players[seat.value] = player('5555m 147s 258p 369s 2p', { name, drawn: kind === '暗杠' ? 4 : 10 })
     game.local.state.value = state
     game.local.paused.value = kind === 'idle'
     if (kind === 'idle') return
@@ -62,7 +62,7 @@ createApp({ setup() {
     h('nav', { style: 'position:fixed;left:10px;top:8px;z-index:90;display:flex;gap:6px;align-items:center' }, [
       h('select', { 'aria-label': '开杠玩家', value: seat.value, onChange: (event: Event) => { seat.value = Number((event.target as HTMLSelectElement).value) } },
         ['你', '听风', '观山', '望月'].map((name, value) => h('option', { value }, name))),
-      ...['明杠', '碰后转弯杠', '转弯杠', '存杠', '抢杠'].map(kind => h('button', { disabled: !ready.value, onClick: () => prepare(kind) }, kind)),
+      ...['明杠', '补杠', '暗杠', '存杠', '抢杠'].map(kind => h('button', { disabled: !ready.value, onClick: () => prepare(kind) }, kind)),
       h('label', [h('input', { type: 'checkbox', checked: hold.value, onChange: (event: Event) => { hold.value = (event.target as HTMLInputElement).checked; if (!hold.value) captured.value = [] } }), '保留验收画面']),
       h('input', { type: 'range', 'aria-label': '动画进度', min: 10, max: 90, value: previewProgress.value,
         style: 'width:90px', onInput: (event: Event) => { previewProgress.value = Number((event.target as HTMLInputElement).value) } }),
