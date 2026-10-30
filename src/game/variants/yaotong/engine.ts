@@ -506,7 +506,7 @@ export function act(state: GameState, seat: Seat, command: Command, flow?: Engin
         responsibility: 0,
         chicken: command.tile === YAO ? 60 : isFixed(command.tile) ? 10 : 0,
       })
-      event(state, seat, 'kong', '杠', command.tile, { kongKind: kind })
+      event(state, seat, 'kong', '暗杠', command.tile, { kongKind: kind })
       draw(state, seat, true)
     }
     return true

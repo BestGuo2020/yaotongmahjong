@@ -14,8 +14,8 @@ describe('幺筒开杠天气特效', () => {
   it.each([
     ['明杠', 'tornado', 'gang.ogg'],
     ['补杠', 'tornado', 'bugang.ogg'],
-    ['暗杠', 'rain', 'gang.ogg'],
-    ['存杠', 'rain', 'gang.ogg'],
+    ['暗杠', 'rain', 'angang.ogg'],
+    ['存杠', 'rain', 'angang.ogg'],
   ] as const)('%s成功后才播放%s，刷新不重复、离桌清除', async (kind, expected, expectedKongSound) => {
     const scope = effectScope(), sound = vi.fn()
     try {
@@ -35,7 +35,7 @@ describe('幺筒开杠天气特效', () => {
         await vi.advanceTimersByTimeAsync(YAOTONG_REACTION_MS)
       } else port.userGang('m5')
       const action = port.tableActionEvent.value
-      expect(action?.label).toBe(kind === '补杠' ? '补杠' : undefined)
+      expect(action?.label).toBe(kind === '补杠' ? '补杠' : kind === '明杠' ? undefined : '暗杠')
       if (kind === '补杠') {
         expect(action?.type).toBe('added-gang')
         expect(port.tableView.value.kongWeather).toEqual([])
@@ -103,10 +103,11 @@ describe('幺筒开杠天气特效', () => {
     expect(kongWeatherKind({ id: 1, seat: 0, kind: 'kong', text: '未知杠' } as GameEvent)).toBeNull()
   })
 
-  it('明杠、暗杠及存杠报杠，补杠在宣告和成功事件中都只选补杠语音', () => {
+  it('杠、暗杠、补杠使用各自语音，存杠沿用暗杠语音', () => {
     const base = { id: 1, seat: 0 as const, tile: 4 }
-    for (const kongKind of ['open', 'turn', 'stored'] as const)
-      expect(kongSoundFile({ ...base, kind: 'kong', text: '杠', kongKind })).toBe('gang.ogg')
+    expect(kongSoundFile({ ...base, kind: 'kong', text: '杠', kongKind: 'open' })).toBe('gang.ogg')
+    for (const kongKind of ['turn', 'stored'] as const)
+      expect(kongSoundFile({ ...base, kind: 'kong', text: '暗杠', kongKind })).toBe('angang.ogg')
     expect(kongSoundFile({ ...base, kind: 'kong-intent', text: '宣告补杠', kongKind: 'added' })).toBe('bugang.ogg')
     expect(kongSoundFile({ ...base, kind: 'kong', text: '补杠', kongKind: 'added' })).toBe('bugang.ogg')
   })

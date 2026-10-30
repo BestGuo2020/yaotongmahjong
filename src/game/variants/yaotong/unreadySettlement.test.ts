@@ -27,7 +27,7 @@ describe('第3点确认：未听反赔杠分，露出固定鸡和幺筒赔原档
         if (kind === 'stored' || (!ownerReady && !otherReady)) expect(pair).toEqual([])
         else expect(pair).toEqual([expect.objectContaining({
           from: ownerReady ? 1 : 0, to: ownerReady ? 0 : 1, amount: tile === YAO ? 20 : 5,
-          reason: `${ownerReady ? '' : '未听反赔：'}${tile === YAO ? '一筒' : '五万'}${({ open: '杠', turn: '杠', added: '补杠' } as const)[kind]}`,
+          reason: `${ownerReady ? '' : '未听反赔：'}${tile === YAO ? '一筒' : '五万'}${({ open: '杠', turn: '暗杠', added: '补杠' } as const)[kind]}`,
         })])
         if (kind === 'open') expect(r.transfers.filter(t => t.account === '杠分')
           .every(t => (t.from === 0 && t.to === 1) || (t.from === 1 && t.to === 0))).toBe(true)
@@ -78,7 +78,7 @@ describe('第3点确认：未听反赔杠分，露出固定鸡和幺筒赔原档
       from: 0, to: 1, account: '鸡分', base: 1, reason: '五万·翻牌鸡 1分',
     }))
     expect(r.transfers.filter(t => t.from === 0 && t.to === 1 && t.account === '杠分'))
-      .toEqual([expect.objectContaining({ base: 5, amount: 5, reason: '未听反赔：八筒杠' })])
+      .toEqual([expect.objectContaining({ base: 5, amount: 5, reason: '未听反赔：八筒暗杠' })])
     expect(r.transfers.some(t => t.from === 0 && t.to === 2)).toBe(false)
     expect(r.deltas.reduce((a, b) => a + b, 0)).toBe(0)
   })

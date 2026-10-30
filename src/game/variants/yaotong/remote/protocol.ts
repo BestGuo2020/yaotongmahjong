@@ -310,7 +310,7 @@ function convertSettlement(
       base: transfer.base,
       multiplier: transfer.multiplier,
       amount: transfer.amount,
-      reason: transfer.reason.replace(/转弯杠|明杠|暗杠|存杠/g, '杠'),
+      reason: transfer.reason.replace(/转弯杠|存杠/g, '暗杠').replaceAll('明杠', '杠'),
     })),
     values: Object.fromEntries(
       Object.entries(result.values).map(([seat, value]) => [
@@ -327,7 +327,8 @@ function convertEvent(event: YtEventView, mySeat: number): GameEvent {
     seat: toLocalSeat(event.seat, mySeat),
     kind: event.kind,
     text: event.kind === 'kong-intent' ? '宣告补杠'
-      : event.kind === 'kong' ? kongKind === 'added' ? '补杠' : '杠' : event.text,
+      : event.kind === 'kong' ? kongKind === 'added' ? '补杠'
+        : kongKind === 'turn' || kongKind === 'stored' ? '暗杠' : '杠' : event.text,
     kongKind,
     afterKong: event.afterKong,
     tile: tile(event.tile) ?? undefined,

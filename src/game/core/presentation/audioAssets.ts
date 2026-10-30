@@ -11,6 +11,7 @@ export const EFFECT_AUDIO_ASSETS = [
     'game_start',
     'peng',
     'gang',
+    'angang',
     'zimo',
     'chihu',
     'ting',

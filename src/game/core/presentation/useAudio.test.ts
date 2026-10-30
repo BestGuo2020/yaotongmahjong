@@ -77,6 +77,7 @@ describe('useAudio LLM 语音播放', () => {
   it.each([
     ['hu.mp3', 'chihu.ogg'],
     ['game_start.mp3', 'game_start.ogg'],
+    ['angang.mp3', 'angang.ogg'],
   ])('%s uses its Ogg asset and waits for ended; removed sounds finish immediately', async (name, file) => {
     const audio = useAudio()
     let completed = false

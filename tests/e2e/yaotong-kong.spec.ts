@@ -1,8 +1,24 @@
 import { test, expect } from '@playwright/test'
 
+test('用户提供的暗杠音效可加载并在浏览器解码', async ({ page }) => {
+  await page.goto('/tests/e2e/fixtures/yaotong-kong.html')
+  const decoded = await page.evaluate(async () => {
+    const response = await fetch('/audio/sounds/angang.ogg')
+    if (!response.ok) throw new Error(`暗杠音效加载失败：${response.status}`)
+    const context = new AudioContext()
+    try {
+      const buffer = await context.decodeAudioData(await response.arrayBuffer())
+      return { duration: buffer.duration, channels: buffer.numberOfChannels }
+    } finally { await context.close() }
+  })
+  expect(decoded.channels).toBe(1)
+  expect(decoded.duration).toBeGreaterThan(1)
+  expect(decoded.duration).toBeLessThan(1.2)
+})
+
 for (const theme of ['happyMahjong', 'llmAnime']) {
   for (const mobile of [false, true]) {
-    test(`${theme} ${mobile ? '手机横屏' : '桌面'}：明暗杠及存杠显示杠，补杠显示补杠`, async ({ page }) => {
+    test(`${theme} ${mobile ? '手机横屏' : '桌面'}：分别显示杠、暗杠和补杠，存杠显示暗杠`, async ({ page }) => {
       await page.setViewportSize(mobile ? { width: 844, height: 390 } : { width: 1280, height: 720 })
       await page.goto(`/tests/e2e/fixtures/yaotong-kong.html?theme=${theme}`)
       await expect(page.getByRole('button', { name: '暗杠', exact: true })).toBeEnabled({ timeout: 30000 })
@@ -13,8 +29,8 @@ for (const theme of ['happyMahjong', 'llmAnime']) {
         const cue = page.locator(`.action-gang[data-action-type="${type}"][data-action-seat="${seat}"]`)
         await expect(cue).toBeVisible()
         const copy = cue.locator(theme === 'llmAnime' ? '.anime-action-copy strong' : 'span')
-        await expect(copy).toHaveText(name === '补杠' ? '补杠' : '杠')
-        if (name === '补杠') await expect(copy).toHaveCSS('white-space', 'nowrap')
+        await expect(copy).toHaveText(name === '补杠' ? '补杠' : name === '明杠' ? '杠' : '暗杠')
+        if (name !== '明杠') await expect(copy).toHaveCSS('white-space', 'nowrap')
         await expect(cue).toHaveCount(0)
         await page.getByRole('button', { name: '清除', exact: true }).click()
       }

@@ -32,6 +32,7 @@ describe('Ogg Vorbis sound library', () => {
     ['game_start.wav', 'sounds/game_start.ogg'],
     ['1p.mp3', 'sounds/1p.ogg'],
     ['peng.wav', 'sounds/peng.ogg'],
+    ['angang.mp3', 'sounds/angang.ogg'],
     ['dice.mp3', 'sounds/touzi.ogg'],
     ['deal.mp3', 'sounds/fapai.ogg'],
     ['hu.mp3', 'sounds/chihu.ogg'],

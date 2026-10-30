@@ -3,6 +3,7 @@ import type { GameEvent, KongKind } from './types'
 export const KONG_WEATHER_DURATION = 2200
 export const REDUCED_KONG_WEATHER_DURATION = 600
 export const DEFAULT_KONG_SOUND = 'gang.ogg'
+export const CONCEALED_KONG_SOUND = 'angang.ogg'
 export const ADDED_KONG_SOUND = 'bugang.ogg'
 export interface KongWeatherCue {
   id: number
@@ -36,11 +37,12 @@ export function kongWeatherKind(event: GameEvent): KongWeatherCue['kind'] | null
 }
 
 /**
- * 明杠、暗杠（含存杠）统一播“杠”，碰后加第四张播“补杠”。
+ * 明杠播“杠”，暗杠（含存杠）播“暗杠”，碰后加第四张播“补杠”。
  * 碰后加第四张在宣告（kong-intent）时播报，成功事件不再重复播放。
  */
 export function kongSoundFile(event: GameEvent): string {
   const kind = eventKongKind(event)
   if (kind === 'added') return ADDED_KONG_SOUND
+  if (kind === 'turn' || kind === 'stored') return CONCEALED_KONG_SOUND
   return DEFAULT_KONG_SOUND
 }
