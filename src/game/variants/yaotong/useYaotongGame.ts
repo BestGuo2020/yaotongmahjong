@@ -29,7 +29,7 @@ export const YAOTONG_WAIT_BUDGET_MS = 15000
 export interface YaotongExternalAuthority {
   send(command: Command): void
   nextRound(): void
-  leave(): void
+  leave(finishedMatchId?: string): void
   openingDone(round: number): void
   auto(enabled: boolean): void
   /** 老手“等”开始/结束；服务端按实际等待时长扣每小局 15 秒额度。 */
@@ -218,12 +218,13 @@ export function useYaotongGame(options: {
   function leave() {
     showingSettlement.value = false
     if (remote) {
+      const finishedMatchId = state.value?.result?.finished ? state.value.remoteMatchId : undefined
       endHold(true)
-      external!.leave()
       state.value = null
       selected.value = -1
-      autoplay.value = false
+      if (finishedMatchId === undefined) autoplay.value = false
       paused.value = false
+      external!.leave(finishedMatchId)
       return
     }
     endHold()

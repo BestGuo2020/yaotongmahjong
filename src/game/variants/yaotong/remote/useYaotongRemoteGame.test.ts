@@ -348,6 +348,55 @@ describe('useYaotongRemoteGame', () => {
     } finally { scope.stop() }
   })
 
+  it.each([false, true])('终局返回原房间，保留座位并可再开一场（新场快照已到: %s）', async (queued) => {
+    const scope = effectScope()
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        socketFactory: () => (socket = new FakeSocket()),
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      const finished = snapshot({ matchFinished: true, roundResult: {
+        kind: 'draw', winners: [], source: null, winKind: null, tile: null, offender: null,
+        reason: '荒庄', indicator: null, chicken: null, ready: [false, false, false, false],
+        deltas: [0, 0, 0, 0], nextDealer: 0, finished: true, transfers: [], values: {},
+      } })
+      finished.view.phase = 'settled'
+      socket.server(finished)
+      game.inner.autoplay.value = true
+
+      const next = snapshot({ matchId: 'M2', opening: { dice: [1, 2], wallSide: 0, reservedStacks: 0 } })
+      if (queued) {
+        game.inner.showingSettlement.value = true
+        socket.server(next)
+        expect(game.inner.state.value?.remoteMatchId).toBe('M1')
+      }
+
+      game.port!.returnToLobby()
+      expect(api.leaveRoom).not.toHaveBeenCalled()
+      expect(game.roomId.value).toBe('ABC123')
+      expect(game.mySeat.value).toBe(0)
+      expect(game.storedSession.value?.rejoinCode).toBe('CODE')
+      expect(game.inner.autoplay.value).toBe(true)
+      expect(socket.readyState).toBe(FakeSocket.OPEN)
+
+      // 重连或迟到的终局消息不能把用户从房间面板拉回排名。
+      socket.server(finished)
+      socket.server({ kind: 'match_finished' })
+      expect(game.inner.state.value).toBeNull()
+      expect(game.sessionStatus.value).toBe('lobby')
+
+      if (!queued) {
+        await game.startMatch()
+        expect(api.startRoom).toHaveBeenCalledWith('ABC123', undefined, 'wakudemo-a')
+        socket.server(next)
+      }
+      await Promise.resolve()
+      expect(game.inner.state.value?.remoteMatchId).toBe('M2')
+      expect(game.pendingOpeningRound.value).toBe(1)
+    } finally { scope.stop() }
+  })
+
   it('waits for terminal faces and freezes the terminal table until continue', async () => {
     const scope = effectScope()
     const game = scope.run(() => useYaotongRemoteGame({ createPort: false,

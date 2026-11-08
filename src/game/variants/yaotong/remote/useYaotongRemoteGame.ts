@@ -86,6 +86,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   let lastOpeningKey = ''
   let completedOpeningKey = ''
   let pendingSnapshot: YtSnapshot | null = null
+  let returnedMatchId: string | undefined
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
   function saveSession() {
@@ -125,6 +126,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     }
     if (kind === 'yt_snapshot') {
       const snapshot = message as YtSnapshot
+      if (snapshot.matchFinished && returnedMatchId === (snapshot.matchId ?? snapshot.roomId)) return
       if (!hasCompleteSettlementHands(snapshot)) {
         // 旧服务或不完整终局包不能让三家的牌背消失，也不能冲掉已收到的终局牌面。
         if (!inner.showingSettlement.value) inner.paused.value = true
@@ -187,6 +189,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       return
     }
     if (kind === 'match_finished') {
+      if (returnedMatchId !== undefined && !inner.state.value) return
       sessionStatus.value = 'finished'
       roomStatus.value = 'finished'
       waitingNextRound.value = false
@@ -250,7 +253,25 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
         // 仅发送成功才禁用按钮；重连快照会恢复服务端的实际确认状态。
         if (socket.send({ kind: 'continue', round: currentRound.value })) waitingNextRound.value = true
       },
-      leave: () => { void leaveRoom() },
+      leave: (finishedMatchId) => {
+        if (finishedMatchId === undefined) {
+          void leaveRoom()
+          return
+        }
+        returnedMatchId = finishedMatchId
+        sessionStatus.value = 'lobby'
+        waitingNextRound.value = false
+        pendingOpeningRound.value = null
+
+        const nextSnapshot = pendingSnapshot
+        pendingSnapshot = null
+        if (nextSnapshot) {
+          // 房主可能已经开了下一场，等结算页完成复位后再处理新开局。
+          queueMicrotask(() => {
+            if (roomId.value === nextSnapshot.roomId && !inner.state.value) handleMessage(nextSnapshot)
+          })
+        }
+      },
       openingDone: (round) => {
         socket.send({ kind: 'opening_done', round })
       },
@@ -349,6 +370,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     lastOpeningKey = ''
     completedOpeningKey = ''
     pendingSnapshot = null
+    returnedMatchId = undefined
     inner.state.value = null
     inner.showingSettlement.value = false
     inner.autoplay.value = false
