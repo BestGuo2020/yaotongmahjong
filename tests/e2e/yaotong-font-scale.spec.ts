@@ -20,10 +20,96 @@ test('手机系统双倍字体下实际入口与牌桌顶部控件可用', async
   await page.locator('.start-button').click()
   await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
   await expect(page.locator('.game-table-hud canvas')).toBeVisible({ timeout: 30000 })
-  for (const name of ['退出对局', '规则']) await expect(page.getByRole('button', { name: new RegExp(name) })).toBeInViewport({ ratio: 1 })
+  for (const name of ['切换牌桌主题', '退出对局', '声音设置', '查看规则']) {
+    const button = page.getByRole('button', { name, exact: true })
+    await expect(button).toBeInViewport({ ratio: 1 })
+    await expect(button.locator('svg[aria-hidden="true"]')).toBeVisible()
+    const geometry = await button.evaluate(element => {
+      const { width, height } = element.getBoundingClientRect()
+      const frame = getComputedStyle(element, '::before')
+      return { width, height, frameWidth: frame.width, frameHeight: frame.height, radius: frame.borderRadius }
+    })
+    expect(geometry).toEqual({ width: 44, height: 44, frameWidth: '32px', frameHeight: '32px', radius: '8px' })
+  }
   await noClipping(page.locator('.round-info'))
   await page.screenshot({ path: 'tmp/os-font-real-table-2.png' })
 })
+
+for (const { name, viewport, insets, theme } of [
+  { name: 'iPhone mini', viewport: { width: 812, height: 327 }, insets: { left: 50, right: 50, bottom: 21, top: 0 }, theme: 'jade' },
+  { name: 'vivo X200 Pro mini', viewport: { width: 844, height: 320 }, insets: { left: 32, right: 16, bottom: 20, top: 0 }, theme: 'happyMahjong' },
+]) {
+  test(`${name} 矮横屏双倍字号下按钮固定为48，胡法可读且不遮手牌`, async ({ page, context }) => {
+    await page.setViewportSize(viewport)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto(`/tests/e2e/fixtures/yaotong-guidance.html?scenario=hu-crowded&theme=${theme}`)
+    const cdp = await context.newCDPSession(page)
+    await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets })
+    const row = page.locator('.turn-action-row')
+    const actions = row.locator('button.action')
+    const icons = actions.locator('svg.table-control-icon')
+    const laiziMark = page.locator('.hand-rack .mahjong-tile.laizi .joker-mark').first()
+    await expect(actions).toHaveCount(8, { timeout: 30000 })
+    await expect(icons).toHaveCount(5)
+    await expect(laiziMark).toHaveText('癞')
+    const iconSizes = () => icons.evaluateAll(elements => elements.map(element => {
+      const { width, height } = element.getBoundingClientRect()
+      return { width, height }
+    }))
+
+    await cdp.send('Emulation.setEmulatedOSTextScale', { scale: 1 })
+    const standardIcons = await iconSizes()
+    const standardMarkFontSize = await laiziMark.evaluate(element => getComputedStyle(element).fontSize)
+    await cdp.send('Emulation.setEmulatedOSTextScale', { scale: 2 })
+    await expect(page.locator('html')).toHaveCSS('text-size-adjust', '200%')
+    expect(await iconSizes()).toEqual(standardIcons)
+    await expect(laiziMark).toHaveCSS('font-size', standardMarkFontSize)
+
+    const timer = row.locator('.turn-timer')
+    await expect(timer).toHaveText('20')
+    await expect(timer).toBeInViewport({ ratio: 1 })
+    await noClipping(timer)
+    const timerBox = (await timer.boundingBox())!
+    const firstAction = (await actions.first().boundingBox())!
+    expect(timerBox.height).toBe(firstAction.height)
+    expect(timerBox.y).toBe(firstAction.y)
+    const opponent = (await page.locator('.seat-top .avatar-wrap').boundingBox())!
+    const hand = await page.locator('.hand-rack .hand-tile-slot').evaluateAll(tiles => {
+      const boxes = tiles.map(tile => tile.getBoundingClientRect())
+      return { top: Math.min(...boxes.map(box => box.top)), bottom: Math.max(...boxes.map(box => box.bottom)) }
+    })
+    const rowBox = (await row.boundingBox())!
+    expect(rowBox.y).toBeGreaterThanOrEqual(opponent.y + opponent.height)
+    expect(rowBox.y + rowBox.height).toBeLessThanOrEqual(hand.top)
+    const handBottomGap = viewport.height - insets.bottom - hand.bottom
+    expect(handBottomGap).toBeGreaterThanOrEqual(12)
+    expect(handBottomGap).toBeLessThanOrEqual(14)
+    for (const action of await actions.all()) {
+      await expect(action).toBeInViewport({ ratio: 1 })
+      const box = (await action.boundingBox())!
+      expect(box.x).toBeGreaterThanOrEqual(insets.left)
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width - insets.right)
+      expect(box.width).toBe(48)
+      expect(box.height).toBe(48)
+      await noClipping(action)
+    }
+
+    const labels = row.locator('.hu-plan-label > span')
+    await expect(labels).toHaveText(['双龙七', '龙七对', '硬胡'])
+    for (const label of await labels.all()) {
+      await expect(label).toBeVisible()
+      expect(await label.evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(12)
+    }
+    await expect(row.locator('.hu-plan .action-detail')).toHaveText(['本0·赖2', '本2·赖0'])
+
+    await row.getByRole('button', { name: '报听', exact: true }).tap()
+    const armed = row.getByRole('button', { name: '取消报听', exact: true })
+    await expect(armed).toHaveAttribute('aria-pressed', 'true')
+    const box = (await armed.boundingBox())!
+    expect(box.width).toBe(48)
+    expect(box.height).toBe(48)
+  })
+}
 
 for (const theme of ['jade', 'rosewood', 'happyMahjong', 'llm', 'llmAnime']) {
 for (const scale of theme === 'jade' ? [.85, 1, 1.3, 2] : [2]) {

@@ -28,7 +28,38 @@ export const EFFECT_AUDIO_ASSETS = [
     'zhuanwangang',
   ].map((name) => `sounds/${name}.ogg`),
 ] as const
-export const AUDIO_ASSETS = [...EFFECT_AUDIO_ASSETS, DEFAULT_BGM_ASSET, READY_BGM_ASSET] as const
+/** 幺筒快捷语男声（豆包 TTS 2.0 预生成）；按需播放，不加入启动预加载。 */
+export const QUICK_CHAT_AUDIO_ASSETS = [
+  'sounds/chat-follow.ogg',
+  'sounds/chat-listen.ogg',
+  'sounds/chat-draw.ogg',
+  'sounds/chat-hurry.ogg',
+  'sounds/chat-praise.ogg',
+  'sounds/chat-think.ogg',
+  'sounds/chat-hello.ogg',
+  'sounds/chat-stay.ogg',
+  'sounds/chat-let-draw.ogg',
+  'sounds/chat-feed-peng.ogg',
+  'sounds/chat-hurt.ogg',
+  'sounds/chat-oops-hu.ogg',
+] as const
+/** 互动道具音效：飞掷与番茄/鸡蛋/平底锅取自欢乐麻将；香蕉皮为拟音。 */
+export const EMOTE_AUDIO_ASSETS = [
+  'sounds/emote-throw.ogg',
+  'sounds/emote-tomato.ogg',
+  'sounds/emote-egg.ogg',
+  'sounds/emote-pan.ogg',
+  'sounds/emote-banana.ogg',
+  'sounds/emote-kiss.ogg',
+  'sounds/emote-like.ogg',
+] as const
+export const AUDIO_ASSETS = [
+  ...EFFECT_AUDIO_ASSETS,
+  ...QUICK_CHAT_AUDIO_ASSETS,
+  ...EMOTE_AUDIO_ASSETS,
+  DEFAULT_BGM_ASSET,
+  READY_BGM_ASSET,
+] as const
 const available = new Set<string>(AUDIO_ASSETS)
 const aliases: Readonly<Record<string, string>> = {
   'bg.ogg': DEFAULT_BGM_ASSET,

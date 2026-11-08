@@ -19,6 +19,8 @@ import type {
 import { fromSharedTile } from '../sharedTile'
 import { retainHuWindow } from '../huWindow'
 import { eventKongKind } from '../kongPresentation'
+import { YAOTONG_EMOTES, type YaotongEmote } from '../emotes'
+import { QUICK_CHAT_PHRASES, type QuickChatPhrase } from '../quickChat'
 
 export interface YtMeldView {
   tile: string
@@ -179,6 +181,32 @@ export interface YtSnapshot {
 
 export const toLocalSeat = (serverSeat: number, mySeat: number) =>
   ((serverSeat - mySeat + 4) % 4 + 4) % 4
+
+export type YtInteraction =
+  | { kind: 'quick_chat'; fromSeat: number; phrase: QuickChatPhrase }
+  | { kind: 'emote'; fromSeat: number; targetSeat: number; emote: YaotongEmote }
+
+export function isYtSeat(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < 4
+}
+
+export function readYtInteraction(message: unknown, mySeat: number, matchId: string, round: number): YtInteraction | null {
+  const payload = message as {
+    kind?: unknown; matchId?: unknown; round?: unknown; fromSeat?: unknown
+    phraseId?: unknown; emote?: unknown; targetSeat?: unknown
+  } | null
+  if (payload?.matchId !== matchId || payload.round !== round
+      || !isYtSeat(mySeat) || !isYtSeat(payload.fromSeat)) return null
+
+  const fromSeat = toLocalSeat(payload.fromSeat, mySeat)
+  if (payload.kind === 'quick_chat') {
+    const phrase = QUICK_CHAT_PHRASES.find(item => item.id === payload.phraseId)
+    return phrase ? { kind: 'quick_chat', fromSeat, phrase } : null
+  }
+  if (payload.kind !== 'emote' || !isYtSeat(payload.targetSeat) || payload.targetSeat === payload.fromSeat) return null
+  const emote = YAOTONG_EMOTES.find(item => item.id === payload.emote)
+  return emote ? { kind: 'emote', fromSeat, targetSeat: toLocalSeat(payload.targetSeat, mySeat), emote } : null
+}
 
 /** 终局必须先公开四家的实体手牌，才可把暗牌切成牌面。 */
 export function hasCompleteSettlementHands(snapshot: YtSnapshot): boolean {

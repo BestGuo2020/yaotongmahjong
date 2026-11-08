@@ -262,17 +262,60 @@ button { font: inherit; }
 .badge-honba { display: none; }
 .round-info { position: absolute; left: 50%; transform: translateX(-50%); padding: 5px 19px; border: 1px solid color-mix(in srgb, var(--theme-border) 34%, transparent); border-radius: 99px; background: color-mix(in srgb, var(--theme-panel) 42%, transparent); letter-spacing: .12em; }
 .top-bar nav { display: flex; gap: 8px; margin-left: auto; }
-.top-bar button { width: clamp(34px, 2.8cqw, 44px); height: clamp(34px, 2.8cqw, 44px); border: 1px solid color-mix(in srgb, var(--theme-border) 42%, transparent); border-radius: 50%; background: color-mix(in srgb, var(--theme-panel) 72%, transparent); color: var(--theme-text); font-size: clamp(15px, 1.25cqw, 20px); cursor: pointer; }
-.top-bar button:hover { background: color-mix(in srgb, var(--theme-accent) 18%, var(--theme-panel)); border-color: var(--theme-border); }
+.top-bar button { color: var(--theme-text); font-size: clamp(15px, 1.25cqw, 20px); cursor: pointer; }
 .theme-picker, .audio-picker { position: relative; }
-.theme-toggle { display: grid; place-items: center; padding: 0; }
-.topbar-control:disabled { opacity: .45; cursor: not-allowed; }
-.theme-toggle-mark { display: grid; grid-template-columns: repeat(2, 7px); gap: 2px; width: 17px; height: 17px; transform: rotate(45deg); }
-.theme-toggle-mark i { display: block; border: 1px solid rgba(255,239,179,.78); border-radius: 2px; background: #2a7287; box-shadow: 0 0 3px rgba(255,213,102,.22); }
-.theme-toggle-mark i:nth-child(2) { background: #b87343; }
-.theme-toggle-mark i:nth-child(3) { background: #2e9a62; }
-.theme-toggle-mark i:nth-child(4) { background: #d7bd68; }
-.theme-menu { position: absolute; z-index: 80; top: calc(100% + 9px); right: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; width: min(390px, calc(100vw - 12px)); max-width: calc(100vw - 12px); max-height: min(320px, calc(100dvh - 14px)); overflow-y: auto; padding: 8px; border: 1px solid color-mix(in srgb, var(--theme-border) 62%, transparent); border-radius: 12px; background: var(--theme-tooltip); box-shadow: 0 18px 42px rgba(0,0,0,.62), inset 0 1px rgba(255,255,255,.05); scrollbar-width: thin; scrollbar-color: var(--theme-accent) color-mix(in srgb, var(--theme-panel) 82%, transparent); }
+.top-bar .topbar-control {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-hit-target);
+  height: var(--control-hit-target);
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+.top-bar .topbar-control::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: var(--topbar-control-inset, 3px);
+  box-sizing: border-box;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-panel);
+}
+.top-bar .topbar-control:enabled:is(:hover, [aria-expanded="true"])::before {
+  border-color: var(--theme-accent);
+  background: var(--theme-panel-elevated);
+}
+.top-bar .topbar-control:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--theme-accent) 86%, white);
+  outline-offset: -2px;
+}
+.top-bar .topbar-control:disabled { opacity: .45; cursor: not-allowed; }
+.theme-menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 9px);
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(160px * max(1, env(preferred-text-scale, 1)))), 1fr));
+  gap: 6px;
+  width: min(390px, calc(100vw - 12px));
+  max-width: calc(100vw - 12px);
+  max-height: min(320px, calc(100dvh - 14px));
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 62%, transparent);
+  border-radius: 12px;
+  background: var(--theme-tooltip);
+  box-shadow: 0 18px 42px rgba(0,0,0,.62), inset 0 1px rgba(255,255,255,.05);
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-accent) color-mix(in srgb, var(--theme-panel) 82%, transparent);
+}
 .theme-menu::-webkit-scrollbar { width: 7px; }
 .theme-menu::-webkit-scrollbar-track { background: color-mix(in srgb, var(--theme-panel) 82%, transparent); border-radius: 8px; }
 .theme-menu::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--theme-accent) 72%, var(--theme-panel)); border-radius: 8px; }
@@ -303,11 +346,6 @@ button { font: inherit; }
 .audio-menu > button > i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--theme-text-muted); transition: transform .18s ease, background .18s ease; }
 .audio-menu > button > i.active { border-color: var(--theme-accent); background: color-mix(in srgb, var(--theme-accent) 30%, transparent); }
 .audio-menu > button > i.active::after { background: var(--theme-accent); transform: translateX(14px); }
-.top-bar .icon-button { display: grid; place-items: center; padding: 0; border: 0; background: transparent; }
-.top-bar .icon-button:hover { border: 0; background: transparent; }
-.icon-button img { display: block; width: 86%; height: 86%; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,.42)); transition: transform .18s ease, filter .18s ease; }
-.icon-button:hover img { transform: translateY(-1px) scale(1.07); filter: brightness(1.08) drop-shadow(0 3px 5px rgba(0,0,0,.48)); }
-.icon-button:active img { transform: scale(.94); }
 
 .game-app[data-theme-player-frame="playful"] .avatar-wrap,
 .game-app[data-theme-player-frame="playful"] .user-identity,
@@ -433,10 +471,26 @@ button { font: inherit; }
   font-size: clamp(7px, calc(var(--tile-width) * .3), 9px);
 }
 .mahjong-tile.wildcard .joker-mark { background: #b88220; }
-.mahjong-tile.laizi .joker-mark { background: #c0342e; }
+.mahjong-tile.laizi .joker-mark {
+  background: #c0342e;
+  -webkit-text-size-adjust: min(100%, calc(100% * env(preferred-text-scale, 1)));
+  text-size-adjust: min(100%, calc(100% * env(preferred-text-scale, 1)));
+}
 
 .player-seat { position: absolute; z-index: 7; color: var(--theme-text); transform-style: preserve-3d; }
 .avatar-wrap { position: relative; display: flex; align-items: center; gap: 7px; min-width: 112px; padding: 5px 9px 5px 5px; border: 1px solid color-mix(in srgb, var(--theme-border) 36%, transparent); border-radius: 28px 9px 9px 28px; background: linear-gradient(90deg, color-mix(in srgb, var(--theme-panel) 92%, transparent), color-mix(in srgb, var(--theme-panel) 58%, transparent)); box-shadow: 0 5px 18px rgba(0,0,0,.24); }
+.avatar-wrap.emote-hit-shake .avatar { animation: emote-avatar-hit .52s cubic-bezier(.2, .8, .3, 1); }
+@keyframes emote-avatar-hit {
+  0%, 100% { transform: none; }
+  15% { transform: translateX(-6px) rotate(-4deg); }
+  30% { transform: translateX(5px) rotate(3deg); }
+  45% { transform: translateX(-4px) rotate(-2deg); }
+  60% { transform: translateX(3px) rotate(1.5deg); }
+  75% { transform: translateX(-2px) rotate(-1deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar-wrap.emote-hit-shake .avatar { animation: none; }
+}
 .avatar { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border: 2px solid var(--theme-border); border-radius: 50%; background: radial-gradient(circle at 35% 28%, var(--theme-surface), var(--theme-panel) 70%); color: var(--theme-accent-text); font: 700 17px "Noto Serif SC", serif; box-shadow: inset 0 0 0 2px rgba(0,0,0,.35), 0 2px 7px #000; }
 .player-info { display: flex; flex-direction: column; gap: 2px; }
 .player-info strong { max-width: 118px; overflow: hidden; color: var(--theme-text); font-size: clamp(13px, 1.1vw, 18px); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 3px #000; }
@@ -1048,8 +1102,7 @@ button { font: inherit; }
   .brand-mini i { width: 22px; height: 22px; font-size: 12px; }
   .round-info { padding: 3px 13px; }
   .top-bar nav { gap: 5px; }
-  .top-bar button { width: 28px; height: 28px; font-size: 13px; }
-  .top-bar .icon-button img { width: 88%; height: 88%; }
+  .top-bar button { font-size: 13px; }
   .seat-top .avatar-wrap { transform: scale(.76) translate(-105px, -30px); transform-origin: top center; }
   .seat-left .avatar-wrap { transform: scale(.76); transform-origin: left center; }
   .seat-right .avatar-wrap { transform: scale(.76); transform-origin: right center; }
@@ -1300,11 +1353,6 @@ button { font: inherit; }
 .autoplay-toggle { padding: 7px 10px; border: 1px solid rgba(213,184,112,.4); border-radius: 5px; background: rgba(8,28,20,.88); color: #9aa88f; font-size: 12px; font-weight: 700; cursor: pointer; }
 .autoplay-toggle.active { border-color: rgba(213,184,112,.8); background: rgba(213,184,112,.18); color: #ffe6a5; }
 .autoplay-toggle:hover { border-color: rgba(213,184,112,.7); }
-.quit-match { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid rgba(213,184,112,.4); border-radius: 5px; background: rgba(8,28,20,.88); cursor: pointer; }
-.quit-match img { display: block; width: 22px; height: 22px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,.42)); transition: transform .18s ease, filter .18s ease; }
-.quit-match:hover { border-color: rgba(213,184,112,.7); }
-.quit-match:hover img { transform: translateY(-1px) scale(1.07); filter: brightness(1.08) drop-shadow(0 3px 5px rgba(0,0,0,.48)); }
-.quit-match:active img { transform: scale(.94); }
 .stats-card { min-width: 300px; }
 .stats-nickname { margin: 2px 0 12px; color: #d0c39e; font-size: 14px; letter-spacing: .1em; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 14px; }
@@ -1359,7 +1407,7 @@ button { font: inherit; }
   .start-button { min-width: 180px; padding: 6px 20px 6px; }
 }
 
-/* 移动端主题菜单：覆盖顶栏圆形按钮的通用尺寸，避免菜单选项被压成竖排。 */
+/* 移动端主题菜单保留横排预览和说明。 */
 @media (hover: none) and (pointer: coarse) and (orientation: landscape),
        (orientation: landscape) and (max-width: 1024px) and (max-height: 460px) {
   .theme-menu, .audio-menu {
@@ -1378,7 +1426,7 @@ button { font: inherit; }
     font-size: 13px;
   }
   .theme-menu > button > span { min-width: 0; }
-  .theme-menu strong { font-size: 13px; white-space: nowrap; }
+  .theme-menu strong { font-size: 13px; }
   .theme-menu small { font-size: 9px; }
   .theme-menu > button > i { width: 10px; height: 10px; }
   .theme-card-preview { width: 52px; }
@@ -1459,6 +1507,8 @@ button { font: inherit; }
   .seat-right .llm-bubble { right: calc(100% + 6px); top: 62%; }
   .seat-top .llm-bubble { top: calc(100% + 6px); }
   .user-llm-bubble { left: calc(100% + 6px); bottom: 14px; }
+  /* 快捷语比 AI 吐槽长，窄屏多给一点宽度，避免“谢/了”这种单字拆行。 */
+  .llm-bubble.quick-chat-bubble { max-width: min(220px, 56vw); }
 }
 
 /* ── 欢乐麻将试点：明快色块、圆润触感与短促弹性反馈 ── */
@@ -1524,7 +1574,6 @@ button { font: inherit; }
 .game-app[data-table-theme="happyMahjong"] .lobby-dialog h2 { color: var(--theme-text); font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
 .game-app[data-table-theme="happyMahjong"] .picker-options > button { border-radius: 13px; }
 .game-app[data-table-theme="happyMahjong"] .top-bar { color: var(--theme-text-muted); }
-.game-app[data-table-theme="happyMahjong"] .top-bar .topbar-control,
 .game-app[data-table-theme="happyMahjong"] .round-info { border-width: 2px; border-radius: 14px; }
 .game-app[data-table-theme="happyMahjong"] .action { border-width: 2px; border-radius: 16px; box-shadow: 0 4px 0 color-mix(in srgb, var(--theme-accent-secondary) 38%, transparent), 0 8px 14px rgba(0,0,0,.28); }
 .game-app[data-table-theme="happyMahjong"] .action:hover { transform: translateY(-3px) scale(1.03); }
@@ -1617,24 +1666,15 @@ button { font: inherit; }
 
 .game-app[data-table-theme="llm"] .base-score-badge { color: #e8c49e; }
 .game-app[data-table-theme="llm"] .base-score-badge .badge-room { color: #aebce2; }
-.game-app[data-table-theme="llm"] .top-bar button {
+.game-app[data-table-theme="llm"] .top-bar button:not(.topbar-control) {
   border-color: rgba(136, 174, 255, .34);
   background: rgba(7, 14, 42, .58);
   color: #eaf1ff;
 }
-.game-app[data-table-theme="llm"] .top-bar button:hover {
+.game-app[data-table-theme="llm"] .top-bar button:not(.topbar-control):hover {
   border-color: var(--llm-cyan);
   background: rgba(68, 104, 210, .24);
 }
-
-.game-app[data-table-theme="llm"] .theme-toggle-mark i {
-  border-color: rgba(238, 222, 204, .82);
-  background: #15367d;
-  box-shadow: 0 0 5px rgba(118, 217, 255, .38);
-}
-.game-app[data-table-theme="llm"] .theme-toggle-mark i:nth-child(2) { background: #4f8fff; }
-.game-app[data-table-theme="llm"] .theme-toggle-mark i:nth-child(3) { background: #8f87df; }
-.game-app[data-table-theme="llm"] .theme-toggle-mark i:nth-child(4) { background: var(--llm-gold); }
 
 .game-app[data-table-theme="llm"] .theme-menu {
   border-color: rgba(118, 217, 255, .48);
@@ -1878,16 +1918,11 @@ button { font: inherit; }
   color: #f4eddf;
   background: linear-gradient(180deg, rgba(45,36,28,.96), rgba(45,36,28,.48), transparent);
 }
-.game-app[data-table-theme="llmAnime"] .top-bar .topbar-control,
 .game-app[data-table-theme="llmAnime"] .round-info {
   border-color: rgba(201,169,101,.65);
   background: rgba(45,36,28,.82);
   color: #f4eddf;
 }
-.game-app[data-table-theme="llmAnime"] .theme-toggle-mark i { border-color: #f4eddf; background: var(--anime-green); }
-.game-app[data-table-theme="llmAnime"] .theme-toggle-mark i:nth-child(2) { background: var(--anime-walnut); }
-.game-app[data-table-theme="llmAnime"] .theme-toggle-mark i:nth-child(3) { background: var(--anime-vermilion); }
-.game-app[data-table-theme="llmAnime"] .theme-toggle-mark i:nth-child(4) { background: var(--anime-gold); }
 .game-app[data-table-theme="llmAnime"] .avatar-wrap,
 .game-app[data-table-theme="llmAnime"] .user-identity {
   border-color: var(--anime-accent, #b56a52);
@@ -2079,41 +2114,6 @@ button { font: inherit; }
 /* llmAnime 常驻 HUD 的几何；双表面颜色和漫画描边在 Phase 12 统一。 */
 .game-app[data-table-theme="llmAnime"] .top-bar {
   color: var(--anime-control-label);
-}
-.game-app[data-table-theme="llmAnime"] .top-bar .topbar-control {
-  position: relative;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--anime-control-edge);
-  border-radius: 7px;
-  background: linear-gradient(180deg, #35473f 0%, var(--anime-control) 48%, var(--anime-control-deep) 100%);
-  color: var(--anime-control-label);
-  box-shadow: inset 0 1px var(--anime-control-highlight), inset 0 -2px rgba(4,9,7,.48), 0 3px 6px var(--anime-control-shadow);
-  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
-}
-.game-app[data-table-theme="llmAnime"] .top-bar .topbar-control:hover {
-  border-color: #e0bd70;
-  background: linear-gradient(180deg, #40554b, #2c3c35 50%, #19231e);
-  filter: none;
-  transform: translateY(-1px);
-}
-.game-app[data-table-theme="llmAnime"] .top-bar .topbar-control:active {
-  transform: translateY(1px);
-  box-shadow: inset 0 3px 5px rgba(5,10,8,.72), inset 0 1px rgba(255,255,255,.05);
-}
-.game-app[data-table-theme="llmAnime"] .hardware-icon {
-  width: clamp(19px, 1.55vw, 23px);
-  height: clamp(19px, 1.55vw, 23px);
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 1px rgba(0,0,0,.5));
-}
-.game-app[data-table-theme="llmAnime"] .theme-toggle-mark i {
-  border-color: color-mix(in srgb, var(--anime-control-edge) 75%, transparent);
-  box-shadow: inset 0 1px rgba(255,255,255,.2);
 }
 .game-app[data-table-theme="llmAnime"] .avatar-wrap,
 .game-app[data-table-theme="llmAnime"] .user-identity {
@@ -2459,63 +2459,13 @@ button { font: inherit; }
   }
 
   .top-bar {
+    --topbar-control-inset: 6px;
     height: var(--topbar-height);
     padding-right: max(8px, var(--safe-right));
     padding-left: max(8px, var(--safe-left));
   }
-  .top-bar button { width: var(--control-hit-target); height: var(--control-hit-target); }
   .top-bar nav { gap: 2px; }
   .round-info { max-width: 46%; overflow: hidden; padding: 3px 8px; text-overflow: ellipsis; white-space: nowrap; }
-  /* 所有主题统一：44px 是触控热区，可见图形单独缩小。 */
-  .top-bar .topbar-control {
-    position: relative;
-    isolation: isolate;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-  .top-bar .theme-toggle::before {
-    content: "";
-    position: absolute;
-    z-index: 0;
-    inset: 6px;
-    box-sizing: border-box;
-    border: 1px solid rgba(231,207,147,.36);
-    border-radius: 50%;
-    background: rgba(0,0,0,.24);
-    pointer-events: none;
-  }
-  .top-bar .topbar-control > * { position: relative; z-index: 1; }
-  .top-bar .theme-toggle-mark { width: 14px; height: 14px; grid-template-columns: repeat(2, 6px); gap: 2px; }
-  .top-bar .icon-button img { width: 28px; height: 28px; }
-  /* llmAnime：44px 是触控热区，不再直接作为可见硬件外框；内缩 4px 得到 36px 视觉按钮。 */
-  .game-app[data-table-theme="llmAnime"] .top-bar .topbar-control {
-    isolation: isolate;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    transform: none;
-  }
-  .game-app[data-table-theme="llmAnime"] .top-bar .topbar-control::before {
-    content: "";
-    position: absolute;
-    z-index: 0;
-    inset: 6px;
-    box-sizing: border-box;
-    border: 1px solid var(--anime-control-edge);
-    border-radius: 6px;
-    background: linear-gradient(180deg, #35473f 0%, var(--anime-control) 48%, var(--anime-control-deep) 100%);
-    box-shadow: inset 0 1px var(--anime-control-highlight), inset 0 -2px rgba(4,9,7,.48), 0 2px 4px var(--anime-control-shadow);
-    pointer-events: none;
-    transition: transform .12s ease, filter .12s ease;
-  }
-  .game-app[data-table-theme="llmAnime"] .top-bar .topbar-control:hover { background: transparent; transform: none; }
-  .game-app[data-table-theme="llmAnime"] .top-bar .topbar-control:hover::before { filter: brightness(1.08); }
-  .game-app[data-table-theme="llmAnime"] .top-bar .topbar-control:active { transform: none; box-shadow: none; }
-  .game-app[data-table-theme="llmAnime"] .top-bar .topbar-control:active::before { transform: translateY(1px); }
-  .game-app[data-table-theme="llmAnime"] .top-bar .topbar-control > * { position: relative; z-index: 1; }
-  .game-app[data-table-theme="llmAnime"] .top-bar .hardware-icon { width: 16px; height: 16px; }
 
   .has-three-scene .seat-top {
     top: var(--top-seat-anchor);
@@ -2935,7 +2885,7 @@ button { font: inherit; }
 
   .rules-panel {
     width: min(390px, calc(100cqw - var(--safe-left) - var(--safe-right)));
-    padding: 16px max(16px, var(--safe-right)) 18px max(16px, var(--safe-left));
+    padding: 16px 16px 18px;
   }
   .rules-panel header { position: sticky; z-index: 2; top: -16px; margin-bottom: 12px; padding-top: 4px; padding-bottom: 10px; background: var(--theme-panel-elevated); }
 
@@ -2988,7 +2938,6 @@ button { font: inherit; }
 .game-app[data-table-theme="jade"] .mode-selector button.active,
 .game-app[data-table-theme="jade"] .match-selector button.active { border-color: #d9b961; background: linear-gradient(160deg, rgba(66,104,78,.72), rgba(12,43,31,.94)); box-shadow: inset 3px 0 #d9b961, 0 8px 22px rgba(0,0,0,.3); }
 .game-app[data-table-theme="jade"] .start-button { border-radius: 4px; background: linear-gradient(150deg, #e1c374, #b98a3c 55%, #785020); color: #11251b; box-shadow: 0 7px 22px rgba(0,0,0,.44), inset 0 1px rgba(255,248,216,.55); }
-.game-app[data-table-theme="jade"] .top-bar .topbar-control,
 .game-app[data-table-theme="jade"] .round-info { border-radius: 6px; }
 .game-app[data-table-theme="jade"] .avatar-wrap,
 .game-app[data-table-theme="jade"] .user-identity { border-radius: 24px 5px 5px 24px; background: linear-gradient(100deg, rgba(13,45,33,.95), rgba(5,24,17,.84)); box-shadow: inset 0 1px rgba(166,205,176,.08), 0 6px 18px rgba(0,0,0,.34); }
@@ -3037,7 +2986,6 @@ button { font: inherit; }
 .game-app[data-table-theme="rosewood"] .game-settings > button > strong,
 .game-app[data-table-theme="rosewood"] .waku-account b { color: #fff0d2; }
 .game-app[data-table-theme="rosewood"] .start-button { border-color: #e2b862; border-radius: 5px; background: linear-gradient(160deg, #9b4832, #6b281c 58%, #3a140e); color: #fff0d2; box-shadow: 0 7px 0 #311008, 0 14px 28px rgba(0,0,0,.4), inset 0 1px rgba(255,225,177,.18); }
-.game-app[data-table-theme="rosewood"] .top-bar .topbar-control,
 .game-app[data-table-theme="rosewood"] .round-info { border-radius: 5px; background: linear-gradient(155deg, rgba(104,45,29,.8), rgba(43,17,11,.88)); }
 .game-app[data-table-theme="rosewood"] .player-seat.active .avatar-wrap,
 .game-app[data-table-theme="rosewood"] .user-identity.active { box-shadow: inset 0 1px rgba(255,230,184,.16), 0 0 0 2px rgba(224,180,92,.25), 0 0 24px rgba(190,93,54,.36); }
@@ -3104,7 +3052,6 @@ button { font: inherit; }
 .game-app[data-table-theme="llm"] .game-settings > button > strong,
 .game-app[data-table-theme="llm"] .waku-account b { color: #eef4ff; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; }
 .game-app[data-table-theme="llm"] .start-button { border-color: #9bdfff; border-radius: 5px; background: linear-gradient(145deg, #4f8fff, #375fc0 62%, #243b89); color: #f7fbff; box-shadow: 0 0 0 1px rgba(118,217,255,.24), 0 0 28px rgba(79,143,255,.28), inset 0 1px rgba(255,255,255,.3); }
-.game-app[data-table-theme="llm"] .top-bar .topbar-control,
 .game-app[data-table-theme="llm"] .round-info { border-radius: 4px; }
 .game-app[data-table-theme="llm"] .table-loading-card { border-radius: 3px; background: linear-gradient(145deg, rgba(17,39,91,.96), rgba(5,15,45,.97)); box-shadow: inset 3px 0 #76d9ff, 0 0 30px rgba(79,143,255,.24); }
 .game-app[data-table-theme="llm"] .start-cue { border: 1px solid rgba(118,217,255,.72); border-radius: 3px; clip-path: polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px); background: linear-gradient(110deg, rgba(9,27,68,.96), rgba(22,50,111,.92), rgba(9,27,68,.96)); box-shadow: inset 0 0 28px rgba(118,217,255,.09), 0 0 34px rgba(79,143,255,.24); }
@@ -3426,7 +3373,6 @@ button { font: inherit; }
 }
 
 /* ── Phase 9 · 共享外围状态层级与稳定结算恢复 ── */
-.topbar-control:focus-visible,
 .mode-selector button:focus-visible,
 .game-settings > button:focus-visible,
 .start-button:focus-visible,
@@ -3713,15 +3659,11 @@ button { font: inherit; }
 
 /* Phase 12 · 常驻场景与临时纸张共享墨线、珊瑚状态和短错位阴影。 */
 .game-app[data-table-theme="llmAnime"] .top-bar { background: var(--theme-top-bar); }
-.game-app[data-table-theme="llmAnime"] :is(.top-bar .topbar-control, .round-info, .avatar-wrap, .user-identity, .turn-timer, .action) {
+.game-app[data-table-theme="llmAnime"] :is(.round-info, .avatar-wrap, .user-identity, .turn-timer, .action) {
   border-color: var(--anime-ink);
   background: linear-gradient(150deg, var(--theme-panel-elevated), var(--theme-panel));
   color: var(--theme-text);
   box-shadow: 3px 3px 0 rgba(189,91,72,.3), inset 0 1px rgba(255,248,236,.1);
-}
-.game-app[data-table-theme="llmAnime"] .top-bar .topbar-control:hover {
-  border-color: var(--theme-accent);
-  background: var(--theme-panel-elevated);
 }
 .game-app[data-table-theme="llmAnime"] :is(.action.primary, .action.hu, .start-button, .remote-entry-actions button, .room-owner-actions button[data-action-role="primary"], .table-loading-retry) {
   border: 2px solid var(--anime-ink);
@@ -3763,11 +3705,11 @@ button { font: inherit; }
   color: var(--theme-text);
 }
 .game-app[data-table-theme="llmAnime"] .chi-picker-option { background: #fff8ec; }
-.game-app[data-table-theme="llmAnime"] :is(.action, .topbar-control, .start-button, .remote-entry-actions button):enabled:active { box-shadow: none; }
+.game-app[data-table-theme="llmAnime"] :is(.action, .start-button, .remote-entry-actions button):enabled:active { box-shadow: none; }
 .game-app[data-table-theme="llmAnime"] :is(.room-owner-actions button, .start-button, .action):disabled { box-shadow: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-table-theme="llmAnime"] :is(.action, .topbar-control, .dialog-actions button, .picker-options > button, .anime-character-grid button) {
+  [data-table-theme="llmAnime"] :is(.action, .dialog-actions button, .picker-options > button, .anime-character-grid button) {
     transform: none !important;
     transition: none !important;
   }
@@ -3947,67 +3889,167 @@ button { font: inherit; }
   .has-round-overview .result-disclaimer-note { margin: 0; font-size: 9px; letter-spacing: 0; text-align: left; }
 }
 
-/* 幺筒：压缩头像卡，保留碰杠的操作优先级。 */
+/* 幺筒头像卡 */
 .game-app .yaotong-table .player-seat .avatar-wrap,
 .game-app .yaotong-table .user-identity { padding: 3px 5px; gap: 3px; }
 .game-app .yaotong-table .avatar-wrap .avatar,
 .game-app .yaotong-table .user-identity .avatar { width: clamp(28px, 3.6cqw, 44px); height: clamp(28px, 3.6cqw, 44px); }
 .game-app .yaotong-table .player-info strong { font-size: clamp(11px, 1.1cqw, 14px); }
 .game-app .yaotong-table .player-info > span { font-size: 11px; }
-.game-app .yaotong-table .action.autoplay-action { min-width: 44px; height: 44px; padding: 3px 7px; border-radius: 9px; }
-.game-app .yaotong-table .autoplay-action b { font-size: 13px; }
-.game-app .yaotong-table .action-bar .action.primary { min-width: 54px; height: 50px; border: 2px solid var(--theme-accent-text); background: var(--theme-button); color: var(--theme-button-text); box-shadow: 0 3px 12px #0008, 0 0 10px color-mix(in srgb, var(--theme-accent) 30%, transparent); }
-.game-app .yaotong-table .action-bar .action.primary b { font-size: 24px; }
 @container game (max-height: 450px) {
-  .game-app .yaotong-table .action-bar .action.primary { min-width: 48px; height: 46px; }
   .game-app .yaotong-table .avatar-wrap .avatar,
   .game-app .yaotong-table .user-identity .avatar { width: 30px; height: 30px; }
 }
-/* PC 大屏操作按钮：2048 宽的牌桌上牌面已有 88px，52px 的碰/杠与 44px 的托管显得像图标。
-   这一档按视口把整条操作行放大到约 1.5 倍（2048 宽 ≈ 碰杠 92×78、托管 66），
-   同时把原来的椭圆/胶囊改成方形圆角。触屏、手机紧凑横屏与矮窗（<560px 高）仍走固定尺寸。 */
+
+/* 幺筒操作行的主操作与辅助按钮共用边长。 */
+.game-app .yaotong-table .turn-action-row {
+  --action-text-scale: max(1, env(preferred-text-scale, 1));
+  --action-size: 48px;
+  --action-edge: max(var(--control-hit-target), calc(var(--action-size) * var(--action-text-scale)));
+  --action-radius: 10px;
+  --table-control-icon-size: calc(var(--action-edge) * .7);
+  flex-wrap: nowrap;
+}
+.game-app .yaotong-table .action-bar {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.game-app .yaotong-table .turn-action-row button.action {
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: var(--action-edge);
+  height: var(--action-edge);
+  min-width: 0;
+  min-height: 0;
+  padding: 0 2px;
+  border-radius: var(--action-radius);
+  text-align: center;
+}
+.game-app .yaotong-table .turn-action-row .action > b {
+  max-width: 100%;
+  font-size: calc(var(--action-size) * .48);
+  line-height: 1.1;
+}
+.game-app .yaotong-table .turn-action-row .action > .action-label {
+  font-size: calc(var(--action-size) * .35);
+  white-space: normal;
+  text-wrap: balance;
+}
+.game-app .yaotong-table .turn-action-row .action > :is(.action-label-small, .hu-plan-label) {
+  font-size: calc(var(--action-size) * .27);
+}
+.game-app .yaotong-table .turn-action-row .action > .hu-plan-label {
+  line-height: 1;
+}
+.game-app .yaotong-table .turn-action-row .hu-plan-label > span {
+  font-size: inherit;
+  color: inherit;
+}
+.game-app .yaotong-table .turn-action-row .action > .hu-plan-label:has(> :nth-child(3)) {
+  font-size: calc(var(--action-size) * .21);
+}
+.game-app .yaotong-table .turn-action-row .action > .hu-plan-label:has(> :nth-child(4)) {
+  font-size: calc(var(--action-size) * .16);
+}
+.game-app .yaotong-table .turn-action-row .action > .action-detail {
+  color: inherit;
+  opacity: .9;
+  font-size: calc(var(--action-size) * .21);
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.game-app .yaotong-table .turn-action-row .action:is(.primary, .wait-action) {
+  border: 2px solid var(--theme-accent-text);
+  background: var(--theme-button);
+  color: var(--theme-button-text);
+  box-shadow: 0 3px 12px #0008, 0 0 10px color-mix(in srgb, var(--theme-accent) 30%, transparent);
+}
+.game-app .yaotong-table .turn-action-row button:is(.quick-chat-trigger, .waiting-action, .yaotong-help-trigger) {
+  border: 1px solid var(--theme-border);
+  background: var(--theme-panel);
+  color: var(--theme-text);
+  box-shadow: 0 4px 10px #0007;
+}
+.game-app .yaotong-table .turn-action-row .action:is([aria-expanded="true"], .primary[aria-pressed="true"]) {
+  border-color: var(--theme-accent);
+  background: var(--theme-panel-elevated);
+  color: var(--theme-accent-text);
+}
+.game-app .yaotong-table .turn-action-row .action[aria-pressed="true"]:has(> .table-control-icon) {
+  position: relative;
+}
+.game-app .yaotong-table .turn-action-row .action[aria-pressed="true"]:has(> .table-control-icon)::after {
+  content: "";
+  position: absolute;
+  inset: 14% 12% auto auto;
+  width: calc(var(--action-edge) * .14);
+  height: calc(var(--action-edge) * .085);
+  border: solid currentColor;
+  border-width: 0 0 2px 2px;
+  transform: rotate(-45deg);
+}
+.game-app .yaotong-table .turn-action-row .action:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
 @media (hover: hover) and (pointer: fine) {
   @container game (min-width: 1000px) and (min-height: 560px) {
-    .game-app .yaotong-table .turn-action-row .action,
-    .game-app .yaotong-table .turn-action-row .action-bar .action.primary {
-      min-width: clamp(61px, 4.5cqw, 92px);
-      height: clamp(52px, 3.8cqw, 78px);
-      padding: clamp(5px, .38cqw, 8px) clamp(12px, .9cqw, 18px);
-      border-width: 2px;
-      border-radius: 14px;
+    .game-app .yaotong-table .turn-action-row {
+      --action-size: clamp(52px, 3.8cqw, 78px);
+      --action-radius: 14px;
     }
-    .game-app .yaotong-table .turn-action-row .action b { font-size: clamp(26px, 1.9cqw, 39px); }
-    .game-app .yaotong-table .turn-action-row .action span { font-size: clamp(13px, .95cqw, 20px); }
-    .game-app .yaotong-table .turn-action-row .action-bar .action.primary { min-width: clamp(54px, 4cqw, 81px); }
-    .game-app .yaotong-table .turn-action-row .action-bar .action.primary b { font-size: clamp(24px, 1.75cqw, 36px); }
-    .game-app .yaotong-table .turn-action-row .action.autoplay-action {
-      min-width: clamp(44px, 3.2cqw, 66px);
-      height: clamp(44px, 3.2cqw, 66px);
-      padding: clamp(3px, .3cqw, 6px) clamp(7px, .6cqw, 12px);
-      border-radius: 12px;
-    }
-    .game-app .yaotong-table .turn-action-row .action.autoplay-action b { font-size: clamp(13px, .95cqw, 20px); }
-    /* 「等 + 秒数」是唯一带副标题的主操作，字号要收一点，副标题才不会顶出方形按钮的下边框。 */
-    .game-app .yaotong-table .turn-action-row .action.wait-action { padding: 5px 10px; }
-    .game-app .yaotong-table .turn-action-row .action.wait-action b { font-size: clamp(23px, 1.66cqw, 34px); }
-    .game-app .yaotong-table .turn-action-row .action.wait-action span { font-size: clamp(10px, .73cqw, 15px); }
-    .game-app .yaotong-table .turn-action-row .action.hu-plan {
-      min-width: clamp(110px, 8cqw, 165px);
-      min-height: clamp(48px, 3.5cqw, 72px);
-      height: auto;
-      padding: clamp(6px, .44cqw, 9px) clamp(10px, .73cqw, 15px);
-      border-radius: 14px;
-    }
-    .game-app .yaotong-table .turn-action-row .action.hu-plan b { font-size: clamp(15px, 1.1cqw, 23px); }
-    .game-app .yaotong-table .turn-action-row .action.hu-plan span { font-size: clamp(11px, .8cqw, 16px); }
-    .game-app .yaotong-table .turn-action-row .action.waiting-action {
-      width: clamp(54px, 4cqw, 81px);
-      height: clamp(60px, 4.4cqw, 90px);
-      padding: 2px;
-      border-radius: 0;
-    }
-    .game-app .yaotong-table .turn-action-row .waiting-action .action-icon { width: clamp(42px, 4cqw, 81px); height: clamp(42px, 4cqw, 81px); }
   }
+}
+@media (hover: none) and (pointer: coarse) and (orientation: landscape),
+       (orientation: landscape) and (max-width: 1024px) and (max-height: 460px) {
+  .game-app .yaotong-table .turn-action-row { --action-edge: var(--action-size); }
+  .game-app .yaotong-table .turn-action-row .turn-timer {
+    align-items: center;
+    flex: none;
+    height: var(--action-edge);
+    min-width: var(--action-edge);
+    padding: 0 8px;
+    border-radius: var(--action-radius);
+  }
+  .game-app .yaotong-table .turn-action-row .turn-timer span {
+    font-size: min(29px, calc(32px / var(--action-text-scale)));
+    line-height: 1;
+  }
+  @container game (max-height: 380px) {
+    /* 本家区域已经避开底部安全区，矮窗的牌架只留一段短内距。 */
+    .game-app .yaotong-table .hand-rack { padding-bottom: clamp(4px, var(--safe-bottom), 8px); }
+  }
+  /* 单字、复合动作名和胡法在同一个方框内保留各自的排版空间。 */
+  .game-app .yaotong-table .turn-action-row button.action {
+    --action-label-scale-limit: 140%;
+    -webkit-text-size-adjust: min(calc(100% * env(preferred-text-scale, 1)), var(--action-label-scale-limit));
+    text-size-adjust: min(calc(100% * env(preferred-text-scale, 1)), var(--action-label-scale-limit));
+  }
+  .game-app .yaotong-table .turn-action-row button.action:is(.wait-action, :has(> .action-label)) {
+    --action-label-scale-limit: 115%;
+  }
+  .game-app .yaotong-table .turn-action-row button.action.hu-plan {
+    --action-label-scale-limit: 108%;
+    padding-inline: 1px;
+  }
+  .game-app .yaotong-table .turn-action-row button.action:is(:has(> .action-label-small), .hu-plan:has(.hu-plan-label > :nth-child(3))) {
+    --action-label-scale-limit: 100%;
+  }
+  /* 四行方案优先显示牌型，幺筒用量仍可通过按钮提示读取。 */
+  .game-app .yaotong-table .turn-action-row .action > .hu-plan-label:has(> :nth-child(4)) {
+    font-size: calc(var(--action-size) * .21);
+  }
+  .game-app .yaotong-table .turn-action-row .hu-plan-label:has(> :nth-child(4)) + .action-detail {
+    display: none;
+  }
+  .game-app[data-table-theme="happyMahjong"] .yaotong-table .turn-action-row .action:hover { transform: translateY(-3px); }
+  .game-app[data-table-theme="happyMahjong"] .yaotong-table .turn-action-row .action:active { transform: translateY(2px); }
 }
 
 /* Text can grow independently of the tile canvas and touch targets. */
@@ -4016,13 +4058,6 @@ button { font: inherit; }
   .lobby-layout { align-content: start; align-items: start; height: auto; min-height: 100%; }
   .lobby-actions .lobby-links { flex: 0 0 auto; flex-wrap: wrap; gap: 4px 12px; }
   .lobby-links > button { min-height: 44px; padding: 10px 12px; }
-  .game-app .yaotong-table .action-bar .action,
-  .game-app .yaotong-table .action.autoplay-action {
-    height: auto;
-    min-height: 44px;
-    padding: 6px 9px;
-  }
-  .game-app .yaotong-table .action-bar .action :is(b, span) { line-height: 1.25; }
   .game-app .yaotong-table .player-info { flex-shrink: 0; }
   .game-app .yaotong-table .player-info :is(strong, span) { line-height: 1.3; }
   .game-app .yaotong-table .dealer-badge { width: auto; height: auto; min-width: 20px; padding: 1px 3px; font-size: 12px; line-height: 1.3; }

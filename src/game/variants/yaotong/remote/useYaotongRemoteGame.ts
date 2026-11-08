@@ -2,7 +2,7 @@
 //
 // 真人 + 服务端 AI 补位；回放按已收到的权威快照录制。房间 REST 与 wakudemo 登录
 // 复用 src/game/online；对局协议走本目录的 protocol.ts。
-import { onScopeDispose, ref } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 
 import { API_BASE } from '../../../online/api/httpClient'
 import {
@@ -22,9 +22,13 @@ import {
   type StoredSession,
 } from '../../../online/session/remoteSessionStore'
 import { createRoomSocketTransport } from '../../../online/transport/roomSocket'
+import type { YaotongEmoteId } from '../emotes'
 import { useYaotongGame } from '../useYaotongGame'
 import { useYaotongPort } from '../useYaotongPort'
-import { convertSnapshot, hasCompleteSettlementHands, toActionPayload, type YtSnapshot } from './protocol'
+import {
+  convertSnapshot, hasCompleteSettlementHands, isYtSeat, readYtInteraction, toActionPayload,
+  type YtInteraction, type YtSnapshot,
+} from './protocol'
 
 const remoteSessionStore = createRemoteSessionStore()
 const WS_BASE = API_BASE.replace(/^http/, 'ws')
@@ -37,6 +41,7 @@ export interface YaotongRemoteGameOptions {
   playSoundAndWait?: (file: string, volume?: number) => Promise<void>
   getCharacterId?: () => string
   socketFactory?: Parameters<typeof createRoomSocketTransport>[0]['socketFactory']
+  onInteraction?: (event: YtInteraction) => void
   /** App 用 hybrid source 时只取 inner，不再单独创建一份 port。 */
   createPort?: boolean
 }
@@ -173,6 +178,14 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       }
       return
     }
+    if (kind === 'quick_chat' || kind === 'emote') {
+      const state = inner.state.value
+      if (state?.remoteMatchId && interactionsAvailable.value) {
+        const event = readYtInteraction(message, mySeat.value, state.remoteMatchId, state.handNumber)
+        if (event) options.onInteraction?.(event)
+      }
+      return
+    }
     if (kind === 'match_finished') {
       sessionStatus.value = 'finished'
       roomStatus.value = 'finished'
@@ -198,6 +211,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
         window.dispatchEvent(new Event('wakudemo-auth-required'))
         return
       }
+      if (code === 'STALE_INTERACTION' || code === 'INTERACTION_RATE_LIMITED') return
       if (code === 'INVALID_ACTION' || code === 'STALE_ACTION'
           || code === 'PROTECTED_ACTION' || code === 'TABLE_HELD'
           || code === 'HOLD_ACTION_NOT_ALLOWED'
@@ -248,6 +262,30 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       },
     },
   })
+
+  const interactionsAvailable = computed(() => {
+    const state = inner.state.value
+    return socket.status.value === 'connected' && sessionStatus.value === 'playing'
+      && isYtSeat(mySeat.value) && Boolean(state?.remoteMatchId && state.phase !== 'settled')
+  })
+
+  function sendInteraction(message:
+    | { kind: 'quick_chat'; phraseId: string }
+    | { kind: 'emote'; emote: YaotongEmoteId; targetSeat: number }): boolean {
+    const state = inner.state.value
+    return Boolean(interactionsAvailable.value && state && socket.send({
+      ...message, matchId: state.remoteMatchId, round: state.handNumber,
+    }))
+  }
+
+  function sendQuickChat(phraseId: string): boolean {
+    return sendInteraction({ kind: 'quick_chat', phraseId })
+  }
+
+  function sendEmote(emote: YaotongEmoteId, targetSeat: number): boolean {
+    if (!isYtSeat(targetSeat) || targetSeat === 0) return false
+    return sendInteraction({ kind: 'emote', emote, targetSeat: (mySeat.value + targetSeat) % 4 })
+  }
 
   const port = options.createPort === false ? null : useYaotongPort({
     playSound: options.playSound,
@@ -467,6 +505,9 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     storedSession,
     waitingNextRound,
     pendingOpeningRound,
+    interactionsAvailable,
+    sendQuickChat,
+    sendEmote,
     ackOpening,
     signalQuality: socket.signalQuality,
     autoPlay: inner.autoplay,

@@ -1,8 +1,28 @@
 <script setup lang="ts">
+import { ref, useId } from 'vue'
 import { DISCLAIMER_SECTIONS, DISCLAIMER_TITLE } from '../content/disclaimer'
-import yaotongRules from '../../docs/幺筒麻将规则-v1.0.md?raw'
+import TableControlIcon from './table/TableControlIcon.vue'
 defineProps<{ open: boolean }>()
 defineEmits(['close'])
+
+const sourceDialog = ref<HTMLDialogElement | null>(null)
+const sourceId = useId()
+const sourceHtml = ref<string | null>(null)
+const sourceLoadFailed = ref(false)
+
+async function openRulesSource() {
+  if (!sourceDialog.value || sourceDialog.value.open) return
+  sourceDialog.value.showModal()
+  if (sourceHtml.value !== null) return
+
+  sourceLoadFailed.value = false
+  try {
+    sourceHtml.value = (await import('../content/yaotongRulesHtml')).yaotongRulesHtml
+  } catch {
+    sourceLoadFailed.value = true
+  }
+}
+
 const rules = [
     ['牌具与癞子', '108张，万筒条各一至九，无字牌。不吃，可碰杠胡；碰牌三张同向，不指放碰者。一筒可作本牌或癞子。赖子按替代牌计鸡分，翻鸡前确认胡法；只有有取舍的赖子大牌提供并列胡牌按钮，翻后在确认方案内择高。'],
     ['胡牌资格', '鸡胡可自摸；普通点炮须有杠、报听、大牌或被跟庄取得的胡牌通行证。硬胡加10不单独提供点炮资格。鸡胡也可抢杠、接热炮，允许一炮多响。'],
@@ -24,10 +44,13 @@ const rules = [
     <aside v-if="open" class="rules-panel">
       <header>
         <div>
-          <h2>幺筒麻将 · v1.9</h2>
+          <h2>规则速览</h2>
         </div>
         <button aria-label="关闭规则" @click="$emit('close')">×</button>
       </header>
+      <button type="button" class="rules-source-trigger" aria-haspopup="dialog" :aria-controls="sourceId" @click="openRulesSource">
+        查看完整规则原文
+      </button>
       <div class="rule-list">
         <article v-for="(rule, index) in rules" :key="rule[0]">
           <b>{{ String(index + 1).padStart(2, '0') }}</b>
@@ -36,7 +59,6 @@ const rules = [
           </div>
         </article>
       </div>
-      <details class="yaotong-source"><summary>查看完整规则原文</summary><pre>{{ yaotongRules }}</pre></details>
       <div class="rule-note">四家净分之和为0 · 鸡、杠、责任、见面礼逐项记账</div>
       <section class="disclaimer-block" aria-label="用户声明">
         <h3>{{ DISCLAIMER_TITLE }}</h3>
@@ -50,8 +72,118 @@ const rules = [
       </section>
     </aside>
   </Transition>
+
+  <dialog v-if="open" :id="sourceId" ref="sourceDialog" class="rules-source-dialog"
+    :aria-labelledby="`${sourceId}-title`" @click.self="sourceDialog?.close()">
+    <header class="rules-source-header">
+      <h2 :id="`${sourceId}-title`">完整规则原文</h2>
+      <button type="button" aria-label="关闭完整规则" autofocus @click="sourceDialog?.close()">
+        <TableControlIcon name="close" />
+      </button>
+    </header>
+    <div class="rules-source-scroll" role="region" aria-label="规则正文" tabindex="0">
+      <article v-if="sourceHtml !== null" class="rules-source-document" v-html="sourceHtml"></article>
+      <p v-else-if="sourceLoadFailed" role="alert">完整规则加载失败。</p>
+      <p v-else role="status">正在加载完整规则…</p>
+    </div>
+  </dialog>
 </template>
 
 <style scoped>
-.yaotong-source{padding:16px;color:var(--theme-text);font-size:12px}.yaotong-source summary{cursor:pointer;color:var(--theme-accent-text)}.yaotong-source pre{white-space:pre-wrap;font:11px/1.8 inherit;overflow-wrap:anywhere}
+.rules-source-trigger {
+  width: 100%;
+  min-height: var(--control-hit-target);
+  margin: 0 0 12px;
+  padding: 7px 12px;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-panel);
+  color: var(--theme-accent-text);
+  text-align: left;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rules-source-trigger:hover { background: var(--theme-panel-elevated); }
+.rules-source-dialog {
+  position: fixed;
+  inset: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  width: min(880px, calc(100vw - var(--safe-left) - var(--safe-right) - 24px));
+  height: min(760px, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px));
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--theme-border);
+  border-radius: 14px;
+  background: var(--theme-panel);
+  color: var(--theme-text);
+  box-shadow: 0 18px 60px #0009;
+}
+.rules-source-dialog[open] { display: flex; flex-direction: column; }
+.rules-source-dialog::backdrop { background: #000a; }
+.rules-source-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 12px 5px 18px;
+  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-panel-elevated);
+}
+.rules-source-header h2 { margin: 0; font-size: 17px; }
+.rules-source-header button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-hit-target);
+  height: var(--control-hit-target);
+  padding: 0;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-panel);
+  color: var(--theme-text);
+  cursor: pointer;
+}
+.rules-source-trigger:focus-visible,
+.rules-source-dialog :focus-visible { outline: 2px solid var(--theme-accent-text); outline-offset: -2px; }
+.rules-source-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: clamp(14px, 3vw, 28px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.rules-source-document :deep(h1) { margin: 0 0 .65em; font-size: 1.65em; line-height: 1.3; }
+.rules-source-document :deep(h2) {
+  margin: 1.7em 0 .6em;
+  padding-bottom: .25em;
+  border-bottom: 1px solid var(--theme-border);
+  color: var(--theme-accent-text);
+  font-size: 1.25em;
+}
+.rules-source-document :deep(h3) { margin: 1.4em 0 .4em; font-size: 1.08em; }
+.rules-source-document :deep(p) { margin: .65em 0; }
+.rules-source-document :deep(:is(ol, ul)) { padding-inline-start: 1.65em; }
+.rules-source-document :deep(blockquote) {
+  margin: .85em 0;
+  padding: .2em .85em;
+  border-inline-start: 3px solid var(--theme-accent);
+  background: var(--theme-panel-elevated);
+}
+.rules-source-document :deep(hr) { border: 0; border-top: 1px solid var(--theme-border); }
+.rules-source-document :deep(.rules-source-table) { margin: 1em 0; overflow-x: auto; }
+.rules-source-document :deep(table) { width: 100%; border-collapse: collapse; font-size: .93em; }
+.rules-source-document :deep(:is(th, td)) {
+  min-width: 4em;
+  padding: .45em .6em;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 55%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+.rules-source-document :deep(th) { background: var(--theme-panel-elevated); }
 </style>

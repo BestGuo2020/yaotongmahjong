@@ -13,6 +13,7 @@ import type { TableThemeName } from '../../../src/components/table/three/tableTh
 
 const query = new URLSearchParams(location.search)
 const theme = (query.get('theme') ?? 'jade') as TableThemeName
+const crowdedActions = query.get('scenario') === 'hu-crowded'
 createApp({ setup() {
   const game = useYaotongPort()
   function scenario(name: string) {
@@ -54,9 +55,11 @@ createApp({ setup() {
       ]
       state.players[3].melds = [{ kind: 'peng', tile: 4, from: 1, chicken: 0, responsibility: 0, pre: false }]
       if (name === 'river-claimed') state.players[0].river.shift()
-    } else if (name === 'hu' || name === 'hu-response') {
+    } else if (name === 'hu' || name === 'hu-response' || name === 'hu-crowded') {
       state.wall = query.get('flip') === 'yao' ? [17] : [8]
-      state.players[0] = player('2222m 33p 44s 55s 66p 11p', { declaration: 'ready', drawn: 9 })
+      state.players[0] = player('2222m 33p 44s 55s 66p 11p', name === 'hu-crowded'
+        ? { draws: 1, drawn: 9 }
+        : { declaration: 'ready', drawn: 9 })
       if (name === 'hu-response') {
         state.players[0].hand.pop()
         state.current = 1
@@ -113,7 +116,7 @@ createApp({ setup() {
     h('div', { class: 'has-three-scene' }, [h(GameTableHud, {
       themeName: theme, players: game.players, user: game.user.value, phase: game.phase.value,
       wall: game.wall.value, wallHeadDrawn: game.wallHeadDrawn.value, wallCount: game.wallCount.value,
-      currentPlayer: game.currentPlayer.value, selectedIndex: -1, turnSeconds: 0,
+      currentPlayer: game.currentPlayer.value, selectedIndex: -1, turnSeconds: crowdedActions ? 20 : 0,
       lastDiscard: null, actionPrompt: game.actionPrompt.value, announcement: null, tableActionEvent: null,
       scoreFlowEvent: null, result: null, winEffect: null, winPresentation: null, revealHands: query.has('reveal'),
       matchFinished: false, winningPlayerIndex: -1, dealer: game.dealer.value, isUserTurn: game.local.ownTurn.value && !game.local.holding.value,
@@ -129,7 +132,7 @@ createApp({ setup() {
       onPeng: () => game.userPeng(), onPass: () => game.userPass(),
       onGangFromDiscard: () => game.userGangFromDiscard(),
       autoPlayEnabled: true, autoPlay: false,
-    }, { actions: () => h(YaotongControls, { game }) })]),
+    }, { actions: () => h(YaotongControls, { game, sendQuickChat: crowdedActions ? () => true : undefined, sendEmote: () => {} }) })]),
     game.result.value ? h(SettlementOverlay, {
       resultTitle: game.resultTitle.value,
       result: game.result.value, resultVisible: true, matchFinished: false, dealer: game.dealer.value,

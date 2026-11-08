@@ -333,7 +333,7 @@ test('llmAnime 移动端菜单沿用共享版式且顶栏按钮视觉缩小', as
     const trigger = document.querySelector<HTMLElement>('.theme-toggle')!
     const face = getComputedStyle(trigger, '::before')
     const controls = [...document.querySelectorAll<HTMLElement>('.topbar-control')].map((element) => element.getBoundingClientRect())
-    const icons = [...document.querySelectorAll<HTMLImageElement>('.topbar-control img')].map((element) => element.getBoundingClientRect())
+    const icons = [...document.querySelectorAll<SVGSVGElement>('.topbar-control svg')].map((element) => element.getBoundingClientRect())
     return {
       hit: {
         width: Math.min(...controls.map((value) => value.width)),

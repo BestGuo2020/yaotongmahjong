@@ -9,6 +9,8 @@ const apiTarget = process.env.VITE_API_TARGET ?? 'http://127.0.0.1:8000'
 
 export default defineConfig({
   plugins: [vue()],
+  // 完整规则按需加载，提前优化解析器以免首次打开时开发页面重载。
+  optimizeDeps: { include: ['markdown-it'] },
   test: {
     // Bound this checkout's tests; dependency-store snapshots and other worktrees are not this suite.
     dir: './src',

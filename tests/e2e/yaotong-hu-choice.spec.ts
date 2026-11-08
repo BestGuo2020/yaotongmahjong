@@ -40,6 +40,16 @@ for (const width of [1280, 844]) {
     const hard = page.getByRole('button', { name: /^胡龙七对＋硬胡/ })
     await expect(hard).toBeInViewport({ ratio: 1 })
     await expect(page.getByRole('button', { name: /^胡双龙七/ })).toBeInViewport({ ratio: 1 })
+    const shapes = await page.locator('.turn-action-row button.action').evaluateAll(buttons => buttons.map(button => {
+      const { width, height, borderRadius } = getComputedStyle(button)
+      return { width, height, borderRadius }
+    }))
+    expect(shapes.length).toBeGreaterThan(2)
+    const [first, ...others] = shapes
+    expect(first.width).toBe(first.height)
+    expect(parseFloat(first.borderRadius)).toBeGreaterThan(0)
+    expect(parseFloat(first.borderRadius)).toBeLessThan(parseFloat(first.width) / 2)
+    for (const shape of others) expect(shape).toEqual(first)
     await page.screenshot({ path: `tmp/yaotong-preflip-buttons-${width}.png` })
     await hard.click()
     const summary = page.getByRole('list', { name: '最终采用的胡牌方案' })

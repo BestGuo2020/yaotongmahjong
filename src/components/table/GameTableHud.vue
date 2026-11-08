@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import MahjongTile from '../MahjongTile.vue'
+import TableControlIcon from './TableControlIcon.vue'
 import YaotongSeatMarker from '../yaotong/YaotongSeatMarker.vue'
 import YaotongSettlementEffects from '../yaotong/YaotongSettlementEffects.vue'
 import YaotongChickenEffects from '../yaotong/YaotongChickenEffects.vue'
+import YaotongEmoteEffects from '../yaotong/YaotongEmoteEffects.vue'
 import YaotongWinPatterns from '../yaotong/YaotongWinPatterns.vue'
 import type { YaotongTableView } from '../../game/variants/yaotong/presentation'
+import type { EmoteCue } from '../yaotong/useYaotongEmotes'
 import PlayerSeat from '../PlayerSeat.vue'
 import TableActionCue from './TableActionCue.vue'
 import MultiWinIntro from './MultiWinIntro.vue'
@@ -99,6 +102,12 @@ interface Props {
   flipStack?: number
   /** AI 大模型吐槽气泡：key=座位绝对索引，value=最近一条（展示层自管理过期） */
   llmBubbles?: Record<number, { text: string; id: number; persistent?: boolean }>
+  /** 玩家快捷语气泡：key=本家视角座位；复用 llm-bubble 的现有渲染。 */
+  chatBubbles?: Record<number, { text: string; id: number; persistent?: boolean }>
+  /** 互动表情飞行/命中表现。 */
+  emoteCues?: readonly EmoteCue[]
+  /** 有互动表情时，点击对手头像打开表情面板；没有时保留昵称查看。 */
+  emotesEnabled?: boolean
 }
 
 const props = defineProps<Props>()
@@ -121,6 +130,7 @@ const emit = defineEmits<{
   nextRound: []
   returnToLobby: []
   leaveMatch: []
+  emoteTarget: [seat: number]
 }>()
 
 const settlementHost = ref<InstanceType<typeof BloodFlowSettlementHost>|null>(null)
@@ -241,15 +251,18 @@ const presentedWinEffect = computed(() => props.winEffect && winWinnerIndices.va
   ? { ...props.winEffect, winnerIndices: winWinnerIndices.value } : props.winEffect)
 const presentedWinPresentation = computed(() => props.winPresentation && winWinnerIndices.value.length > 1
   ? { ...props.winPresentation, winnerIndices: winWinnerIndices.value } : props.winPresentation)
-const presentedLlmBubbles = computed(() => props.bloodFlow
-  ? ['llm','llmAnime'].includes(props.themeName)?props.bloodFlow.roundResult?(settlementVisible.value?undefined:props.bloodFlow.roundBubbles):props.bloodFlow.actionBubbles:undefined
-  : bubbleLabEnabled
-  ? {
-      ...props.llmBubbles,
-      1: { id: -101, text: '这牌打得真有意思。', persistent: true },
-      3: { id: -103, text: '这一张先打掉。', persistent: true },
-    }
-  : props.llmBubbles)
+const presentedLlmBubbles = computed(() => {
+  const base = props.bloodFlow
+    ? ['llm','llmAnime'].includes(props.themeName)?props.bloodFlow.roundResult?(settlementVisible.value?undefined:props.bloodFlow.roundBubbles):props.bloodFlow.actionBubbles:undefined
+    : bubbleLabEnabled
+    ? {
+        ...props.llmBubbles,
+        1: { id: -101, text: '这牌打得真有意思。', persistent: true },
+        3: { id: -103, text: '这一张先打掉。', persistent: true },
+      }
+    : props.llmBubbles
+  return props.chatBubbles ? { ...(base ?? {}), ...props.chatBubbles } : base
+})
 const presentedScoreFlowEvent = computed<ScoreFlowEvent | null>(() => props.bloodFlow?null:props.scoreFlowEvent ?? (scoreFlowLabEnabled
   ? { id: -1, deltas: [{ playerIndex: 0, amount: 800 }, { playerIndex: 1, amount: -800 }] }
   : null))
@@ -339,7 +352,12 @@ const bloodFlowWaitColumns = computed(() => {
 const showAutoPlay = computed(() => Boolean(props.autoPlayEnabled)
   && !['lobby', 'win-effect', 'revealing', 'settled', 'finished'].includes(props.phase))
 // 操作按钮行与倒计时同行：任一方可见时整行出现。
-const showTurnRow = computed(() => Boolean(props.actionPrompt || props.isUserTurn || props.userCurrentWaits || props.extraActions) || showAutoPlay.value)
+const showActionBar = computed(() => tableReady.value && Boolean(
+  props.actionPrompt || props.isUserTurn || props.userCurrentWaits || props.extraActions ||
+  props.openingStage !== null || props.phase === 'dealing' || props.phase === 'opening',
+))
+const canOpenEmotes = computed(() => props.rulesetId === 'yaotong' && Boolean(props.emotesEnabled) && showActionBar.value)
+const showTurnRow = computed(() => showActionBar.value || showAutoPlay.value)
 const tingDiscardTiles = computed(() => new Set(props.userTingOptions.map((option) => option.discard)))
 function isTingDiscard(index: number, tile: TileType) {
   return props.isUserTurn && tingDiscardTiles.value.has(tile)
@@ -625,13 +643,16 @@ function onAvatarError(entry: GamePlayer) {
     <PlayerSeat
       v-for="(player, index) in players.slice(1)" :key="player.seat" :player="player"
       :data-yaotong-seat="index + 1"
-      :nickname-on-tap="rulesetId === 'yaotong'"
+      :emote-click="canOpenEmotes"
+      :nickname-on-tap="rulesetId === 'yaotong' && !canOpenEmotes"
       :position="seatPosition[index + 1]" :active="currentPlayer === index + 1"
       :action-active="tableActionEvent?.actorIndex === index + 1 || yaotongView?.declarationCues.some(cue => cue.actorIndex === index + 1)" :score-delta="scoreDeltaFor(index + 1)"
       :score-flow-id="presentedScoreFlowEvent?.id" :dealer="dealer === index + 1"
       :avatar-override="themeName === 'llmAnime' ? animeAvatarForPlayer(player) : undefined"
       :theme-name="themeName"
       :bubble="presentedLlmBubbles?.[index + 1]"
+      :quick-chat-bubble="Boolean(chatBubbles?.[index + 1])"
+      @emote="$emit('emoteTarget', index + 1)"
     >
       <template v-if="bloodFlow || yaotongView" #footer>
         <button type="button" class="blood-flow-pile-badge" :class="`win-count-${seatPosition[index + 1]}`" :data-pile-seat="player.seat"
@@ -665,6 +686,7 @@ function onAvatarError(entry: GamePlayer) {
         :position="seatPosition[cue.actorIndex]" :theme-name="themeName" />
     </TransitionGroup>
     <YaotongChickenEffects v-if="yaotongView?.chickenPerformances?.length" :cues="yaotongView.chickenPerformances" :players="players" :theme-name="themeName" />
+    <YaotongEmoteEffects v-if="emoteCues?.length" :cues="emoteCues" />
     <YaotongSettlementEffects v-if="yaotongView?.settlementCue" :key="yaotongView.settlementCue.id"
       :cue="yaotongView.settlementCue" :players="players" />
     <Transition name="announce">
@@ -695,6 +717,7 @@ function onAvatarError(entry: GamePlayer) {
             v-if="presentedLlmBubbles?.[0]"
             :key="presentedLlmBubbles[0].id"
             class="llm-bubble user-llm-bubble"
+            :class="{ 'quick-chat-bubble': chatBubbles?.[0] }"
             role="status"
             aria-live="polite"
           >{{ presentedLlmBubbles[0].text }}</div>
@@ -731,10 +754,11 @@ function onAvatarError(entry: GamePlayer) {
         <span v-if="bloodFlow.reformHint.reason === 'any-wait'">→ 癞子单吊·任意听（此后每巡可胡）</span>
         <span v-else>→ 听口更宽、收益更高</span>
       </div>
-      <div v-if="actionPrompt || isUserTurn || userCurrentWaits || extraActions" class="action-bar">
+      <div v-if="showActionBar" class="action-bar">
         <slot name="actions" />
         <button v-if="userCurrentWaits || userTingOptions.length" class="action waiting-action" :class="{ active: waitsOpen }" data-action-role="secondary" aria-label="查看听牌提示" :title="userCurrentWaits ? '已听牌，查看听口' : '查看打哪张可听'" :aria-expanded="waitsOpen" @click="toggleWaits">
-          <template v-if="themeName === 'llmAnime'"><b>听</b><span>牌</span></template>
+          <TableControlIcon v-if="rulesetId === 'yaotong'" name="waits" />
+          <template v-else-if="themeName === 'llmAnime'"><b>听</b><span>牌</span></template>
           <img v-else class="action-icon" :src="`${imageBase}tips.png`" alt="" />
         </button>
         <template v-if="actionPrompt?.type === 'claim'">
@@ -760,8 +784,8 @@ function onAvatarError(entry: GamePlayer) {
           <button v-if="!yaotongView?.holding && (!bloodFlow || !bloodFlow.seats[user.seat].locked)" class="action pass" data-action-role="danger" @click="$emit('pass')"><b>过</b></button>
         </template>
         <template v-else>
-          <button v-if="userKongs.length" class="action primary" data-action-role="primary" @click="toggleKongPicker"><b>{{ kongPickerOpen ? '取消' : '杠' }}</b></button>
-          <button v-if="userHasWindKong" class="action primary" data-action-role="primary" @click="$emit('windKong')"><b>风杠</b></button>
+          <button v-if="userKongs.length" class="action primary" data-action-role="primary" @click="toggleKongPicker"><b :class="{ 'action-label': kongPickerOpen }">{{ kongPickerOpen ? '取消' : '杠' }}</b></button>
+          <button v-if="userHasWindKong" class="action primary" data-action-role="primary" @click="$emit('windKong')"><b class="action-label">风杠</b></button>
           <button v-if="userCanHu && !yaotongView?.confirmHuPlan && !yaotongView?.manualHuControls" class="action hu" data-action-role="major" @click="$emit('hu')"><b>胡</b></button>
         </template>
       </div>
@@ -770,7 +794,10 @@ function onAvatarError(entry: GamePlayer) {
         :aria-pressed="autoPlay" :aria-label="autoPlay ? '取消机器人托管，恢复手动操作' : '开启机器人托管，自动出牌与过牌'"
         :title="autoPlay ? '机器人托管中：点击恢复手动' : '点击机器人托管：到您的回合自动出牌/过牌'"
         @click="$emit('toggleAutoPlay')"
-      ><b>托管</b></button>
+      >
+        <TableControlIcon v-if="rulesetId === 'yaotong'" name="autoplay" />
+        <b v-else>托管</b>
+      </button>
       <div v-if="(isUserTurn || actionPrompt) && turnSeconds > 0" class="turn-timer" :class="{ 'prompt-timer': actionPrompt }"><span>{{ turnSeconds }}</span></div>
     </div>
     <div v-if="activeWaits && waitsOpen" class="waiting-tip compact-waiting-tip" :class="{ 'blood-flow-waiting-tip': bloodFlow }">

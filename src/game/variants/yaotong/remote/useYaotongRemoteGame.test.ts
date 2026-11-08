@@ -109,6 +109,45 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('useYaotongRemoteGame', () => {
+  it('联机互动只收当前小局的预设消息，并按本家视角换算发送和接收座位', async () => {
+    const scope = effectScope()
+    const onInteraction = vi.fn()
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false, onInteraction,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      expect(game.sendQuickChat('hello')).toBe(false)
+      const active = snapshot({ seat: 2 })
+      socket.server(active)
+      const hand = { matchId: active.matchId, round: active.round }
+      expect(game.sendQuickChat('hello')).toBe(true)
+      expect(game.sendEmote('tomato', 3)).toBe(true)
+      expect(game.sendEmote('tomato', 0)).toBe(false)
+      expect(socket.sent).toEqual([
+        { ...hand, kind: 'quick_chat', phraseId: 'hello' },
+        { ...hand, kind: 'emote', emote: 'tomato', targetSeat: 1 },
+      ])
+
+      const phrase = { ...hand, kind: 'quick_chat', phraseId: 'hello', fromSeat: 1 }
+      const emote = { ...hand, kind: 'emote', emote: 'tomato', fromSeat: 1, targetSeat: 2 }
+      socket.server({ ...phrase, round: 2 })
+      socket.server({ ...phrase, phraseId: 'unknown' })
+      socket.server({ ...emote, targetSeat: 4 })
+      socket.server(phrase)
+      socket.server(emote)
+      expect(onInteraction.mock.calls.map(([event]) => event)).toEqual([
+        { kind: 'quick_chat', fromSeat: 3, phrase: expect.objectContaining({ id: 'hello' }) },
+        { kind: 'emote', fromSeat: 3, targetSeat: 0, emote: expect.objectContaining({ id: 'tomato' }) },
+      ])
+
+      socket.close()
+      expect(game.sendEmote('tomato', 3)).toBe(false)
+    } finally { scope.stop() }
+  })
+
   it('按服务端本人剩余时间显示操作读秒，等期间冻结，续计与换局清理正确', async () => {
     vi.useFakeTimers()
     const scope = effectScope()

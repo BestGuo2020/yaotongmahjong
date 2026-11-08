@@ -9,12 +9,16 @@ import RulesPanel from './components/RulesPanel.vue'
 import ReplayListView from './components/replay/ReplayListView.vue'
 import SettlementOverlay from './components/settlement/SettlementOverlay.vue'
 import YaotongControls from './components/yaotong/YaotongControls.vue'
+import { useYaotongQuickChat } from './components/yaotong/useYaotongQuickChat'
+import { useYaotongEmotes } from './components/yaotong/useYaotongEmotes'
 import YaotongLedger from './components/yaotong/YaotongLedger.vue'
 import YaotongRoundOverview from './components/yaotong/YaotongRoundOverview.vue'
 import StatsOverlay from './components/account/StatsOverlay.vue'
 import { useYaotongPort } from './game/variants/yaotong/useYaotongPort'
 import { useYaotongGame } from './game/variants/yaotong/useYaotongGame'
 import { useYaotongRemoteGame } from './game/variants/yaotong/remote/useYaotongRemoteGame'
+import type { YaotongEmoteId } from './game/variants/yaotong/emotes'
+import type { QuickChatPhrase } from './game/variants/yaotong/quickChat'
 import { useAudio } from './game/core/presentation/useAudio'
 import type { GameMode } from './game/core/contracts/activeGamePort'
 import type { TileType } from './game/core/contracts/types'
@@ -74,7 +78,16 @@ if (initialThemeCandidate !== null && initialThemeCandidate !== initialTableThem
   window.history.replaceState(window.history.state, '', canonicalUrl)
 }
 
-const { playEffect, playEffectAndWait, startBgm } = useAudio()
+const { playEffect, playEffectAndWait, startBgm, soundOn, effectsOn } = useAudio()
+// 快捷语：纯手动发送；静音时只显示气泡、不朗读。气泡复用 GameTableHud 的现有 bubble。
+const quickChat = useYaotongQuickChat({
+  enabled: () => soundOn.value && effectsOn.value,
+  playAudio: (file) => playEffect(file, 0.95),
+})
+const chatBubbles = quickChat.bubbles
+const emotes = useYaotongEmotes({
+  playSound: (file, volume) => playEffect(file, volume ?? 0.85),
+})
 const animeCharacterId = ref<CharacterId>(readAnimeCharacterPreference())
 watch(animeCharacterId, saveAnimeCharacterPreference)
 watch(tableThemeName, (theme) => {
@@ -91,6 +104,15 @@ const online = useYaotongRemoteGame({
   playSoundAndWait: playEffectAndWait,
   getCharacterId: () => animeCharacterId.value,
   createPort: false,
+  onInteraction(event) {
+    if (gameMode.value !== 'remote' || replayView.value) return
+    if (event.kind === 'quick_chat') {
+      const { text, speech, audio } = event.phrase
+      quickChat.show(event.fromSeat, text, speech, audio)
+    } else {
+      emotes.show(event.emote, event.fromSeat, event.targetSeat)
+    }
+  },
 })
 const { roomMeta } = useRoomAvailability(gameMode, online.roomId, 'yaotong')
 const wakuAuth = useWakuDemoAuth()
@@ -138,6 +160,29 @@ const allOccupiedReady = computed(() => {
 const showLobby = computed(() => gameMode.value === 'local'
   ? phase.value === 'lobby'
   : !online.roomId.value || !online.inner.state.value)
+const interactionHand = computed(() => {
+  const state = gameSource.state.value
+  if (!state || state.phase === 'settled' || replayView.value) return undefined
+  return `${gameMode.value}:${state.remoteMatchId ?? ''}:${state.handNumber}`
+})
+const interactionsEnabled = computed(() => interactionHand.value !== undefined && gameTableReady.value
+  && (gameMode.value === 'local' || online.interactionsAvailable.value))
+
+function sendQuickChat(phrase: QuickChatPhrase): boolean {
+  if (!interactionsEnabled.value) return false
+  const relay = gameMode.value === 'remote' ? () => online.sendQuickChat(phrase.id) : undefined
+  return quickChat.send(phrase.text, phrase.speech, phrase.audio, relay)
+}
+
+function sendEmote(emote: YaotongEmoteId) {
+  if (!interactionsEnabled.value) return
+  emotes.throwEmote(emote, gameMode.value === 'remote' ? online.sendEmote : undefined)
+}
+
+function openEmote(seat: number) {
+  if (interactionsEnabled.value) emotes.open(seat)
+}
+
 const jokerTiles: TileType[] = ['p1']
 const wallBreakIndex = computed(() => {
   const state = yaotongGame.local.state.value
@@ -147,6 +192,9 @@ watch([rulesOpen, () => yaotongGame.openingActive.value], ([open, opening]) => {
   if (!opening) yaotongGame.local.paused.value = open
 })
 watch(result, (value) => { resultVisible.value = Boolean(value) })
+// 连庄的局名相同，小局编号仍会前进。
+watch(interactionHand, () => { quickChat.clear(); emotes.clear() }, { flush: 'sync' })
+watch(interactionsEnabled, (enabled) => { if (!enabled) emotes.cancel() })
 watch(showLobby, (lobby) => { if (lobby) { resetTableReady(); replay.finishAuto() } })
 watch(matchFinished, (finished) => { if (finished) replay.finishAuto() })
 watch(() => wakuAuth.account.value?.displayName, (name) => {
@@ -191,6 +239,8 @@ if (typeof window !== 'undefined') {
 onBeforeUnmount(() => window.removeEventListener('wakudemo-auth-required', handleAuthRequired))
 onBeforeUnmount(() => replay.finishAuto())
 onBeforeUnmount(resetTableReady)
+onBeforeUnmount(() => quickChat.dispose())
+onBeforeUnmount(() => emotes.dispose())
 
 function showReplayList() {
   replayNotice.value = ''
@@ -377,6 +427,9 @@ function changeTableTheme(theme: TableThemeName) {
         :blocked-discard-indices="yaotongGame.local.protection.value.discards"
         :can-pass="!yaotongGame.local.protection.value.pass"
         :yaotong-view="yaotongGame.tableView.value"
+        :chat-bubbles="chatBubbles"
+        :emote-cues="emotes.cues.value"
+        :emotes-enabled="interactionsEnabled"
         :joker-tiles="jokerTiles"
         :theme-name="tableThemeName"
         ruleset-id="yaotong"
@@ -394,8 +447,13 @@ function changeTableTheme(theme: TableThemeName) {
         @next-round="nextRound"
         @return-to-lobby="returnToLobby"
         @leave-match="quitMatch"
+        @emote-target="openEmote"
       >
-        <template #actions><YaotongControls :game="yaotongGame" /></template>
+        <template #actions>
+          <YaotongControls :key="interactionHand" :game="yaotongGame"
+            :send-quick-chat="interactionsEnabled ? sendQuickChat : undefined"
+            :emotes="interactionsEnabled ? emotes : undefined" :send-emote="sendEmote" />
+        </template>
       </GameTableHud>
 
 
