@@ -552,8 +552,9 @@ export function useYaotongPort(
         ...chickenPerformances.value.filter((c) => c.actorSeat !== performance.actorSeat),
         performance,
       ].slice(-4)
-      if (!llmSeat && performance.kind !== 'peng')
-        playSound(performance.kind === 'rush' ? 'chongfengji.wav' : 'zerenji.wav', 0.3)
+      // 冲鸡音效随牌桌事件播放，独立于座位报牌语音。
+      if (performance.kind === 'rush') playSound('chongfengji.wav', 0.3)
+      else if (performance.kind === 'responsibility' && !llmSeat) playSound('zerenji.wav', 0.3)
       scheduler.later(
         () => {
           chickenPerformances.value = chickenPerformances.value.filter((c) => c.id !== performance.id)

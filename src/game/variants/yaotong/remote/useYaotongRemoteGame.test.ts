@@ -227,6 +227,40 @@ describe('useYaotongRemoteGame', () => {
     } finally { scope.stop() }
   })
 
+  it('LLM 思考语音只在当前提示有效时播放，结束消息只清除自己的气泡', async () => {
+    const scope = effectScope()
+    const playLlmAudio = vi.fn()
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false, playLlmAudio,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      const active = snapshot({ seat: 2 })
+      active.view.players[3].playerKind = 'llm'
+      socket.server(active)
+      const speech = { matchId: 'M1', round: 1, seat: 3, messageId: 1 }
+      const status = { kind: 'llm_status', ...speech, active: true, text: '让我想想怎么打。' }
+      const audioUrl = '/api/tts/audio/' + 'a'.repeat(64) + '.mp3'
+      const audio = { kind: 'llm_audio', ...speech, audioUrl, cached: true, priority: 'normal' }
+      socket.server({ ...status, round: 0 })
+      expect(game.llmBubbles.value).toEqual({})
+      socket.server(status)
+      expect(game.llmBubbles.value[1]).toEqual({ id: 1, text: status.text })
+      socket.server(audio)
+      socket.server({ ...status, active: false })
+      expect(game.llmBubbles.value).toEqual({})
+      socket.server({ ...status, messageId: 2 })
+      socket.server({ ...status, messageId: 2, active: false })
+      socket.server({ ...audio, messageId: 2 })
+      expect(playLlmAudio).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(audioUrl), 1, 1, 'normal', false)
+      socket.server({ kind: 'llm_message', ...speech, id: 3, text: '这张先走。' })
+      socket.server({ ...status, active: false })
+      expect(game.llmBubbles.value[1]).toEqual({ id: 3, text: '这张先走。' })
+    } finally { scope.stop() }
+  })
+
   it('终局快照之后仍收当前赢家的 LLM 胡牌语音，旧小局和非赢家被过滤', async () => {
     const scope = effectScope()
     const playLlmAudio = vi.fn()
@@ -262,6 +296,50 @@ describe('useYaotongRemoteGame', () => {
       socket.server(audio)
       expect(game.llmBubbles.value[3]?.text).toBe('自摸！')
       expect(playLlmAudio).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(audioUrl), 3, 3, 'important', true)
+    } finally { scope.stop() }
+  })
+
+  it('LLM 小局感言只在对应小局结算后入队，败方的语音也能播放', async () => {
+    const scope = effectScope()
+    const playLlmAudio = vi.fn()
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false, playLlmAudio,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      const active = snapshot()
+      active.view.players[3].playerKind = 'llm'
+      const speech = { matchId: 'M1', round: 1, seat: 3, purpose: 'round-reaction', priority: 'important' }
+      const reaction = { kind: 'llm_message', ...speech, id: 1, text: '下局再来。', hasAudio: true }
+      const audioUrl = '/api/tts/audio/' + 'a'.repeat(64) + '.mp3'
+      const audio = { kind: 'llm_audio', ...speech, messageId: 1, audioUrl, cached: true }
+      socket.server(active)
+      socket.server(reaction)
+      socket.server(audio)
+      expect(game.llmBubbles.value).toEqual({})
+      expect(playLlmAudio).not.toHaveBeenCalled()
+
+      socket.server({
+        ...active,
+        view: { ...active.view, phase: 'settled' },
+        roundResult: {
+          kind: 'win', winners: [0], source: null, winKind: 'self', tile: 'm3',
+          offender: null, reason: '自摸', indicator: null, chicken: null,
+          ready: [false, false, false, false], deltas: [15, -5, -5, -5], nextDealer: 0,
+          finished: false, transfers: [], values: {},
+        },
+      })
+      socket.server({ ...reaction, round: 0 })
+      socket.server(audio)
+      expect(game.llmBubbles.value).toEqual({})
+      expect(playLlmAudio).not.toHaveBeenCalled()
+      socket.server(reaction)
+      socket.server(audio)
+      socket.server(audio)
+      expect(game.llmBubbles.value[3]?.text).toBe(reaction.text)
+      expect(playLlmAudio).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(audioUrl), 3, 1, 'important', true)
     } finally { scope.stop() }
   })
 
@@ -329,6 +407,31 @@ describe('useYaotongRemoteGame', () => {
       expect(playLlmAudio).toHaveBeenCalledOnce()
       expect(playSound).not.toHaveBeenCalled()
       expect(game.llmBubbles.value[3]?.text).toBe('胡了！')
+    } finally { scope.stop() }
+  })
+
+  it('换局后丢弃迟到的 LLM 动作语音失败回调', async () => {
+    const scope = effectScope()
+    const playSound = vi.fn()
+    let finishPlayback!: (played: boolean) => void
+    const playback = new Promise<boolean>(resolve => { finishPlayback = resolve })
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false, playSound, playLlmAudio: () => playback,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      const active = snapshot()
+      active.view.players[1].playerKind = 'llm'
+      socket.server(active)
+      const speech = { matchId: 'M1', round: 1, seat: 1, purpose: 'action', actionKind: 'peng', priority: 'important' }
+      socket.server({ kind: 'llm_message', ...speech, id: 1, text: '碰！' })
+      socket.server({ kind: 'llm_audio', ...speech, messageId: 1, audioUrl: '/api/tts/audio/' + 'a'.repeat(64) + '.mp3', cached: true })
+      socket.server({ ...active, round: 2, view: { ...active.view, handNumber: 2 } })
+      finishPlayback(false)
+      await playback
+      expect(playSound).not.toHaveBeenCalled()
     } finally { scope.stop() }
   })
 

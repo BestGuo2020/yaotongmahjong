@@ -55,6 +55,27 @@ it.each(['llm', 'bot'] as const)('碰杠和报听根据动作座位决定是否�
   expect(port.tableView.value.declarationCues[0]).toMatchObject({ actorIndex: 1, type: 'ready' })
 })
 
+it.each([['一条', 18], ['幺筒', 9]] as const)('联机 LLM 座位冲%s仍播放冲鸡音效', async (_label, tile) => {
+  const remote = scope.run(() => useYaotongGame({ externalAuthority: external() }))!
+  const playSound = vi.fn(), playSoundAndWait = vi.fn(async () => {})
+  const port = scope.run(() => useYaotongPort({ playSound, playSoundAndWait }, remote))!
+  const state = table()
+  state.current = 1
+  state.players[1].playerKind = 'llm'
+  state.players[1].hand.push(tile)
+  expect(act(state, 1, { type: 'discard', index: 13 })).toBe(true)
+
+  remote.acceptRemoteState(state)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(port.tableView.value.chickenPerformances).toMatchObject([{ kind: 'rush', actorSeat: 1, tile }])
+  expect(playSound).toHaveBeenCalledWith('chongfengji.wav', 0.3)
+  expect(playSoundAndWait).not.toHaveBeenCalled()
+
+  remote.acceptRemoteState(structuredClone(state))
+  await vi.advanceTimersByTimeAsync(0)
+  expect(playSound.mock.calls.filter(([file]) => file === 'chongfengji.wav')).toHaveLength(1)
+})
+
 it.each(['self', 'discard', 'rob'] as const)('LLM 胡牌不播系统语音（%s），照常结算', async (winKind) => {
   const remote = scope.run(() => useYaotongGame({ externalAuthority: external() }))!
   const playSound = vi.fn()

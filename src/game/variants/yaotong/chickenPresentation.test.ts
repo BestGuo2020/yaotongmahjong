@@ -107,7 +107,8 @@ describe('小鸡时序不阻塞对局、不留下旧回调', () => {
   it('一家的冲鸡被碰走，不取消另一家仍在牌河中的同牌动画', async () => {
     const scope = effectScope()
     try {
-      const port = scope.run(() => useYaotongPort())!
+      const playSound = vi.fn()
+      const port = scope.run(() => useYaotongPort({ playSound }))!
       port.local.paused.value = true
       const state = table()
       state.players[0] = player('11p 147m 258p 369s 24s')
@@ -125,6 +126,7 @@ describe('小鸡时序不阻塞对局、不留下旧回调', () => {
       port.local.state.value = state
       await vi.advanceTimersByTimeAsync(80)
       expect(port.tableView.value.chickenPerformances?.map((c) => c.actorSeat)).toEqual([1, 3])
+      expect(playSound.mock.calls.filter(([file]) => file === 'chongfengji.wav')).toHaveLength(2)
       state.players[1].river = []
       state.players[0].hand = state.players[0].hand.filter((t) => t !== 9)
       state.players[0].melds = [meld(9, { from: 1, pre: true, chicken: 90, responsibility: 30 })]

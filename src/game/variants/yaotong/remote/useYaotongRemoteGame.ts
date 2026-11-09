@@ -98,7 +98,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   const currentRound = ref(0)
   const llmBubbles = ref<Record<number, { id: number; text: string }>>({})
   const llmBubbleTimers = new Map<number, ReturnType<typeof setTimeout>>()
-  const pendingActionSpeech = new Map<number, { seat: number; expiresAt: number }>()
+  const pendingOrderedSpeech = new Map<number, { seat: number; expiresAt: number }>()
   const playedLlmAudio = new Set<number>()
   let lastOpeningKey = ''
   let completedOpeningKey = ''
@@ -126,54 +126,70 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     for (const timer of llmBubbleTimers.values()) clearTimeout(timer)
     llmBubbleTimers.clear()
     llmBubbles.value = {}
-    pendingActionSpeech.clear()
+    pendingOrderedSpeech.clear()
     playedLlmAudio.clear()
     options.stopLlmAudio?.()
+  }
+
+  function clearLlmBubble(seat: number, id: number) {
+    if (llmBubbles.value[seat]?.id !== id) return
+    clearTimeout(llmBubbleTimers.get(seat))
+    llmBubbleTimers.delete(seat)
+    const next = { ...llmBubbles.value }
+    delete next[seat]
+    llmBubbles.value = next
   }
 
   function showLlmBubble(seat: number, id: number, text: string) {
     clearTimeout(llmBubbleTimers.get(seat))
     llmBubbles.value = { ...llmBubbles.value, [seat]: { id, text } }
-    llmBubbleTimers.set(seat, setTimeout(() => {
-      const next = { ...llmBubbles.value }
-      delete next[seat]
-      llmBubbles.value = next
-      llmBubbleTimers.delete(seat)
-    }, 4000))
+    llmBubbleTimers.set(seat, setTimeout(() => clearLlmBubble(seat, id), 4000))
   }
 
   function handleLlmSpeech(message: unknown) {
     const state = inner.state.value
-    const scope = message as { matchId?: unknown; round?: unknown }
+    const scope = message as { matchId?: unknown; round?: unknown; messageId?: unknown }
     if (!state || socket.status.value !== 'connected' || scope.matchId !== state.remoteMatchId
         || scope.round !== state.handNumber) return
     const speech = decodeServerMessage(message)
-    if (speech?.kind !== 'llm_message' && speech?.kind !== 'llm_audio') return
+    if (speech?.kind !== 'llm_message' && speech?.kind !== 'llm_audio' && speech?.kind !== 'llm_status') return
     const seat = toLocalSeat(speech.seat, mySeat.value)
     if (state.players[seat]?.playerKind !== 'llm') return
+    if (speech.kind === 'llm_status') {
+      const id = scope.messageId
+      if (typeof id !== 'number' || !Number.isInteger(id) || id < 1) return
+      if (speech.active && speech.text && interactionsAvailable.value) showLlmBubble(seat, id, speech.text)
+      if (!speech.active) clearLlmBubble(seat, id)
+      return
+    }
     const isAction = speech.purpose === 'action'
+    const isRoundReaction = speech.purpose === 'round-reaction'
+    const ordered = isAction || isRoundReaction
     // 胡牌消息在结算快照之后到达，本局赢家仍可完成动作语音。
     const isWinSpeech = isAction && speech.actionKind === 'win'
-    if (isWinSpeech ? !state.result?.winners.includes(seat) : !interactionsAvailable.value) return
+    if (isRoundReaction) {
+      if (!state.result) return
+    } else if (isWinSpeech ? !state.result?.winners.includes(seat) : !interactionsAvailable.value) return
     if (speech.kind === 'llm_message') {
       if (isAction && speech.hasAudio === false) {
         // 合成失败是对已发气泡的补充通知。保留台词，收掉该条语音的等待。
-        if (pendingActionSpeech.get(speech.id)?.seat === seat) pendingActionSpeech.delete(speech.id)
+        if (pendingOrderedSpeech.get(speech.id)?.seat === seat) pendingOrderedSpeech.delete(speech.id)
         return
       }
       showLlmBubble(seat, speech.id, speech.text)
-      if (isAction) pendingActionSpeech.set(speech.id, { seat, expiresAt: Date.now() + 6_000 })
-    } else {
-      const pending = pendingActionSpeech.get(speech.messageId)
-      const matches = isAction
-        ? pending?.seat === seat && pending.expiresAt > Date.now()
-        : llmBubbles.value[seat]?.id === speech.messageId
-      if (!matches || playedLlmAudio.has(speech.messageId)) return
-      pendingActionSpeech.delete(speech.messageId)
-      playedLlmAudio.add(speech.messageId)
-      const playback = options.playLlmAudio?.(API_BASE + speech.audioUrl, seat, speech.messageId, speech.priority, isAction)
-      if (playback) void playback.catch(() => { /* 气泡继续展示 */ })
+      if (ordered && speech.hasAudio !== false) pendingOrderedSpeech.set(speech.id, { seat, expiresAt: Date.now() + 6_000 })
+      return
     }
+    const { messageId } = speech
+    const pending = pendingOrderedSpeech.get(messageId)
+    const matches = ordered
+      ? pending?.seat === seat && pending.expiresAt > Date.now()
+      : llmBubbles.value[seat]?.id === messageId
+    if (!matches || playedLlmAudio.has(messageId)) return
+    pendingOrderedSpeech.delete(messageId)
+    playedLlmAudio.add(messageId)
+    const playback = options.playLlmAudio?.(API_BASE + speech.audioUrl, seat, messageId, speech.priority, ordered)
+    if (playback) void playback.catch(() => { /* 气泡继续展示 */ })
   }
 
   function handleMessage(message: unknown) {
@@ -253,7 +269,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       }
       return
     }
-    if (kind === 'llm_message' || kind === 'llm_audio') {
+    if (kind === 'llm_message' || kind === 'llm_audio' || kind === 'llm_status') {
       handleLlmSpeech(message)
       return
     }
