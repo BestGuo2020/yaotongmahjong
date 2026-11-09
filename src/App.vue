@@ -82,7 +82,7 @@ if (initialThemeCandidate !== null && initialThemeCandidate !== initialTableThem
   window.history.replaceState(window.history.state, '', canonicalUrl)
 }
 
-const { playEffect, playEffectAndWait, effectsReady, playLlmAudio, startBgm, preloadBgmTrack,
+const { playEffect, playEffectAndWait, effectsReady, playLlmAudio, playLocalLlmAudioUntilMidpoint, startBgm, preloadBgmTrack,
   soundOn, bgmOn, effectsOn } = useAudio()
 const tableBgmReady = Promise.all([preloadBgmTrack(DEFAULT_BGM_FILE), preloadBgmTrack(READY_BGM_ASSET)])
 function waitForTableAudio() {
@@ -107,8 +107,9 @@ const gameMode = ref<GameMode>('local')
 const online = useYaotongRemoteGame({
   playSound: playEffect,
   playSoundAndWait: playEffectAndWait,
-  playLlmAudio(url, seat, id, priority, queueImportant) {
+  playLlmAudio(url, seat, id, priority, queueImportant, hooks) {
     if (gameMode.value === 'remote' && !replayOpen.value && !replayView.value) {
+      if (hooks) return playLocalLlmAudioUntilMidpoint(url, seat, id, priority, hooks)
       playLlmAudio(url, seat, id, priority, queueImportant)
     }
   },
@@ -167,11 +168,13 @@ const gameSource = new Proxy({} as ReturnType<typeof useYaotongGame>, {
     return (source as any)[key]
   },
 })
+const roundSpeechBusy = computed(() => gameMode.value === 'remote' && online.roundSpeechBusy.value)
 const yaotongGame = useYaotongPort({
   recorder: replay.hooks,
   playSound: playEffect,
   playSoundAndWait: playEffectAndWait,
   waitForTableReady,
+  canShowSettlement: () => !roundSpeechBusy.value,
   getCharacterId: () => animeCharacterId.value,
 }, gameSource)
 const {
@@ -416,6 +419,7 @@ function changeTableTheme(theme: TableThemeName) {
   <main class="game-app"
     :class="[{ 'is-lobby': showLobby }, themePresentation.typography.headingClass]"
     :data-table-theme="tableThemeName"
+    :data-round-speech="roundSpeechBusy ? 'active' : undefined"
     :data-theme-player-frame="themePresentation.hud.playerFrame"
     :data-theme-particle="themePresentation.shell.particle"
     :data-theme-loading="themePresentation.presentation.loading"

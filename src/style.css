@@ -1492,6 +1492,7 @@ button { font: inherit; }
 .user-llm-bubble::after { top: 50%; right: 100%; margin-top: -6px; border-right-color: rgba(225, 189, 85, .55); }
 .llm-bubble-enter-active, .llm-bubble-leave-active { transition: opacity .22s ease; }
 .llm-bubble-enter-from, .llm-bubble-leave-to { opacity: 0; }
+.game-app[data-round-speech="active"] .llm-bubble-leave-active { visibility: hidden; }
 
 /* ── 移动端/窄屏适配：气泡缩小，锚点不变（仍贴头像三侧） ── */
 @media (hover: none) and (pointer: coarse) and (orientation: landscape),

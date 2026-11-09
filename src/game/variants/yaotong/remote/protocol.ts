@@ -173,6 +173,7 @@ export interface YtSnapshot {
   matchFinished: boolean
   opening: { dice: [number, number]; wallSide: number; reservedStacks: number } | null
   roundResult: YtSettlementView | null
+  roundSpeechPending?: boolean
   continuation?: { requiredSeats: number[]; readySeats: number[] }
   view: YtView
   flowStep?: GameState['remoteFlowStep']

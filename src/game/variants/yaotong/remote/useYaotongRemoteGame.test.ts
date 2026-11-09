@@ -1,9 +1,10 @@
-import { effectScope } from 'vue'
+import { effectScope, nextTick, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useYaotongRemoteGame } from './useYaotongRemoteGame'
+import { useYaotongRemoteGame, type YaotongRemoteGameOptions } from './useYaotongRemoteGame'
 import type { YtSnapshot } from './protocol'
 import { createRemoteSessionStore } from '../../../online/session/remoteSessionStore'
+import { useRemoteContinueCountdown } from '../../../online/presentation/useRemoteContinueCountdown'
 
 const api = vi.hoisted(() => ({
   createRoom: vi.fn(),
@@ -82,6 +83,22 @@ function snapshot(overrides: Partial<YtSnapshot> = {}): YtSnapshot {
     },
     ...overrides,
   }
+}
+
+function roundSpeechSnapshot() {
+  const settled = snapshot({
+    roundSpeechPending: true,
+    roundResult: {
+      kind: 'draw', winners: [], source: null, winKind: null, tile: null,
+      offender: null, reason: '流局', indicator: null, chicken: null,
+      ready: [false, false, false, false], deltas: [0, 0, 0, 0], nextDealer: 0,
+      finished: false, transfers: [], values: {},
+    },
+  })
+  settled.view.phase = 'settled'
+  settled.view.players[1].isLlm = true
+  settled.view.players[3].isLlm = true
+  return settled
 }
 
 beforeEach(() => {
@@ -343,6 +360,112 @@ describe('useYaotongRemoteGame', () => {
     } finally { scope.stop() }
   })
 
+  it('局末气泡随整句语音逐条出现，播完后才发布结算并开始完整的继续倒计时', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', { setTimeout, clearTimeout, setInterval, clearInterval })
+    const scope = effectScope()
+    const finishAudio: Array<(played: boolean) => void> = []
+    const playLlmAudio = vi.fn<NonNullable<YaotongRemoteGameOptions['playLlmAudio']>>(
+      () => new Promise<boolean>(resolve => finishAudio.push(resolve)),
+    )
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        playLlmAudio, socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      const port = game.port!
+      const countdown = scope.run(() => useRemoteContinueCountdown({
+        gameMode: ref('remote' as const), phase: port.phase, result: port.result,
+        matchFinished: port.matchFinished, waitingNextRound: game.waitingNextRound,
+        continueRound: port.nextRound,
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      const settled = roundSpeechSnapshot()
+      socket.server(settled)
+      expect(port.result.value).toBeNull()
+
+      const speech = { matchId: 'M1', round: 1, purpose: 'round-reaction' }
+      const audioUrl = '/api/tts/audio/' + 'a'.repeat(64) + '.mp3'
+      socket.server({ ...speech, kind: 'llm_message', seat: 3, id: 1, text: '这局流了。', hasAudio: true })
+      socket.server({ ...speech, kind: 'llm_audio', seat: 3, messageId: 1, audioUrl, cached: true })
+      socket.server({ ...speech, kind: 'llm_message', seat: 1, id: 2, text: '再来。', hasAudio: true })
+      socket.server({ ...speech, kind: 'llm_audio', seat: 1, messageId: 2, audioUrl, cached: true })
+      socket.server({ ...speech, kind: 'llm_message', seat: 3, id: 3, text: '下一局见。', hasAudio: false })
+      socket.server({ ...settled, roundSpeechPending: false })
+
+      expect(playLlmAudio).toHaveBeenCalledOnce()
+      const firstHooks = playLlmAudio.mock.calls[0][5]
+      expect(firstHooks?.waitForCompletion).toBe(true)
+      expect(game.llmBubbles.value).toEqual({})
+      firstHooks?.onStarted?.()
+      expect(game.llmBubbles.value).toEqual({ 3: { id: 1, text: '这局流了。' } })
+      game.inner.next()
+      await vi.advanceTimersByTimeAsync(11_000)
+      expect(game.llmBubbles.value).toEqual({ 3: { id: 1, text: '这局流了。' } })
+      expect(port.result.value).toBeNull()
+      expect(countdown.value).toBe(10)
+      expect(socket.sent).toEqual([])
+      socket.server({ kind: 'pong' })
+
+      finishAudio[0](true)
+      await nextTick()
+      expect(game.llmBubbles.value).toEqual({})
+      expect(playLlmAudio).toHaveBeenCalledTimes(2)
+      playLlmAudio.mock.calls[1][5]?.onStarted?.()
+      expect(game.llmBubbles.value).toEqual({ 1: { id: 2, text: '再来。' } })
+      finishAudio[1](true)
+      await nextTick()
+      expect(game.llmBubbles.value).toEqual({ 3: { id: 3, text: '下一局见。' } })
+      expect(port.result.value).toBeNull()
+      await vi.advanceTimersByTimeAsync(1600)
+      expect(game.llmBubbles.value).toEqual({})
+      expect(port.result.value?.draw).toBe(true)
+      expect(socket.sent).toEqual([{ kind: 'round_speech_done', matchId: 'M1', round: 1 }])
+      socket.server(settled)
+      expect(port.result.value?.draw).toBe(true)
+      expect(countdown.value).toBe(10)
+      await vi.advanceTimersByTimeAsync(9000)
+      expect(countdown.value).toBe(1)
+      expect(socket.sent).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(socket.sent.at(-1)).toEqual({ kind: 'continue', matchId: 'M1', round: 1 })
+    } finally { scope.stop() }
+  })
+
+  it('发言期间重连会清理旧音频，收到本局状态后才放行结算', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    const playLlmAudio = vi.fn<NonNullable<YaotongRemoteGameOptions['playLlmAudio']>>(
+      (_url, _seat, _id, _priority, _ordered, hooks) => new Promise<boolean>(resolve => {
+        hooks?.onStarted?.()
+        hooks?.signal?.addEventListener('abort', () => resolve(false), { once: true })
+      }),
+    )
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false, playLlmAudio,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      const settled = roundSpeechSnapshot()
+      socket.server(settled)
+      const speech = { matchId: 'M1', round: 1, purpose: 'round-reaction', seat: 1 }
+      socket.server({ ...speech, kind: 'llm_message', id: 1, text: '下局再来。', hasAudio: true })
+      socket.server({ ...speech, kind: 'llm_audio', messageId: 1, audioUrl: '/api/tts/audio/' + 'a'.repeat(64) + '.mp3', cached: true })
+      expect(game.llmBubbles.value[1]?.text).toBe('下局再来。')
+      socket.close()
+      expect(playLlmAudio.mock.calls[0][5]?.signal?.aborted).toBe(true)
+      await vi.advanceTimersByTimeAsync(1000)
+      socket.open()
+      expect(game.llmBubbles.value).toEqual({})
+      expect(game.roundSpeechBusy.value).toBe(true)
+      socket.server({ ...settled, roundSpeechPending: false })
+      expect(game.roundSpeechBusy.value).toBe(false)
+      expect(socket.sent).toEqual([{ kind: 'round_speech_done', matchId: 'M1', round: 1 }])
+    } finally { scope.stop() }
+  })
+
   it.each(['peng', 'gang', 'concealed-kong', 'added-kong', 'ready', 'original-ready'])('LLM 动作 %s 合成失败时只保留角色气泡', async (actionKind) => {
     const scope = effectScope()
     const playLlmAudio = vi.fn().mockResolvedValue(true), playSound = vi.fn()
@@ -595,7 +718,7 @@ describe('useYaotongRemoteGame', () => {
     expect(game.waitingNextRound.value).toBe(false)
     game.inner.next()
     expect(game.waitingNextRound.value).toBe(true)
-    expect(socket.sent).toContainEqual({ kind: 'continue', round: 1 })
+    expect(socket.sent).toContainEqual({ kind: 'continue', matchId: 'M1', round: 1 })
     game.inner.next()
     expect(socket.sent.filter(message => message.kind === 'continue')).toHaveLength(1)
 

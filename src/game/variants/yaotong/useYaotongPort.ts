@@ -86,6 +86,7 @@ export function useYaotongPort(
     playSound?: (file: string, volume?: number) => unknown
     playSoundAndWait?: (file: string, volume?: number) => Promise<void>
     waitForTableReady?: () => Promise<void>
+    canShowSettlement?: () => boolean
     getCharacterId?: () => string
     recorder?: ReplayRecorderHooks
   } = {},
@@ -796,7 +797,7 @@ export function useYaotongPort(
     announcement,
     tableActionEvent,
     scoreFlowEvent,
-    result,
+    result: computed(() => options.canShowSettlement?.() === false ? null : result.value),
     winEffect,
     winPresentation,
     revealHands,

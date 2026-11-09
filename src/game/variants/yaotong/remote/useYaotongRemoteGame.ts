@@ -4,6 +4,7 @@
 // 复用 src/game/online；对局协议走本目录的 protocol.ts。
 import { computed, onScopeDispose, ref, watch } from 'vue'
 
+import type { LlmAudioPlaybackHooks } from '../../../core/presentation/llmAudioBus'
 import { API_BASE } from '../../../online/api/httpClient'
 import {
   closeRoom as closeRoomApi,
@@ -44,13 +45,46 @@ export type YaotongRemoteSessionStatus =
 export interface YaotongRemoteGameOptions {
   playSound?: (file: string, volume?: number) => unknown
   playSoundAndWait?: (file: string, volume?: number) => Promise<void>
-  playLlmAudio?: (url: string, seat: number, id: number, priority?: 'normal' | 'important', queueImportant?: boolean) => void | Promise<unknown>
+  playLlmAudio?: (
+    url: string, seat: number, id: number, priority?: 'normal' | 'important', queueImportant?: boolean,
+    hooks?: LlmAudioPlaybackHooks,
+  ) => void | Promise<unknown>
   stopLlmAudio?: () => void
   getCharacterId?: () => string
   socketFactory?: Parameters<typeof createRoomSocketTransport>[0]['socketFactory']
   onInteraction?: (event: YtInteraction) => void
   /** App 用 hybrid source 时只取 inner，不再单独创建一份 port。 */
   createPort?: boolean
+}
+
+interface RoundSpeechLine {
+  id: number
+  seat: number
+  text: string
+  /** undefined 等待配对的音频包，null 表示只显示台词。 */
+  audioUrl?: string | null
+}
+
+interface RoundSpeech {
+  lines: RoundSpeechLine[]
+  next: number
+  playing: boolean
+  sent: boolean
+  abort: AbortController
+}
+
+const ROUND_SPEECH_TEXT_MS = 1600
+
+function waitForRoundSpeechText(signal: AbortSignal) {
+  return new Promise<void>(resolve => {
+    const timer = setTimeout(finish, ROUND_SPEECH_TEXT_MS)
+    function finish() {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', finish)
+      resolve()
+    }
+    signal.addEventListener('abort', finish, { once: true })
+  })
 }
 
 const ERROR_TEXT: Record<string, string> = {
@@ -95,11 +129,14 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   const storedSession = ref<StoredSession | null>(savedSession?.rulesetId === 'yaotong' ? savedSession : null)
   const waitingNextRound = ref(false)
   const pendingOpeningRound = ref<number | null>(null)
-  const currentRound = ref(0)
   const llmBubbles = ref<Record<number, { id: number; text: string }>>({})
   const llmBubbleTimers = new Map<number, ReturnType<typeof setTimeout>>()
   const pendingOrderedSpeech = new Map<number, { seat: number; expiresAt: number }>()
   const playedLlmAudio = new Set<number>()
+  const roundSpeechBusy = ref(false)
+  let roundSpeech: RoundSpeech | null = null
+  let roundSpeechSupported = false
+  let roundSpeechAcknowledged = false
   let lastOpeningKey = ''
   let completedOpeningKey = ''
   let pendingSnapshot: YtSnapshot | null = null
@@ -122,7 +159,12 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     remoteSessionStore.saveSession(storedSession.value)
   }
 
-  function clearLlmSpeech() {
+  function clearLlmSpeech(keepRoundSpeechBusy = false) {
+    roundSpeech?.abort.abort()
+    roundSpeech = null
+    roundSpeechSupported = false
+    roundSpeechAcknowledged = false
+    if (!keepRoundSpeechBusy) roundSpeechBusy.value = false
     for (const timer of llmBubbleTimers.values()) clearTimeout(timer)
     llmBubbleTimers.clear()
     llmBubbles.value = {}
@@ -140,10 +182,69 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     llmBubbles.value = next
   }
 
-  function showLlmBubble(seat: number, id: number, text: string) {
+  function showLlmBubble(seat: number, id: number, text: string, autoDismiss = true) {
     clearTimeout(llmBubbleTimers.get(seat))
     llmBubbles.value = { ...llmBubbles.value, [seat]: { id, text } }
-    llmBubbleTimers.set(seat, setTimeout(() => clearLlmBubble(seat, id), 4000))
+    if (autoDismiss) llmBubbleTimers.set(seat, setTimeout(() => clearLlmBubble(seat, id), 4000))
+  }
+
+  function acknowledgeRoundSpeech() {
+    const state = inner.state.value
+    if (!state?.result || roundSpeechAcknowledged) return
+    roundSpeechAcknowledged = socket.send({
+      kind: 'round_speech_done', matchId: state.remoteMatchId, round: state.handNumber,
+    })
+  }
+
+  async function playRoundSpeech(batch: RoundSpeech) {
+    if (batch.playing) return
+    batch.playing = true
+    try {
+      while (roundSpeech === batch) {
+        const line = batch.lines[batch.next]
+        if (!line || (line.audioUrl === undefined && !batch.sent)) break
+        const isCurrent = () => roundSpeech === batch && batch.lines[batch.next] === line
+        const show = () => { if (isCurrent()) showLlmBubble(line.seat, line.id, line.text, false) }
+        let played = false
+        if (line.audioUrl) {
+          try {
+            played = await options.playLlmAudio?.(API_BASE + line.audioUrl, line.seat, line.id, 'important', true, {
+              waitForCompletion: true, onStarted: show, signal: batch.abort.signal, isCurrent,
+            }) === true
+          } catch { /* 播放失败时按纯文字台词展示 */ }
+        }
+        if (!isCurrent()) return
+        if (!played) {
+          show()
+          await waitForRoundSpeechText(batch.abort.signal)
+        }
+        if (!isCurrent()) return
+        clearLlmBubble(line.seat, line.id)
+        batch.next++
+      }
+    } finally {
+      batch.playing = false
+      if (roundSpeech === batch && batch.sent && batch.next === batch.lines.length) {
+        roundSpeech = null
+        roundSpeechBusy.value = false
+        acknowledgeRoundSpeech()
+      }
+    }
+  }
+
+  function updateRoundSpeech(snapshot: YtSnapshot) {
+    roundSpeechSupported = Boolean(snapshot.roundResult) && typeof snapshot.roundSpeechPending === 'boolean'
+    if (snapshot.roundSpeechPending && roundSpeechSupported) {
+      if (roundSpeechAcknowledged) return
+      roundSpeech ??= { lines: [], next: 0, playing: false, sent: false, abort: new AbortController() }
+      roundSpeechBusy.value = true
+    } else if (roundSpeech) {
+      roundSpeech.sent = true
+      void playRoundSpeech(roundSpeech)
+    } else {
+      roundSpeechBusy.value = false
+      if (roundSpeechSupported) acknowledgeRoundSpeech()
+    }
   }
 
   function handleLlmSpeech(message: unknown) {
@@ -170,6 +271,20 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     if (isRoundReaction) {
       if (!state.result) return
     } else if (isWinSpeech ? !state.result?.winners.includes(seat) : !interactionsAvailable.value) return
+    if ((isWinSpeech || isRoundReaction) && roundSpeechSupported) {
+      const batch = roundSpeech
+      if (!batch || batch.sent) return
+      const id = speech.kind === 'llm_message' ? speech.id : speech.messageId
+      const line = batch.lines.find(entry => entry.id === id)
+      if (speech.kind === 'llm_message' && !line) {
+        batch.lines.push({ id, seat, text: speech.text, audioUrl: speech.hasAudio === false ? null : undefined })
+      } else if (line?.seat === seat && line.audioUrl === undefined) {
+        if (speech.kind === 'llm_audio') line.audioUrl = speech.audioUrl
+        else if (speech.hasAudio === false) line.audioUrl = null
+      }
+      void playRoundSpeech(batch)
+      return
+    }
     if (speech.kind === 'llm_message') {
       if (isAction && speech.hasAudio === false) {
         // 合成失败是对已发气泡的补充通知。保留台词，收掉该条语音的等待。
@@ -229,6 +344,8 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       if (inner.showingSettlement.value && !sameHand && !waitingNextRound.value) {
         // 对齐经典 WS：结算演出/阅览期间的下一局，只暂存，不替换牌桌。
         pendingSnapshot = snapshot
+        // 断线期间服务端已进入下一局，旧局没有剩余台词可等。
+        if (!roundSpeech) roundSpeechBusy.value = false
         return
       }
       if (typeof snapshot.seat === 'number') mySeat.value = snapshot.seat
@@ -237,7 +354,6 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
         yaotongMode.value = snapshot.yaotongMode
         inner.mode.value = snapshot.yaotongMode
       }
-      currentRound.value = snapshot.round
       if (snapshot.view?.players?.length === 4
           && snapshot.view.phase !== 'lobby') {
         try {
@@ -255,6 +371,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
         waitingNextRound.value = Boolean(
           snapshot.roundResult && !snapshot.matchFinished
           && snapshot.continuation?.readySeats.includes(snapshot.seat))
+        updateRoundSpeech(snapshot)
       } else {
         sessionStatus.value = 'lobby'
       }
@@ -335,7 +452,8 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
         socket.send({ kind: 'action', action: toActionPayload(command) })
       },
       nextRound: () => {
-        if (waitingNextRound.value || !inner.state.value?.result || inner.state.value.result.finished) return
+        const state = inner.state.value
+        if (roundSpeechBusy.value || waitingNextRound.value || !state?.result || state.result.finished) return
         if (pendingSnapshot) {
           const snapshot = pendingSnapshot
           pendingSnapshot = null
@@ -344,7 +462,9 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
           return
         }
         // 仅发送成功才禁用按钮；重连快照会恢复服务端的实际确认状态。
-        if (socket.send({ kind: 'continue', round: currentRound.value })) waitingNextRound.value = true
+        if (socket.send({ kind: 'continue', matchId: state.remoteMatchId, round: state.handNumber })) {
+          waitingNextRound.value = true
+        }
       },
       leave: (finishedMatchId) => {
         if (finishedMatchId === undefined) {
@@ -381,8 +501,8 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     () => inner.state.value?.remoteMatchId,
     () => inner.state.value?.handNumber,
     () => inner.state.value?.phase === 'settled',
-    socket.status,
-  ], clearLlmSpeech, { flush: 'sync' })
+  ], () => clearLlmSpeech(), { flush: 'sync' })
+  watch(socket.status, () => clearLlmSpeech(true), { flush: 'sync' })
 
   const interactionsAvailable = computed(() => {
     const state = inner.state.value
@@ -411,6 +531,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   const port = options.createPort === false ? null : useYaotongPort({
     playSound: options.playSound,
     playSoundAndWait: options.playSoundAndWait,
+    canShowSettlement: () => !roundSpeechBusy.value,
     getCharacterId: options.getCharacterId,
   }, inner)
 
@@ -477,7 +598,6 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     storedSession.value = null
     waitingNextRound.value = false
     pendingOpeningRound.value = null
-    currentRound.value = 0
     lastOpeningKey = ''
     completedOpeningKey = ''
     pendingSnapshot = null
@@ -704,6 +824,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     pendingOpeningRound,
     interactionsAvailable,
     llmBubbles,
+    roundSpeechBusy,
     sendQuickChat,
     sendEmote,
     ackOpening,
