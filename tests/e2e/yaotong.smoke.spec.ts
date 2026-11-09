@@ -144,6 +144,35 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 
   })
 }
 
+test('慢网下等牌面、音效和报听 BGM 就绪才开始发牌', async ({ page }) => {
+  test.setTimeout(90_000)
+  const slowFiles = ['/tiles/5m.png', '/audio/sounds/peng.ogg', '/audio/bgm/ting_bgm.ogg']
+  const release = new Map<string, () => void>()
+  await page.route(url => slowFiles.includes(url.pathname), async route => {
+    const path = new URL(route.request().url()).pathname
+    await new Promise<void>(resolve => { release.set(path, resolve) })
+    await route.continue()
+  })
+  try {
+    await page.goto('/?quality=low', { waitUntil: 'domcontentloaded' })
+    await expect.poll(() => release.size).toBe(slowFiles.length)
+    await page.locator('.start-button').click()
+    const table = page.locator('.game-table-hud')
+    await expect(table.locator('.table-loading')).toBeVisible()
+    await expect(table).toHaveAttribute('data-wall-count', '108')
+    release.get('/tiles/5m.png')!()
+    await expect(table.locator('canvas')).toBeVisible()
+    release.get('/audio/sounds/peng.ogg')!()
+    await expect(table).toHaveAttribute('data-opening-stage', '')
+    await expect(table.locator('.table-loading')).toBeVisible()
+    release.get('/audio/bgm/ting_bgm.ogg')!()
+    await expect(table.locator('.table-loading')).toHaveCount(0, { timeout: 30_000 })
+    await expect(table).not.toHaveAttribute('data-wall-count', '108', { timeout: 15_000 })
+  } finally {
+    for (const resume of release.values()) resume()
+  }
+})
+
 test('幺筒正常开局、托管至结算并返回大厅', async ({ page }) => {
   test.setTimeout(240_000)
   const errors: string[] = []

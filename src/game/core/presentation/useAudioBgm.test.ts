@@ -180,11 +180,12 @@ describe('useAudio BGM 顺序切换（HTMLAudio 回退路径）', () => {
     expect(port).not.toBeNull()
     const bg = MockAudio.instances[0]
     await audio.startBgm()
-    port!.preload?.('HuMusic.ogg')
+    await port!.preload?.('HuMusic.ogg')
     port!.fadeTo('HuMusic.ogg', 0.05)
-    await wait(120)
-    expect(MockAudio.instances.filter(item => item.src.endsWith('/audio/bgm/ting_bgm.ogg'))).toHaveLength(1)
-    expect(bg.pause).toHaveBeenCalled()
+    await vi.waitFor(() => expect(bg.pause).toHaveBeenCalled())
+    const incoming = MockAudio.instances.find(item => item !== bg && item.loop)
+    expect(incoming?.src).toBe('blob:mock-bgm')
+    expect(incoming?.play).toHaveBeenCalledOnce()
   })
 })
 

@@ -148,4 +148,17 @@ describe('BGM 单轨不变量', () => {
     expect(DEFAULT_BGM_FILE).toBe('bgm/bgm.ogg')
     expect(livePlaying()).toHaveLength(1)
   })
+
+  it('报听曲预下载并解码，切换时复用缓存和仍在进行的预加载请求', async () => {
+    const audio = useAudio()
+    const file = 'bgm/ting_bgm.ogg'
+    const preload = audio.preloadBgmTrack(file)
+    expect(audio.preloadBgmTrack('HuMusic.ogg')).toBe(preload)
+    await Promise.all([preload, audio.startBgm()])
+    audio.fadeToBgm(file, 0)
+    expect(livePlaying()).toHaveLength(1)
+    expect(context.sources).toHaveLength(2)
+    const requests = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith(file))
+    expect(requests).toHaveLength(1)
+  })
 })

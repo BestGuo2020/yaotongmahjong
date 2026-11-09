@@ -303,6 +303,18 @@ describe('useAudio LLM 语音播放', () => {
     win.emit('ended')
     expect(bgm.volume).toBe(0.32)
   })
+
+  it('幺筒多家胡牌的关键语音依次播放，不互相覆盖', () => {
+    const audio = useAudio()
+    const urls = [1, 2, 3].map(seat => `/api/tts/audio/winner-${seat}.mp3`)
+    urls.forEach((url, index) => audio.playLlmAudio(url, index + 1, index + 1, 'important', true))
+
+    for (const url of urls) {
+      const voice = MockAudio.instances.find(item => item.src === url)
+      expect(voice?.play).toHaveBeenCalledOnce()
+      voice!.emit('ended')
+    }
+  })
 })
 
 describe('useAudio preferences', () => {

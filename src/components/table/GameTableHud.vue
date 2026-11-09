@@ -27,7 +27,7 @@ import { bloodFlowImpactProfile } from '../../theme/bloodFlowPresentation'
 import { useEffectPlayer } from '../../game/core/presentation/useAudio'
 import { createTableLoadRetryController } from './tableLoadRetry'
 import { animeAvatarForPlayer } from '../../game/core/presentation/animeAvatarPresentation'
-import { displayImageSrc } from '../../game/core/presentation/imagePreload'
+import { displayImageSrc, materializeImages } from '../../game/core/presentation/imagePreload'
 import { preloadAnimeCharacterAssets } from '../../game/core/presentation/llmAnimeAssets'
 import { animeCharacterAccent } from '../../game/core/presentation/animeCharacterPalette'
 import {
@@ -108,6 +108,7 @@ interface Props {
   emoteCues?: readonly EmoteCue[]
   /** 有互动表情时，点击对手头像打开表情面板；没有时保留昵称查看。 */
   emotesEnabled?: boolean
+  waitForAudio?: () => Promise<void>
 }
 
 const props = defineProps<Props>()
@@ -181,21 +182,29 @@ watch(()=>[props.bloodFlow?.sourceEvent?.id,props.user.drawnTileIndex,props.user
   if(c.width&&c.height)ownDrawScreen.value={sourceId:source.id,x:(b.x+b.width/2-c.x)/c.width,y:(b.y+b.height/2-c.y)/c.height}
 },{immediate:true,flush:'post'})
 
+function preloadPlayerImages() {
+  if (props.themeName === 'llmAnime') {
+    return preloadAnimeCharacterAssets(props.players.map(player => player.characterId))
+  }
+  if (props.rulesetId === 'yaotong') return materializeImages(props.players.map(player => player.avatar))
+}
+
 async function handleTableReady() {
   tableLoadRetry.succeed()
   tableLoadError.value = ''
   const theme = props.themeName
   const attempt = tableLoadAttempt.value
-  if (theme === 'llmAnime') {
-    let timeout: ReturnType<typeof setTimeout> | undefined
-    try {
-      await Promise.race([
-        preloadAnimeCharacterAssets(props.players.map(player => player.characterId)),
-        new Promise<void>(resolve => { timeout = setTimeout(resolve, 5_000) }),
-      ])
-    } catch { /* 立绘预热失败时牌桌仍按原始 URL 加载 */ } finally {
-      if (timeout !== undefined) clearTimeout(timeout)
-    }
+  const images = preloadPlayerImages()
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const imageBudget = props.rulesetId === 'yaotong' ? 15_000 : 5_000
+  const imageReady = images && Promise.race([
+    images,
+    new Promise<void>(resolve => { timeout = setTimeout(resolve, imageBudget) }),
+  ])
+  try {
+    await Promise.allSettled([imageReady, props.waitForAudio?.()])
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout)
   }
   if (theme !== props.themeName || attempt !== tableLoadAttempt.value) return
   tableReady.value = true
@@ -291,10 +300,9 @@ watch(() => props.themeName, () => {
   tableReady.value = false
   tableLoadError.value = ''
 })
-watch(() => `${props.themeName}:${props.players.map(player => player.characterId ?? '').join('|')}`, () => {
-  if (props.themeName === 'llmAnime') {
-    void preloadAnimeCharacterAssets(props.players.map(player => player.characterId)).catch(() => {})
-  }
+watch(() => `${props.themeName}:${props.players.map(player =>
+  props.themeName === 'llmAnime' ? player.characterId : player.avatar).join('|')}`, () => {
+  void preloadPlayerImages()?.catch(() => {})
 }, { immediate: true })
 type ActionCueLabWindow = Window & {
   __setTableActionCueLab?: (type: TableActionEvent['type'] | null, actorIndex?: number) => void

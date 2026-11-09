@@ -93,6 +93,7 @@ export interface SettlementTimelineOptions<E extends SettlementEndOptions, S ext
   getSourceIndex?(context: SettlementWinContext<E>): number
   getTableAction?(context: SettlementWinContext<E>): { type: TableActionType; sourceIndex: number | null }
   getWinSound?(context: SettlementWinContext<E>): string
+  shouldPlayWinVoice?(context: SettlementWinContext<E>): boolean
   /** 清理旧回合控制器后立即启动赢家优先的 AI 感言队列；结算阶段可等待同一 Promise。 */
   onWinStart?(context: SettlementWinContext<E>): void
   /** Optional exclusive title before the winner's normal cue; returns its duration in ms. */
@@ -245,7 +246,7 @@ export function createSettlementTimeline<E extends SettlementEndOptions, S exten
       const winSound = isDiscardWin
         ? 'hu.mp3'
         : (options.getWinSound?.(context) ?? (endOptions.selfDraw ? 'zimo.mp3' : 'hu.mp3'))
-      options.playSound(winSound)
+      if (options.shouldPlayWinVoice?.(context) !== false) options.playSound(winSound)
       options.later(activateWinEffect, cueLeadDuration + cueExitDuration)
     }
 

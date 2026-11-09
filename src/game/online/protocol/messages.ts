@@ -16,6 +16,7 @@ export type LlmSpeechSource = 'model-message' | 'fixed-line'
 export type LlmSpeechActionKind =
   | 'discard' | 'pass' | 'chi' | 'peng' | 'gang' | 'win'
   | 'added-kong' | 'concealed-kong' | 'wind-kong'
+  | 'ready' | 'original-ready'
 
 interface LlmSpeechMetadata {
   purpose?: LlmSpeechPurpose

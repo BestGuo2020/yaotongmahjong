@@ -226,7 +226,7 @@ export function decodeServerMessage(raw: unknown): ServerMessage | null {
           && raw.text.length > 0 && raw.text.length <= 60 && isNumber(raw.id)
           && isOptional(raw.priority, (value) => value === 'normal' || value === 'important')
           && isOptional(raw.purpose, (value) => value === 'commentary' || value === 'action' || value === 'round-reaction')
-          && isOptional(raw.actionKind, (value): value is string => isString(value) && ['discard', 'pass', 'chi', 'peng', 'gang', 'win', 'added-kong', 'concealed-kong', 'wind-kong'].includes(value))
+          && isOptional(raw.actionKind, (value): value is string => isString(value) && ['discard', 'pass', 'chi', 'peng', 'gang', 'win', 'added-kong', 'concealed-kong', 'wind-kong', 'ready', 'original-ready'].includes(value))
           && isOptional(raw.speechSource, (value) => value === 'model-message' || value === 'fixed-line')
           && isOptional(raw.hasAudio, isBoolean)
       case 'llm_status':
@@ -241,7 +241,7 @@ export function decodeServerMessage(raw: unknown): ServerMessage | null {
           && isBoolean(raw.cached)
           && isOptional(raw.priority, (value) => value === 'normal' || value === 'important')
           && isOptional(raw.purpose, (value) => value === 'commentary' || value === 'action' || value === 'round-reaction')
-          && isOptional(raw.actionKind, (value): value is string => isString(value) && ['discard', 'pass', 'chi', 'peng', 'gang', 'win', 'added-kong', 'concealed-kong', 'wind-kong'].includes(value))
+          && isOptional(raw.actionKind, (value): value is string => isString(value) && ['discard', 'pass', 'chi', 'peng', 'gang', 'win', 'added-kong', 'concealed-kong', 'wind-kong', 'ready', 'original-ready'].includes(value))
           && isOptional(raw.speechSource, (value) => value === 'model-message' || value === 'fixed-line')
       case 'hand_result': return isRoundResult(raw.result)
       case 'round_speech_done': return isString(raw.presentationKey)

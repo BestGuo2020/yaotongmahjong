@@ -78,11 +78,14 @@ export { fromSharedTile, toSharedTile }
 
 export type YaotongGameSource = ReturnType<typeof useYaotongGame>
 
+const READY_BGM_FADE_SECONDS = 0.35
+
 /** Rules stay deterministic; the original opening, audio, cue and settlement timelines own presentation. */
 export function useYaotongPort(
   options: {
     playSound?: (file: string, volume?: number) => unknown
     playSoundAndWait?: (file: string, volume?: number) => Promise<void>
+    waitForTableReady?: () => Promise<void>
     getCharacterId?: () => string
     recorder?: ReplayRecorderHooks
   } = {},
@@ -373,7 +376,9 @@ export function useYaotongPort(
   watch(
     () => local.state.value?.players.some((player) => player.declaration !== 'none') ?? false,
     (hasDeclaration) => {
-      activeBgmTrackPort()?.fadeTo(hasDeclaration ? READY_BGM_ASSET : DEFAULT_BGM_FILE)
+      const bgm = activeBgmTrackPort()
+      if (hasDeclaration) bgm?.fadeTo(READY_BGM_ASSET, READY_BGM_FADE_SECONDS)
+      else bgm?.fadeTo(DEFAULT_BGM_FILE)
     },
   )
   watch(
@@ -401,7 +406,6 @@ export function useYaotongPort(
       r = state.result!,
       winner = r.winners[0] ?? -1
     scoresReleased.value = true
-    transient.showScoreFlow(r.deltas.map((amount, playerIndex) => ({ amount, playerIndex })))
     return {
       draw: r.kind !== 'win',
       winnerIndex: winner,
@@ -451,6 +455,10 @@ export function useYaotongPort(
       },
       playSound,
       playSoundAndWait,
+      shouldPlayWinVoice() {
+        const state = local.state.value!
+        return state.result!.winners.some(seat => state.players[seat].playerKind !== 'llm')
+      },
       showWinIntro() {
         const outcome = local.state.value?.result
         if (!outcome || outcome.winners.length < 2 || outcome.source === null) return 0
@@ -486,6 +494,8 @@ export function useYaotongPort(
       && current.remoteMatchId === game.remoteMatchId && current.handNumber === game.handNumber)
   }
   function present(event: GameEvent) {
+    const game = local.state.value!
+    const llmSeat = game.players[event.seat]?.playerKind === 'llm'
     if (event.kind === 'draw') {
       if (event.text === '杠后补摸') tailDrawn.value++
       playSound('give.mp3', 0.7)
@@ -495,8 +505,7 @@ export function useYaotongPort(
     if (event.kind === 'discard') {
       lastDiscard.value = { tile: toSharedTile(event.tile!), from: event.seat, id: ++eventSequence }
       playSound('dapai.mp3', 0.8)
-      const game = local.state.value
-      lastDiscardSound.value = playDiscardName(toSharedTile(event.tile!), {
+      lastDiscardSound.value = llmSeat ? null : playDiscardName(toSharedTile(event.tile!), {
         playSound,
         playSoundAndWait,
         current: () => isCurrentHand(game),
@@ -519,22 +528,21 @@ export function useYaotongPort(
       scheduler.later(() => {
         declarationCues.value = declarationCues.value.filter((item) => item.id !== cue.id)
       }, TABLE_ACTION_CUE_DURATION_MS)
-      if (Date.now() - lastDeclarationSound > 100) {
+      if (!llmSeat && Date.now() - lastDeclarationSound > 100) {
         lastDeclarationSound = Date.now()
         playSound('ting.wav', 0.7)
       }
     }
     if (event.kind === 'penalty') playSound('didu.ogg')
-    const cue = makeChickenCue(event, local.state.value!)
+    const cue = makeChickenCue(event, game)
     if (cue) {
       seatCue.value = cue
       scheduler.later(() => {
         if (seatCue.value === cue) seatCue.value = null
       }, 1050)
     }
-    const performance = chickenPerformance(event, local.state.value!)
-    const game = local.state.value,
-      token = generation
+    const performance = chickenPerformance(event, game)
+    const token = generation
     if (performance) pendingChickens.value = [...pendingChickens.value, performance]
     const showChicken = () => {
       if (!performance || generation !== token || !isCurrentHand(game)) return
@@ -547,7 +555,7 @@ export function useYaotongPort(
         ...chickenPerformances.value.filter((c) => c.actorSeat !== performance.actorSeat),
         performance,
       ].slice(-4)
-      if (performance.kind !== 'peng')
+      if (!llmSeat && performance.kind !== 'peng')
         playSound(performance.kind === 'rush' ? 'chongfengji.wav' : 'zerenji.wav', 0.3)
       scheduler.later(
         () => {
@@ -556,7 +564,7 @@ export function useYaotongPort(
         prefersReducedMotion() ? 500 : CHICKEN_PERFORMANCE_MS,
       )
     }
-    if (performance?.kind === 'rush') void lastDiscardSound.value?.then(showChicken, showChicken)
+    if (performance?.kind === 'rush') void (lastDiscardSound.value ?? Promise.resolve()).then(showChicken, showChicken)
     const weatherKind = kongWeatherKind(event)
     if (weatherKind && !game?.result) {
       const reducedMotion = prefersReducedMotion()
@@ -596,6 +604,10 @@ export function useYaotongPort(
         kongKind === 'added' ? '补杠'
           : kongKind === 'turn' || kongKind === 'stored' ? '暗杠' : undefined,
       )
+      if (llmSeat) {
+        showChicken()
+        return
+      }
       // 动作字与报牌区分杠、暗杠、补杠，动画仍按原杠型区分。
       const actionSound = event.kind === 'peng' ? 'peng.mp3' : kongSoundFile(event)
       if (performance?.kind === 'responsibility' || performance?.kind === 'peng') {
@@ -695,7 +707,7 @@ export function useYaotongPort(
   async function opening(startOptions?: GameStartOptions) {
     local.paused.value = true
     const token = generation
-    await startOptions?.waitForTableReady?.()
+    await (startOptions?.waitForTableReady ?? options.waitForTableReady)?.()
     if (token !== generation) return
     openingStage.value = 'start'
     await playOpeningCue('start', { wait: scheduler.wait, playSoundAndWait })
@@ -739,7 +751,7 @@ export function useYaotongPort(
     if (!dealt || token !== generation) return
     openingStage.value = null
     dealAnimation.value = { playerIndex: -1, count: 0, serial: ++eventSequence }
-    await startOptions?.waitForOpeningReady?.()
+    await (startOptions?.waitForOpeningReady ?? options.waitForTableReady)?.()
     if (token !== generation) return
     openingActive.value = false
     transient.announce(`${roundLabel.value} · 开牌`)

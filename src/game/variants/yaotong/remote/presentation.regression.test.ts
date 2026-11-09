@@ -29,6 +29,45 @@ function settled() {
   return state
 }
 
+it('LLM 弃牌、碰杠和报听保留动作表现，省略座位的系统语音', async () => {
+  const remote = scope.run(() => useYaotongGame({ externalAuthority: external() }))!
+  const playSound = vi.fn(), playSoundAndWait = vi.fn(async () => {})
+  const port = scope.run(() => useYaotongPort({ playSound, playSoundAndWait }, remote))!
+  const state = table()
+  state.players[1].playerKind = 'llm'
+  state.players[1].declaration = 'ready'
+  state.events = [
+    { id: 1, kind: 'discard', seat: 1, tile: 4, text: '打牌' },
+    { id: 2, kind: 'peng', seat: 1, tile: 5, text: '碰' },
+    { id: 3, kind: 'kong', seat: 1, tile: 6, text: '明杠' },
+    { id: 4, kind: 'kong', seat: 1, tile: 7, text: '暗杠' },
+    { id: 5, kind: 'kong-intent', seat: 1, tile: 8, text: '宣告补杠' },
+    { id: 6, kind: 'ready', seat: 1, text: '报听 · 锁定听口' },
+  ]
+  state.serial = 6
+  remote.acceptRemoteState(state)
+  await vi.advanceTimersByTimeAsync(80)
+  expect(playSoundAndWait).not.toHaveBeenCalled()
+  expect(playSound.mock.calls.map(([file]) => file)).toEqual(['dapai.mp3', 'mingang_windy.wav', 'angang_rainy.wav'])
+  expect(port.tableActionEvent.value).toMatchObject({ actorIndex: 1, type: 'added-gang' })
+  expect(port.tableView.value.declarationCues[0]).toMatchObject({ actorIndex: 1, type: 'ready' })
+})
+
+it.each(['self', 'discard', 'rob'] as const)('LLM 胡牌不播系统语音（%s），照常结算', async (winKind) => {
+  const remote = scope.run(() => useYaotongGame({ externalAuthority: external() }))!
+  const playSound = vi.fn()
+  const port = scope.run(() => useYaotongPort({ playSound }, remote))!
+  const state = settled()
+  state.players[0].playerKind = 'llm'
+  state.result!.winKind = winKind
+  if (winKind !== 'self') state.result!.source = 1
+  remote.acceptRemoteState(state)
+  await vi.advanceTimersByTimeAsync(2_000)
+  expect(playSound.mock.calls.map(([file]) => file)).toEqual(['tuidao.wav'])
+  expect(port.result.value?.winnerIndex).toBe(0)
+  expect(port.scoreFlowEvent.value).toBeNull()
+})
+
 it('starts the shared WS continue countdown only after the reveal has finished', async () => {
   const authority = external()
   const remote = scope.run(() => useYaotongGame({ externalAuthority: authority }))!

@@ -19,7 +19,9 @@ import { useYaotongGame } from './game/variants/yaotong/useYaotongGame'
 import { useYaotongRemoteGame } from './game/variants/yaotong/remote/useYaotongRemoteGame'
 import type { YaotongEmoteId } from './game/variants/yaotong/emotes'
 import type { QuickChatPhrase } from './game/variants/yaotong/quickChat'
-import { useAudio } from './game/core/presentation/useAudio'
+import { DEFAULT_BGM_FILE, useAudio } from './game/core/presentation/useAudio'
+import { READY_BGM_ASSET } from './game/core/presentation/audioAssets'
+import { preloadTileImages } from './game/core/presentation/tileAssets'
 import { cancelLocalLlmAudioPlayback } from './game/core/presentation/llmAudioBus'
 import type { GameMode } from './game/core/contracts/activeGamePort'
 import type { TileType } from './game/core/contracts/types'
@@ -80,7 +82,16 @@ if (initialThemeCandidate !== null && initialThemeCandidate !== initialTableThem
   window.history.replaceState(window.history.state, '', canonicalUrl)
 }
 
-const { playEffect, playEffectAndWait, playLlmAudio, startBgm, soundOn, effectsOn } = useAudio()
+const { playEffect, playEffectAndWait, effectsReady, playLlmAudio, startBgm, preloadBgmTrack,
+  soundOn, bgmOn, effectsOn } = useAudio()
+const tableBgmReady = Promise.all([preloadBgmTrack(DEFAULT_BGM_FILE), preloadBgmTrack(READY_BGM_ASSET)])
+function waitForTableAudio() {
+  if (!soundOn.value) return Promise.resolve()
+  return Promise.all([
+    effectsOn.value ? effectsReady : undefined,
+    bgmOn.value ? tableBgmReady : undefined,
+  ]).then(() => {})
+}
 // 快捷语：纯手动发送；静音时只显示气泡、不朗读。气泡复用 GameTableHud 的现有 bubble。
 const quickChat = useYaotongQuickChat({
   enabled: () => soundOn.value && effectsOn.value,
@@ -96,9 +107,9 @@ const gameMode = ref<GameMode>('local')
 const online = useYaotongRemoteGame({
   playSound: playEffect,
   playSoundAndWait: playEffectAndWait,
-  playLlmAudio(url, seat, id, priority) {
+  playLlmAudio(url, seat, id, priority, queueImportant) {
     if (gameMode.value === 'remote' && !replayOpen.value && !replayView.value) {
-      playLlmAudio(url, seat, id, priority)
+      playLlmAudio(url, seat, id, priority, queueImportant)
     }
   },
   stopLlmAudio: cancelLocalLlmAudioPlayback,
@@ -129,8 +140,11 @@ const tableThemeName = computed<TableThemeName>(() => {
 const themePresentation = computed(() => themePresentationByName(tableThemeName.value))
 const themePresentationStyle = computed(() => themePresentationCssVariables(themePresentation.value))
 watch(tableThemeName, (theme) => {
+  gameTableReady.value = false
+  void preloadTileImages(theme).catch(() => { /* 牌桌挂载后走现有重试流程 */ })
   if (theme === 'llmAnime') void preloadAnimeCharacterAssets()
-}, { immediate: true })
+}, { immediate: true, flush: 'sync' })
+watch(replayView, (view) => { if (view) gameTableReady.value = false })
 const replay = useReplayRecorder({ meta: () => ({
   rulesetId: 'yaotong', rulesetName: '幺筒麻将', themeName: tableThemeName.value,
   humanSeat: 0, yaotongMode: yaotongGame.local.mode.value,
@@ -157,6 +171,7 @@ const yaotongGame = useYaotongPort({
   recorder: replay.hooks,
   playSound: playEffect,
   playSoundAndWait: playEffectAndWait,
+  waitForTableReady,
   getCharacterId: () => animeCharacterId.value,
 }, gameSource)
 const {
@@ -226,15 +241,19 @@ watch(() => online.storedSession.value?.nickname, (name) => {
 }, { immediate: true })
 const onlineRoomId = computed(() => gameMode.value === 'remote' ? online.roomId.value : '')
 const onlineSignal = computed(() => gameMode.value === 'remote' ? online.signalQuality.value : 3)
-let openingRoundInFlight: number | null = null
+let openingHandInFlight = ''
 async function playRemoteOpening(round: number) {
-  if (openingRoundInFlight === round) return
-  openingRoundInFlight = round
+  const matchId = online.inner.state.value?.remoteMatchId
+  const hand = `${matchId}:${round}`
+  if (openingHandInFlight === hand) return
+  openingHandInFlight = hand
   try {
-    await startGame('east', { waitForTableReady })
-    online.ackOpening(round)
+    await startGame('east')
+    if (gameMode.value === 'remote' && online.inner.state.value?.remoteMatchId === matchId) {
+      online.ackOpening(round)
+    }
   } finally {
-    if (openingRoundInFlight === round) openingRoundInFlight = null
+    if (openingHandInFlight === hand) openingHandInFlight = ''
   }
 }
 watch(() => online.pendingOpeningRound.value, (round) => {
@@ -243,11 +262,9 @@ watch(() => online.pendingOpeningRound.value, (round) => {
 watch(() => online.sessionStatus.value, (status) => {
   if (status === 'playing') {
     gameMode.value = 'remote'
-    resetTableReady()
-    startBgm()
+    void startBgm()
     const round = online.pendingOpeningRound.value
     if (round != null) void playRemoteOpening(round)
-    else void startGame('east', { waitForTableReady, skipOpening: true })
   }
 })
 
@@ -370,8 +387,8 @@ function copyRoomId() {
 function startGameWithAudio() {
   if (gameMode.value !== 'local') return
   resetTableReady()
-  startBgm()
-  startGame('east', { waitForTableReady })
+  void startBgm()
+  void startGame('east')
 }
 function toggleAutoPlay() {
   yaotongGame.local.autoplay.value = !yaotongGame.local.autoplay.value
@@ -434,7 +451,7 @@ function changeTableTheme(theme: TableThemeName) {
         :match-finished="matchFinished"
         :winning-player-index="winningPlayerIndex"
         :dealer="dealer"
-        :is-user-turn="isUserTurn"
+        :is-user-turn="gameTableReady && isUserTurn"
         :user-can-hu="userCanHu"
         :match-name="matchName"
         :round-label="roundLabel"
@@ -461,6 +478,7 @@ function changeTableTheme(theme: TableThemeName) {
         :emotes-enabled="interactionsEnabled"
         :joker-tiles="jokerTiles"
         :theme-name="tableThemeName"
+        :wait-for-audio="waitForTableAudio"
         ruleset-id="yaotong"
         :wall-break-index="wallBreakIndex"
         @select-tile="selectTile"

@@ -213,7 +213,7 @@ describe('useYaotongRemoteGame', () => {
       socket.server({ ...audio, messageId: 2 })
       socket.server(audio)
       socket.server(audio)
-      expect(playLlmAudio).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(audioUrl), 1, 1, undefined)
+      expect(playLlmAudio).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(audioUrl), 1, 1, undefined, false)
       await vi.advanceTimersByTimeAsync(4000)
       expect(game.llmBubbles.value).toEqual({})
 
@@ -224,6 +224,44 @@ describe('useYaotongRemoteGame', () => {
       expect(game.llmBubbles.value).toEqual({})
       socket.server({ ...audio, messageId: 2 })
       expect(playLlmAudio).toHaveBeenCalledOnce()
+    } finally { scope.stop() }
+  })
+
+  it('终局快照之后仍收当前赢家的 LLM 胡牌语音，旧小局和非赢家被过滤', async () => {
+    const scope = effectScope()
+    const playLlmAudio = vi.fn()
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false, playLlmAudio,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      const finished = snapshot({
+        matchFinished: true,
+        roundResult: {
+          kind: 'win', winners: [3], source: null, winKind: 'self', tile: 'm3',
+          offender: null, reason: '自摸', indicator: null, chicken: null,
+          ready: [false, false, false, false], deltas: [-5, -5, -5, 15], nextDealer: 3,
+          finished: true, transfers: [], values: {},
+        },
+      })
+      finished.view.phase = 'settled'
+      finished.view.players[2].playerKind = 'llm'
+      finished.view.players[3].playerKind = 'llm'
+      socket.server(finished)
+      expect(game.sessionStatus.value).toBe('finished')
+      const speech = { matchId: 'M1', round: 1, seat: 3, purpose: 'action', actionKind: 'win', priority: 'important' }
+      const audioUrl = '/api/tts/audio/' + 'a'.repeat(64) + '.mp3'
+      socket.server({ kind: 'llm_message', ...speech, id: 1, text: '自摸！', seat: 2 })
+      socket.server({ kind: 'llm_message', ...speech, id: 2, text: '自摸！', round: 0 })
+      expect(game.llmBubbles.value).toEqual({})
+      socket.server({ kind: 'llm_message', ...speech, id: 3, text: '自摸！' })
+      const audio = { kind: 'llm_audio', ...speech, messageId: 3, audioUrl, cached: true }
+      socket.server(audio)
+      socket.server(audio)
+      expect(game.llmBubbles.value[3]?.text).toBe('自摸！')
+      expect(playLlmAudio).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(audioUrl), 3, 3, 'important', true)
     } finally { scope.stop() }
   })
 

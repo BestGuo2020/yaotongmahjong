@@ -206,7 +206,7 @@ describe('幺筒复用原版GamePort与3D表现', () => {
           expect.objectContaining({ actorIndex: seat, type: declaration === 'original' ? 'original-ready' : 'ready' }),
         ])
         expect(port.tableActionEvent.value).toBeNull() // 声明不伪造碰牌事件或移动牌张。
-        expect(fadeTo).toHaveBeenCalledExactlyOnceWith('bgm/ting_bgm.ogg')
+        expect(fadeTo).toHaveBeenCalledExactlyOnceWith('bgm/ting_bgm.ogg', 0.35)
         state.players[(seat + 1) % 4].declaration = 'ready'
         triggerRef(port.local.state)
         await nextTick()
@@ -217,7 +217,7 @@ describe('幺筒复用原版GamePort与3D表现', () => {
         port.local.state.value!.players[seat].declaration = declaration
         triggerRef(port.local.state)
         await nextTick()
-        expect(fadeTo).toHaveBeenLastCalledWith('bgm/ting_bgm.ogg')
+        expect(fadeTo).toHaveBeenLastCalledWith('bgm/ting_bgm.ogg', 0.35)
         port.returnToLobby()
         await nextTick()
         expect(port.tableView.value.declarationCues).toEqual([])
@@ -394,6 +394,8 @@ describe('幺筒复用原版GamePort与3D表现', () => {
     await vi.advanceTimersByTimeAsync(1500)
     expect(port.phase.value).toBe('settled')
     expect(port.result.value?.scoreChanges.reduce((sum, p) => sum + p.delta, 0)).toBe(0)
+    expect(port.result.value?.scoreChanges.map(p => p.delta)).toEqual(state.result?.deltas)
+    expect(port.scoreFlowEvent.value).toBeNull()
     expect(port.revealHands.value).toBe(true)
     scope.stop()
   })
