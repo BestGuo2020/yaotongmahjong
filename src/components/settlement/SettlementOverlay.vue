@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, useId, watch } from 'vue'
 import MahjongTile from '../MahjongTile.vue'
 import { isHorseForSeat } from '../../game/core/rules/tiles'
 import { defaultAvatarForSeat } from '../../game/core/presentation/avatar'
@@ -84,33 +84,33 @@ const resultKindLab = ref(resultKindLabCandidate && resultKindLabValues.has(resu
   ? resultKindLabCandidate
   : null)
 const finalRankingLab = ref(import.meta.env.DEV && new URLSearchParams(window.location.search).has('finalRankLab'))
+const rankingResult = shallowRef<RoundResult | null>(null)
+const showRanking = computed(() => finalRankingLab.value
+  || Boolean(props.result && props.matchFinished && rankingResult.value === props.result))
 const restoredSettlement = ref(false)
 const activeTab = ref<'overview' | 'details'>('overview')
-const activeFinalTab = ref<'overview' | 'details'>('overview')
 const rankedScoreChanges = computed(() => [...(props.result?.scoreChanges ?? [])].sort((a, b) => a.rank - b.rank))
 const tabId = useId()
-function onTabKeydown(event: KeyboardEvent, final = false) {
+function onTabKeydown(event: KeyboardEvent) {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
-  const tab = final ? activeFinalTab : activeTab
-  tab.value = event.key === 'Home' ? 'overview' : event.key === 'End' ? 'details'
-    : tab.value === 'overview' ? 'details' : 'overview'
+  activeTab.value = event.key === 'Home' ? 'overview' : event.key === 'End' ? 'details'
+    : activeTab.value === 'overview' ? 'details' : 'overview'
   const tabs = (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('[role="tab"]')
-  tabs[tab.value === 'overview' ? 0 : 1]?.focus()
+  tabs[activeTab.value === 'overview' ? 0 : 1]?.focus()
 }
-watch([() => props.matchFinished, finalRankingLab], () => { activeFinalTab.value = 'overview' })
 let trackedResult: RoundResult | null = null
 let trackedResultWasOpened = false
 
-watch([() => props.result, () => props.resultVisible], ([result, visible]) => {
+watch([() => props.result, () => props.resultVisible, showRanking], ([result, visible, ranking]) => {
   if (result !== trackedResult) {
     trackedResult = result
     trackedResultWasOpened = false
     restoredSettlement.value = false
     activeTab.value = 'overview'
-    activeFinalTab.value = 'overview'
+    rankingResult.value = null
   }
-  if (!result || !visible) return
+  if (!result || !visible || ranking) return
   restoredSettlement.value = trackedResultWasOpened
   trackedResultWasOpened = true
 }, { immediate: true })
@@ -149,9 +149,10 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
 </script>
 
 <template>
-  <Transition name="modal">
+  <Transition :name="showRanking ? 'final-board' : 'modal'" mode="out-in">
     <div
-      v-if="result && resultVisible && !matchFinished && !finalRankingLab"
+      v-if="result && resultVisible && !showRanking"
+      key="round"
       class="result-backdrop round-settlement"
       :class="[`result-${resultPresentation.kind}`, { 'is-restored': restoredSettlement }]"
       :data-result-kind="resultPresentation.kind"
@@ -161,19 +162,22 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
     >
       <section
         class="result-card settlement-card"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="`${tabId}-round-title`"
         :class="[`result-${resultPresentation.kind}`, { 'has-round-overview': Boolean($slots.overview) }]"
         :data-result-kind="resultPresentation.kind"
         :data-result-strength="resultPresentation.strength"
         :data-result-source="resultKindLab ? 'lab' : 'game'"
       >
         <header v-if="$slots.overview" class="settlement-header">
-          <h2>{{ result.roundLabel }} · {{ resultTitle ?? resultPresentation.label }}</h2>
+          <h2 :id="`${tabId}-round-title`">{{ result.roundLabel }} · {{ resultTitle ?? resultPresentation.label }}</h2>
           <div class="settlement-tabs" role="tablist" aria-label="结算内容" @keydown="onTabKeydown">
             <button :id="`${tabId}-overview-tab`" type="button" role="tab" :aria-selected="activeTab === 'overview'" :aria-controls="`${tabId}-overview`" :tabindex="activeTab === 'overview' ? 0 : -1" @click="activeTab = 'overview'">概览</button>
             <button :id="`${tabId}-details-tab`" type="button" role="tab" :aria-selected="activeTab === 'details'" :aria-controls="`${tabId}-details`" :tabindex="activeTab === 'details' ? 0 : -1" @click="activeTab = 'details'">分数明细</button>
           </div>
         </header>
-        <h2 v-else>{{ result.roundLabel }} · {{ resultTitle ?? resultPresentation.label }}</h2>
+        <h2 v-else :id="`${tabId}-round-title`">{{ result.roundLabel }} · {{ resultTitle ?? resultPresentation.label }}</h2>
         <div
           v-show="!$slots.overview || activeTab === 'overview'"
           :id="`${tabId}-overview`"
@@ -215,7 +219,8 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
         <div class="settlement-footer">
           <div class="result-actions">
             <button class="secondary" @click="$emit('update:resultVisible', false)">查看牌桌</button>
-            <button :disabled="waitingNextRound" @click="$emit('nextRound')">
+            <button v-if="matchFinished" @click="rankingResult = result">查看最终排名</button>
+            <button v-else :disabled="waitingNextRound" @click="$emit('nextRound')">
               <template v-if="waitingNextRound">等待其他玩家确定...</template>
               <template v-else>继续<template v-if="gameMode === 'remote' && continueCountdown > 0"> ({{ continueCountdown }})</template></template>
             </button>
@@ -224,25 +229,12 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
         </div>
       </section>
     </div>
-  </Transition>
-
-  <Transition name="final-board">
-    <div v-if="matchFinished || finalRankingLab" class="result-backdrop final-backdrop" data-result-kind="final" data-result-strength="climax">
-      <section class="final-board" :class="{ 'has-final-summary': Boolean($slots.summary) }" data-result-kind="final" data-result-strength="climax" :data-result-source="finalRankingLab ? 'lab' : 'game'">
+    <div v-else-if="showRanking && (resultVisible || finalRankingLab)" key="ranking" class="result-backdrop final-backdrop" data-result-kind="final" data-result-strength="climax">
+      <section class="final-board" role="dialog" aria-modal="true" :aria-labelledby="`${tabId}-ranking-title`"
+        data-result-kind="final" data-result-strength="climax" :data-result-source="finalRankingLab ? 'lab' : 'game'">
         <p>{{ matchName }} · 对局结束</p>
-        <h2>{{ $slots.summary ? '对局结算' : '最终排名' }}</h2>
-        <div v-if="$slots.summary" class="settlement-tabs" role="tablist" aria-label="对局结算内容" @keydown="onTabKeydown($event, true)">
-          <button :id="`${tabId}-final-overview-tab`" type="button" role="tab" :aria-selected="activeFinalTab === 'overview'" :aria-controls="`${tabId}-final-overview`" :tabindex="activeFinalTab === 'overview' ? 0 : -1" @click="activeFinalTab = 'overview'">最终排名</button>
-          <button :id="`${tabId}-final-details-tab`" type="button" role="tab" :aria-selected="activeFinalTab === 'details'" :aria-controls="`${tabId}-final-details`" :tabindex="activeFinalTab === 'details' ? 0 : -1" @click="activeFinalTab = 'details'">末局明细</button>
-        </div>
-        <div
-          v-show="!$slots.summary || activeFinalTab === 'overview'"
-          :id="`${tabId}-final-overview`"
-          :role="$slots.summary ? 'tabpanel' : undefined"
-          :aria-labelledby="$slots.summary ? `${tabId}-final-overview-tab` : undefined"
-          :tabindex="$slots.summary ? 0 : undefined"
-          class="final-ranking-panel"
-        >
+        <h2 :id="`${tabId}-ranking-title`">最终排名</h2>
+        <div class="final-ranking-panel">
           <div class="final-rankings">
             <article v-for="entry in standings" :key="entry.playerIndex" :class="[`rank-${entry.rank}`, { self: entry.playerIndex === 0 }]" :style="animeEntryStyle(entry)">
               <div class="final-rank"><b>{{ entry.rank }}</b><span>位</span></div>
@@ -259,10 +251,8 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
             </article>
           </div>
         </div>
-        <div v-if="$slots.summary" v-show="activeFinalTab === 'details'" :id="`${tabId}-final-details`" role="tabpanel" :aria-labelledby="`${tabId}-final-details-tab`" tabindex="0" class="final-round-details">
-          <slot name="summary" />
-        </div>
         <div class="settlement-footer final-footer">
+          <button v-if="result && !finalRankingLab" class="secondary" @click="rankingResult = null">查看本局结算</button>
           <button @click="$emit('returnToLobby')">返回大厅</button>
           <p class="result-disclaimer-note">游戏结果禁止用于赌博行为</p>
         </div>
@@ -270,7 +260,9 @@ const relativeSeat = computed<0 | 1 | 2 | 3>(() => {
     </div>
   </Transition>
 
-  <button v-if="result && !resultVisible && !matchFinished" class="result-reopen" @click="$emit('update:resultVisible', true)">查看结算</button>
+  <button v-if="result && !resultVisible && !finalRankingLab" class="result-reopen" @click="$emit('update:resultVisible', true)">
+    {{ showRanking ? '查看最终排名' : '查看结算' }}
+  </button>
   <button
     v-if="gameMode === 'remote' && result && !resultVisible && !matchFinished"
     class="result-reopen continue"

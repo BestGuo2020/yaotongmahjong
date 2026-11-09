@@ -178,7 +178,7 @@ for (const mode of ['easy', 'hard'] as const) test(`四客户端完整东风场 
             const faces = JSON.parse(await page.locator('canvas.mahjong-scene').getAttribute('data-hand-face-rects') ?? '[]')
             return [1, 2, 3].map(seat => faces.filter((face: any) => face.seat === seat).length)
           }).toEqual(expected)
-          await expect(page.locator(current.matchFinished ? '.final-board' : '.round-settlement')).toBeVisible({ timeout: 10_000 })
+          await expect(page.locator('.round-settlement')).toBeVisible({ timeout: 10_000 })
         }))
         const stages = await Promise.all(pages.map(read))
         for (const client of stages) {
@@ -196,7 +196,14 @@ for (const mode of ['easy', 'hard'] as const) test(`四客户端完整东风场 
           expect(current.view.dealerRound).toBe(4)
           expect(playReconnected && settlementRestored).toBe(true)
           expect(rounds.some(hand => hand.result.kind === 'win')).toBe(true)
-          await Promise.all(pages.map((page, seat) => page.screenshot({ path: `test-results/four-client-${mode}-seat${seat}-final.png` })))
+          await Promise.all(pages.map(async (page, seat) => {
+            const ranking = page.getByRole('dialog', { name: '最终排名', exact: true })
+            await expect(ranking).toHaveCount(0)
+            await page.locator('.round-settlement').getByRole('button', { name: '查看最终排名', exact: true }).click()
+            await expect(ranking).toBeVisible()
+            await expect(ranking.locator('.yaotong-ledger')).toHaveCount(0)
+            await page.screenshot({ path: `test-results/four-client-${mode}-seat${seat}-final.png` })
+          }))
           break
         }
         // 三人确认仍不能换局；第四人确认后，才收到新小局与开场演出。
