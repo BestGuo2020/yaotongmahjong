@@ -253,7 +253,7 @@ function convertPlayer(view: YtPlayerView, mySeat: number, reveal: boolean): Pla
     name: view.name,
     avatar: view.avatar,
     characterId: view.characterId,
-    playerKind: view.playerKind,
+    playerKind: view.isLlm ? 'llm' : view.playerKind,
     hand: isSelf || reveal ? view.hand.map(tileRequired) : [],
     concealedTileCount: view.concealedTileCount,
     melds: view.melds.map((meld) => convertMeld(meld, mySeat)),

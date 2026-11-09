@@ -29,12 +29,12 @@ function settled() {
   return state
 }
 
-it('LLM 弃牌、碰杠和报听保留动作表现，省略座位的系统语音', async () => {
+it.each(['llm', 'bot'] as const)('碰杠和报听根据动作座位决定是否播放系统语音（%s）', async (playerKind) => {
   const remote = scope.run(() => useYaotongGame({ externalAuthority: external() }))!
   const playSound = vi.fn(), playSoundAndWait = vi.fn(async () => {})
   const port = scope.run(() => useYaotongPort({ playSound, playSoundAndWait }, remote))!
   const state = table()
-  state.players[1].playerKind = 'llm'
+  state.players[1].playerKind = playerKind
   state.players[1].declaration = 'ready'
   state.events = [
     { id: 1, kind: 'discard', seat: 1, tile: 4, text: '打牌' },
@@ -47,8 +47,10 @@ it('LLM 弃牌、碰杠和报听保留动作表现，省略座位的系统语音
   state.serial = 6
   remote.acceptRemoteState(state)
   await vi.advanceTimersByTimeAsync(80)
-  expect(playSoundAndWait).not.toHaveBeenCalled()
-  expect(playSound.mock.calls.map(([file]) => file)).toEqual(['dapai.mp3', 'mingang_windy.wav', 'angang_rainy.wav'])
+  expect(playSoundAndWait).toHaveBeenCalledTimes(playerKind === 'llm' ? 0 : 1)
+  expect(playSound.mock.calls.map(([file]) => file)).toEqual(playerKind === 'llm'
+    ? ['dapai.mp3', 'mingang_windy.wav', 'angang_rainy.wav']
+    : ['dapai.mp3', 'peng.mp3', 'mingang_windy.wav', 'gang.ogg', 'angang_rainy.wav', 'angang.ogg', 'bugang.ogg', 'ting.wav'])
   expect(port.tableActionEvent.value).toMatchObject({ actorIndex: 1, type: 'added-gang' })
   expect(port.tableView.value.declarationCues[0]).toMatchObject({ actorIndex: 1, type: 'ready' })
 })
@@ -66,6 +68,22 @@ it.each(['self', 'discard', 'rob'] as const)('LLM 胡牌不播系统语音（%s�
   expect(playSound.mock.calls.map(([file]) => file)).toEqual(['tuidao.wav'])
   expect(port.result.value?.winnerIndex).toBe(0)
   expect(port.scoreFlowEvent.value).toBeNull()
+})
+
+it.each(['llm', 'bot'] as const)('一炮多响的系统语音取决于首位动作座位（%s）', async (playerKind) => {
+  const remote = scope.run(() => useYaotongGame({ externalAuthority: external() }))!
+  const playSound = vi.fn()
+  scope.run(() => useYaotongPort({ playSound }, remote))!
+  const state = settled()
+  state.players[0].playerKind = playerKind
+  state.players[1].playerKind = playerKind === 'llm' ? 'bot' : 'llm'
+  state.result!.winners = [0, 1]
+  state.result!.winKind = 'discard'
+  state.result!.source = 2
+  remote.acceptRemoteState(state)
+  await vi.advanceTimersByTimeAsync(4_000)
+  expect(playSound.mock.calls.map(([name]) => name)).toEqual(playerKind === 'llm'
+    ? ['tuidao.wav'] : ['hu.mp3', 'tuidao.wav'])
 })
 
 it('starts the shared WS continue countdown only after the reveal has finished', async () => {

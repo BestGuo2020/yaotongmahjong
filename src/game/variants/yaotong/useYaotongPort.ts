@@ -455,10 +455,7 @@ export function useYaotongPort(
       },
       playSound,
       playSoundAndWait,
-      shouldPlayWinVoice() {
-        const state = local.state.value!
-        return state.result!.winners.some(seat => state.players[seat].playerKind !== 'llm')
-      },
+      shouldPlayWinVoice: ({ winner }) => winner.playerKind !== 'llm',
       showWinIntro() {
         const outcome = local.state.value?.result
         if (!outcome || outcome.winners.length < 2 || outcome.source === null) return 0

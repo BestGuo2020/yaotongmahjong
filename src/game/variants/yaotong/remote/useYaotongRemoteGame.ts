@@ -44,7 +44,7 @@ export type YaotongRemoteSessionStatus =
 export interface YaotongRemoteGameOptions {
   playSound?: (file: string, volume?: number) => unknown
   playSoundAndWait?: (file: string, volume?: number) => Promise<void>
-  playLlmAudio?: (url: string, seat: number, id: number, priority?: 'normal' | 'important', queueImportant?: boolean) => void
+  playLlmAudio?: (url: string, seat: number, id: number, priority?: 'normal' | 'important', queueImportant?: boolean) => void | Promise<unknown>
   stopLlmAudio?: () => void
   getCharacterId?: () => string
   socketFactory?: Parameters<typeof createRoomSocketTransport>[0]['socketFactory']
@@ -156,6 +156,11 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     const isWinSpeech = isAction && speech.actionKind === 'win'
     if (isWinSpeech ? !state.result?.winners.includes(seat) : !interactionsAvailable.value) return
     if (speech.kind === 'llm_message') {
+      if (isAction && speech.hasAudio === false) {
+        // 合成失败是对已发气泡的补充通知。保留台词，收掉该条语音的等待。
+        if (pendingActionSpeech.get(speech.id)?.seat === seat) pendingActionSpeech.delete(speech.id)
+        return
+      }
       showLlmBubble(seat, speech.id, speech.text)
       if (isAction) pendingActionSpeech.set(speech.id, { seat, expiresAt: Date.now() + 6_000 })
     } else {
@@ -166,7 +171,8 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       if (!matches || playedLlmAudio.has(speech.messageId)) return
       pendingActionSpeech.delete(speech.messageId)
       playedLlmAudio.add(speech.messageId)
-      options.playLlmAudio?.(API_BASE + speech.audioUrl, seat, speech.messageId, speech.priority, isAction)
+      const playback = options.playLlmAudio?.(API_BASE + speech.audioUrl, seat, speech.messageId, speech.priority, isAction)
+      if (playback) void playback.catch(() => { /* 气泡继续展示 */ })
     }
   }
 
