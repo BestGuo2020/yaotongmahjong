@@ -2,7 +2,7 @@
 //
 // 真人 + 服务端 AI 补位；回放按已收到的权威快照录制。房间 REST 与 wakudemo 登录
 // 复用 src/game/online；对局协议走本目录的 protocol.ts。
-import { computed, onScopeDispose, ref } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 
 import { API_BASE } from '../../../online/api/httpClient'
 import {
@@ -12,8 +12,12 @@ import {
   joinRoom as joinRoomApi,
   leaveRoom as leaveRoomApi,
   readyRoom,
+  reserveLlmSeat as reserveLlmSeatApi,
   startRoom,
+  updateCharacter as updateCharacterApi,
+  type LlmSeatRequest,
   type RoomSeatState,
+  type ServerLlmStyle,
   type YaotongRoomMode,
 } from '../../../online/api/roomApi'
 import {
@@ -21,12 +25,13 @@ import {
   generateGuestId,
   type StoredSession,
 } from '../../../online/session/remoteSessionStore'
+import { decodeServerMessage } from '../../../online/protocol/decoder'
 import { createRoomSocketTransport } from '../../../online/transport/roomSocket'
 import type { YaotongEmoteId } from '../emotes'
 import { useYaotongGame } from '../useYaotongGame'
 import { useYaotongPort } from '../useYaotongPort'
 import {
-  convertSnapshot, hasCompleteSettlementHands, isYtSeat, readYtInteraction, toActionPayload,
+  convertSnapshot, hasCompleteSettlementHands, isYtSeat, readYtInteraction, toActionPayload, toLocalSeat,
   type YtInteraction, type YtSnapshot,
 } from './protocol'
 
@@ -39,6 +44,8 @@ export type YaotongRemoteSessionStatus =
 export interface YaotongRemoteGameOptions {
   playSound?: (file: string, volume?: number) => unknown
   playSoundAndWait?: (file: string, volume?: number) => Promise<void>
+  playLlmAudio?: (url: string, seat: number, id: number, priority?: 'normal' | 'important') => void
+  stopLlmAudio?: () => void
   getCharacterId?: () => string
   socketFactory?: Parameters<typeof createRoomSocketTransport>[0]['socketFactory']
   onInteraction?: (event: YtInteraction) => void
@@ -53,6 +60,8 @@ const ERROR_TEXT: Record<string, string> = {
   SEATS_RESERVED: '房主已把空位预留给大模型，请换一间房',
   INVALID_CAPACITY: '幺筒房间必须是四人桌',
   LLM_NOT_ENABLED: '本房间未启用大模型补位',
+  INVALID_LLM_SEATS: '所选模型当前不可用',
+  SEAT_OCCUPIED: '该座位已有玩家',
   ROOM_CLOSED: '房间已关闭',
   MATCH_FINISHING: '上一场仍在收尾，请稍后再试',
   NOT_CREATOR: '只有房主可以开始对局',
@@ -75,6 +84,10 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   const isCreator = ref(false)
   const creatorSeat = ref<number | null>(null)
   const roomSeats = ref<Array<RoomSeatState | null>>([])
+  const reservedSeats = ref<Array<LlmSeatRequest>>([])
+  const llmEnabled = ref(false)
+  const llmAvailable = ref(false)
+  const effectiveLlmEnabled = ref(false)
   const roomStatus = ref<'lobby' | 'playing' | 'finished' | 'error' | 'closed'>('lobby')
   const matchLength = ref<4 | 8 | 16>(4)
   const yaotongMode = ref<YaotongRoomMode>('easy')
@@ -83,11 +96,16 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   const waitingNextRound = ref(false)
   const pendingOpeningRound = ref<number | null>(null)
   const currentRound = ref(0)
+  const llmBubbles = ref<Record<number, { id: number; text: string }>>({})
+  const llmBubbleTimers = new Map<number, ReturnType<typeof setTimeout>>()
+  const playedLlmAudio = new Set<number>()
   let lastOpeningKey = ''
   let completedOpeningKey = ''
   let pendingSnapshot: YtSnapshot | null = null
   let returnedMatchId: string | undefined
   let pollTimer: ReturnType<typeof setInterval> | null = null
+  let seatWrites = Promise.resolve()
+  let seatRevision = 0
 
   function saveSession() {
     storedSession.value = {
@@ -101,6 +119,42 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       yaotongMode: yaotongMode.value,
     }
     remoteSessionStore.saveSession(storedSession.value)
+  }
+
+  function clearLlmSpeech() {
+    for (const timer of llmBubbleTimers.values()) clearTimeout(timer)
+    llmBubbleTimers.clear()
+    llmBubbles.value = {}
+    playedLlmAudio.clear()
+    options.stopLlmAudio?.()
+  }
+
+  function showLlmBubble(seat: number, id: number, text: string) {
+    clearTimeout(llmBubbleTimers.get(seat))
+    llmBubbles.value = { ...llmBubbles.value, [seat]: { id, text } }
+    llmBubbleTimers.set(seat, setTimeout(() => {
+      const next = { ...llmBubbles.value }
+      delete next[seat]
+      llmBubbles.value = next
+      llmBubbleTimers.delete(seat)
+    }, 4000))
+  }
+
+  function handleLlmSpeech(message: unknown) {
+    const state = inner.state.value
+    const scope = message as { matchId?: unknown; round?: unknown }
+    if (!interactionsAvailable.value || !state || scope.matchId !== state.remoteMatchId
+        || scope.round !== state.handNumber) return
+    const speech = decodeServerMessage(message)
+    if (speech?.kind !== 'llm_message' && speech?.kind !== 'llm_audio') return
+    const seat = toLocalSeat(speech.seat, mySeat.value)
+    if (state.players[seat]?.playerKind !== 'llm') return
+    if (speech.kind === 'llm_message') {
+      showLlmBubble(seat, speech.id, speech.text)
+    } else if (llmBubbles.value[seat]?.id === speech.messageId && !playedLlmAudio.has(speech.messageId)) {
+      playedLlmAudio.add(speech.messageId)
+      options.playLlmAudio?.(API_BASE + speech.audioUrl, seat, speech.messageId, speech.priority)
+    }
   }
 
   function handleMessage(message: unknown) {
@@ -178,6 +232,10 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
         // 演出已结束但回执遇到断线：按重连快照补发，不重播掷骰发牌。
         if (socket.send({ kind: 'opening_done', round: snapshot.round })) pendingOpeningRound.value = null
       }
+      return
+    }
+    if (kind === 'llm_message' || kind === 'llm_audio') {
+      handleLlmSpeech(message)
       return
     }
     if (kind === 'quick_chat' || kind === 'emote') {
@@ -284,6 +342,13 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     },
   })
 
+  watch([
+    () => inner.state.value?.remoteMatchId,
+    () => inner.state.value?.handNumber,
+    () => inner.state.value?.phase === 'settled',
+    socket.status,
+  ], clearLlmSpeech, { flush: 'sync' })
+
   const interactionsAvailable = computed(() => {
     const state = inner.state.value
     return socket.status.value === 'connected' && sessionStatus.value === 'playing'
@@ -332,9 +397,14 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   async function refreshRoom() {
     if (!roomId.value) return
     const requestedRoom = roomId.value
+    const revision = seatRevision
     const info = await getRoom(requestedRoom)
     if (roomId.value !== requestedRoom) return
     roomSeats.value = info.seats
+    if (seatRevision === revision) reservedSeats.value = info.reservedSeats ?? []
+    llmEnabled.value = info.llmEnabled === true
+    llmAvailable.value = info.llmAvailable === true
+    effectiveLlmEnabled.value = info.effectiveLlmEnabled === true
     roomStatus.value = info.status
     creatorSeat.value = info.creatorSeat
     isCreator.value = info.creatorSeat === mySeat.value
@@ -362,6 +432,12 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     isCreator.value = false
     creatorSeat.value = null
     roomSeats.value = []
+    reservedSeats.value = []
+    llmEnabled.value = false
+    llmAvailable.value = false
+    effectiveLlmEnabled.value = false
+    seatRevision += 1
+    seatWrites = Promise.resolve()
     roomStatus.value = 'lobby'
     storedSession.value = null
     waitingNextRound.value = false
@@ -385,6 +461,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     nicknameValue: string,
     characterId?: string,
     mode: YaotongRoomMode = 'easy',
+    enableLlm = false,
   ) {
     sessionStatus.value = 'creating'
     sessionError.value = ''
@@ -392,7 +469,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
       yaotongMode.value = mode
       inner.mode.value = mode
       const info = await createRoomApi(
-        'east', 4, playerId.value, 'yaotong', false, length, mode)
+        'east', 4, playerId.value, 'yaotong', enableLlm, length, mode)
       roomId.value = info.roomId
       matchLength.value = info.matchLength ?? length
       if (info.yaotongMode) yaotongMode.value = info.yaotongMode
@@ -465,20 +542,74 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     return true
   }
 
+  function updateCharacter(characterId: string) {
+    const requestedRoom = roomId.value
+    const seat = mySeat.value
+    const code = rejoinCode.value
+    if (!requestedRoom || seat < 0 || !code) return
+    const sameSession = () => roomId.value === requestedRoom && rejoinCode.value === code
+    seatWrites = seatWrites.then(async () => {
+      if (!sameSession()) return
+      sessionError.value = ''
+      try {
+        await updateCharacterApi(requestedRoom, seat, code, characterId)
+        if (sameSession()) await refreshRoom().catch(() => {})
+      } catch (error) {
+        if (sameSession()) sessionError.value = readableError(error, '更新本家形象失败')
+      }
+    })
+    return seatWrites
+  }
+
   async function ready() {
-    if (!roomId.value || mySeat.value < 0 || !rejoinCode.value) return
+    const requestedRoom = roomId.value
+    const seat = mySeat.value
+    const code = rejoinCode.value
+    if (!requestedRoom || seat < 0 || !code) return
+    await seatWrites
+    if (roomId.value !== requestedRoom || rejoinCode.value !== code) return
     try {
-      await readyRoom(roomId.value, mySeat.value, rejoinCode.value)
+      await readyRoom(requestedRoom, seat, code)
       await refreshRoom()
     } catch (error) {
       sessionError.value = readableError(error, '准备失败')
     }
   }
 
+  function reserveLlmSeat(seat: number, providerId: string | null, style: ServerLlmStyle | null) {
+    const requestedRoom = roomId.value
+    const owner = mySeat.value
+    const code = rejoinCode.value
+    if (!requestedRoom || owner < 0 || !code) return
+    const sameSession = () => roomId.value === requestedRoom && rejoinCode.value === code
+    seatRevision += 1
+    seatWrites = seatWrites.then(async () => {
+      if (!sameSession()) return
+      sessionError.value = ''
+      try {
+        const result = await reserveLlmSeatApi(requestedRoom, owner, code, seat, providerId, style)
+        if (!sameSession()) return
+        seatRevision += 1
+        reservedSeats.value = result.reservedSeats ?? []
+      } catch (error) {
+        if (!sameSession()) return
+        sessionError.value = readableError(error, '设置空位模型失败')
+        await refreshRoom().catch(() => {
+          if (sameSession()) reservedSeats.value = [...reservedSeats.value]
+        })
+      }
+    })
+    return seatWrites
+  }
+
   async function startMatch() {
-    if (!roomId.value) return
+    const requestedRoom = roomId.value
+    if (!requestedRoom) return
+    // 先保存房主的选项，开局由服务端读取房间里的配置。
+    await seatWrites
+    if (roomId.value !== requestedRoom) return
     try {
-      await startRoom(roomId.value, undefined, playerId.value)
+      await startRoom(requestedRoom, undefined, playerId.value)
       await refreshRoom()
     } catch (error) {
       sessionError.value = readableError(error, '开局失败')
@@ -506,7 +637,11 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     }
   }
 
-  onScopeDispose(() => { stopPolling(); socket.close() })
+  onScopeDispose(() => {
+    stopPolling()
+    socket.close()
+    clearLlmSpeech()
+  })
 
   return {
     port,
@@ -521,6 +656,11 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     isCreator,
     creatorSeat,
     roomSeats,
+    reservedSeats,
+    llmEnabled,
+    llmAvailable,
+    effectiveLlmEnabled,
+    reserveLlmSeat,
     roomStatus,
     matchLength,
     yaotongMode,
@@ -528,6 +668,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     waitingNextRound,
     pendingOpeningRound,
     interactionsAvailable,
+    llmBubbles,
     sendQuickChat,
     sendEmote,
     ackOpening,
@@ -536,6 +677,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     createRoom,
     joinRoom,
     restoreSession,
+    updateCharacter,
     ready,
     startMatch,
     leaveRoom,

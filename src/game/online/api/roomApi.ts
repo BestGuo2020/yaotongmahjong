@@ -74,7 +74,7 @@ export interface LlmSeatRequest {
   seat: number
   providerId: string
   /** 该座位覆盖 provider 默认策略；省略时沿用服务器默认。 */
-  style?: ServerLlmStyle
+  style?: ServerLlmStyle | null
 }
 
 /** 服务端提供商公开信息（不含 key），房主建房时按 id 选择 */

@@ -60,6 +60,45 @@ test('登录后可点击联机进入房间大厅', async ({ page }) => {
   await expect(page.locator('.waku-auth-error')).toHaveCount(0)
 })
 
+for (const explicitTheme of [null, 'jade']) {
+  test(explicitTheme ? '大模型房尊重玩家明确选择的主题' : '大模型房默认切换到 llmAnime', async ({ page }) => {
+    const roomId = 'ANIME1'
+    const nickname = account.displayName
+    const room = {
+      roomId, rulesetId: 'yaotong', matchLength: 4, capacity: 4, status: 'lobby', creatorSeat: 0,
+      llmEnabled: true, llmAvailable: true, effectiveLlmEnabled: true, reservedSeats: [],
+      seats: [{ seat: 0, nickname, ready: false, connected: true }, null, null, null],
+    }
+    await page.route('**/api/login/session', route => route.fulfill({ json: { authenticated: true, account } }))
+    await page.route('**/api/rooms/meta?*', route => route.fulfill({ json: {
+      active: 0, max: 4, llmAvailable: true,
+    } }))
+    await page.route('**/api/rooms', async route => {
+      expect(route.request().postDataJSON().llmEnabled).toBe(true)
+      await route.fulfill({ json: room })
+    })
+    await page.route('**/api/rooms/ANIME1/join', route => route.fulfill({ json: {
+      roomId, seat: 0, nickname, rejoinCode: 'TEST', playerId: 'wakudemo-auth-test', rejoin: false,
+    } }))
+    await page.route('**/api/rooms/ANIME1', route => route.fulfill({ json: room }))
+    await page.routeWebSocket('**/ws/room/ANIME1*', ws => {
+      ws.send(JSON.stringify({ kind: 'rejoin_ok', seat: 0, nickname, matchLength: 4 }))
+    })
+
+    await page.goto(explicitTheme ? '/?theme=jade' : '/')
+    await expect(page.locator('.waku-account.authenticated')).toBeVisible()
+    const app = page.locator('main.game-app')
+    await expect(app).toHaveAttribute('data-table-theme', 'jade')
+    await page.getByRole('radio', { name: /联机对战/ }).click()
+    await page.getByTestId('lobby-create').click()
+    await page.getByTestId('remote-llm-enabled').check()
+    await page.getByTestId('lobby-create-confirm').click()
+    await expect(page.getByTestId('room-code')).toHaveText(roomId)
+    await expect(app).toHaveAttribute('data-table-theme', explicitTheme ?? 'llmAnime')
+    expect(new URL(page.url()).searchParams.get('theme')).toBe(explicitTheme)
+  })
+}
+
 for (const cancelRemote of [false, true]) {
   test(cancelRemote ? '重新选择单机取消待登录的联机选择' : '登录状态检查完成后继续此前的联机选择', async ({ page }) => {
     let finishSession!: () => void

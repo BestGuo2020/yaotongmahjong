@@ -20,13 +20,16 @@ import { useYaotongRemoteGame } from './game/variants/yaotong/remote/useYaotongR
 import type { YaotongEmoteId } from './game/variants/yaotong/emotes'
 import type { QuickChatPhrase } from './game/variants/yaotong/quickChat'
 import { useAudio } from './game/core/presentation/useAudio'
+import { cancelLocalLlmAudioPlayback } from './game/core/presentation/llmAudioBus'
 import type { GameMode } from './game/core/contracts/activeGamePort'
 import type { TileType } from './game/core/contracts/types'
 import { useWakuDemoAuth } from './game/online/session/useWakuDemoAuth'
 import { useRoomAvailability } from './game/online/session/useRoomAvailability'
 import { useRemoteContinueCountdown } from './game/online/presentation/useRemoteContinueCountdown'
 import type { TableThemeName } from './components/table/three/tableTheme'
-import { readTableThemePreference, resolveInitialTableTheme } from './components/table/three/tableThemePreference'
+import {
+  readTableThemePreference, resolveInitialTableTheme, shouldAutoUseLlmTheme,
+} from './components/table/three/tableThemePreference'
 import { themePresentationByName, themePresentationCssVariables } from './theme/themePresentation'
 import { readAnimeCharacterPreference, saveAnimeCharacterPreference } from './game/llm/animeCharacterPreference'
 import type { CharacterId } from './game/llm/animeCharacters'
@@ -69,16 +72,15 @@ function resetTableReady() {
 
 const initialThemeCandidate = new URLSearchParams(window.location.search).get('theme')
 const initialTableTheme = resolveInitialTableTheme(initialThemeCandidate, readTableThemePreference())
-const tableThemeName = ref<TableThemeName>(initialTableTheme.theme)
-const themePresentation = computed(() => themePresentationByName(tableThemeName.value))
-const themePresentationStyle = computed(() => themePresentationCssVariables(themePresentation.value))
+const selectedTableTheme = ref<TableThemeName>(initialTableTheme.theme)
+const explicitTableThemeSelected = ref(initialTableTheme.explicit)
 if (initialThemeCandidate !== null && initialThemeCandidate !== initialTableTheme.theme) {
   const canonicalUrl = new URL(window.location.href)
   canonicalUrl.searchParams.set('theme', initialTableTheme.theme)
   window.history.replaceState(window.history.state, '', canonicalUrl)
 }
 
-const { playEffect, playEffectAndWait, startBgm, soundOn, effectsOn } = useAudio()
+const { playEffect, playEffectAndWait, playLlmAudio, startBgm, soundOn, effectsOn } = useAudio()
 // 快捷语：纯手动发送；静音时只显示气泡、不朗读。气泡复用 GameTableHud 的现有 bubble。
 const quickChat = useYaotongQuickChat({
   enabled: () => soundOn.value && effectsOn.value,
@@ -89,19 +91,17 @@ const emotes = useYaotongEmotes({
   playSound: (file, volume) => playEffect(file, volume ?? 0.85),
 })
 const animeCharacterId = ref<CharacterId>(readAnimeCharacterPreference())
-watch(animeCharacterId, saveAnimeCharacterPreference)
-watch(tableThemeName, (theme) => {
-  if (theme === 'llmAnime') void preloadAnimeCharacterAssets()
-}, { immediate: true })
-const replay = useReplayRecorder({ meta: () => ({
-  rulesetId: 'yaotong', rulesetName: '幺筒麻将', themeName: tableThemeName.value,
-  humanSeat: 0, yaotongMode: yaotongGame.local.mode.value,
-}) })
 const localSource = useYaotongGame()
 const gameMode = ref<GameMode>('local')
 const online = useYaotongRemoteGame({
   playSound: playEffect,
   playSoundAndWait: playEffectAndWait,
+  playLlmAudio(url, seat, id, priority) {
+    if (gameMode.value === 'remote' && !replayOpen.value && !replayView.value) {
+      playLlmAudio(url, seat, id, priority)
+    }
+  },
+  stopLlmAudio: cancelLocalLlmAudioPlayback,
   getCharacterId: () => animeCharacterId.value,
   createPort: false,
   onInteraction(event) {
@@ -114,6 +114,27 @@ const online = useYaotongRemoteGame({
     }
   },
 })
+watch([gameMode, replayOpen, replayView], ([mode, replayList, replayMatch]) => {
+  if (mode !== 'remote' || replayList || replayMatch) cancelLocalLlmAudioPlayback()
+})
+const tableThemeName = computed<TableThemeName>(() => {
+  const llmRoom = gameMode.value === 'remote' && (
+    online.effectiveLlmEnabled.value
+    || online.inner.state.value?.players.some(player => player.playerKind === 'llm') === true
+  )
+  return shouldAutoUseLlmTheme(llmRoom, explicitTableThemeSelected.value)
+    ? 'llmAnime'
+    : selectedTableTheme.value
+})
+const themePresentation = computed(() => themePresentationByName(tableThemeName.value))
+const themePresentationStyle = computed(() => themePresentationCssVariables(themePresentation.value))
+watch(tableThemeName, (theme) => {
+  if (theme === 'llmAnime') void preloadAnimeCharacterAssets()
+}, { immediate: true })
+const replay = useReplayRecorder({ meta: () => ({
+  rulesetId: 'yaotong', rulesetName: '幺筒麻将', themeName: tableThemeName.value,
+  humanSeat: 0, yaotongMode: yaotongGame.local.mode.value,
+}) })
 const { roomMeta } = useRoomAvailability(gameMode, online.roomId, 'yaotong')
 const wakuAuth = useWakuDemoAuth()
 const pendingRemoteLogin = ref(false)
@@ -272,12 +293,18 @@ watch(() => wakuAuth.authenticated.value, (authenticated) => {
   }
 })
 
-async function createRemoteRoom() {
+function selectAnimeCharacter(characterId: CharacterId) {
+  animeCharacterId.value = saveAnimeCharacterPreference(characterId)
+  if (gameMode.value === 'remote') void online.updateCharacter(animeCharacterId.value)
+}
+
+async function createRemoteRoom(llmEnabled: boolean) {
   await online.createRoom(
     yaotongGame.length.value,
     nicknameInput.value.trim() || '玩家',
     animeCharacterId.value,
     yaotongGame.local.mode.value,
+    llmEnabled,
   )
 }
 
@@ -359,7 +386,8 @@ function quitMatch() {
   if (window.confirm('退出将结束当前本地对局，确定返回大厅？')) returnToLobby()
 }
 function changeTableTheme(theme: TableThemeName) {
-  tableThemeName.value = theme
+  selectedTableTheme.value = theme
+  explicitTableThemeSelected.value = true
   const url = new URL(window.location.href)
   url.searchParams.set('theme', theme)
   window.history.replaceState(window.history.state, '', url)
@@ -428,6 +456,7 @@ function changeTableTheme(theme: TableThemeName) {
         :can-pass="!yaotongGame.local.protection.value.pass"
         :yaotong-view="yaotongGame.tableView.value"
         :chat-bubbles="chatBubbles"
+        :llm-bubbles="gameMode === 'remote' ? online.llmBubbles.value : undefined"
         :emote-cues="emotes.cues.value"
         :emotes-enabled="interactionsEnabled"
         :joker-tiles="jokerTiles"
@@ -463,7 +492,8 @@ function changeTableTheme(theme: TableThemeName) {
         v-model:yaotong-mode="yaotongGame.local.mode.value"
         v-model:nickname-input="nicknameInput"
         v-model:join-code="joinCode"
-        v-model:anime-character-id="animeCharacterId"
+        :anime-character-id="animeCharacterId"
+        @update:anime-character-id="selectAnimeCharacter"
         :table-theme-name="tableThemeName"
         :stored-session="online.storedSession.value"
         :room-id="online.roomId.value"
@@ -473,6 +503,10 @@ function changeTableTheme(theme: TableThemeName) {
         :room-time-limit="3600"
         :room-status="online.roomStatus.value"
         :room-seats="online.roomSeats.value"
+        :reserved-seats="online.reservedSeats.value"
+        :llm-enabled="online.llmEnabled.value"
+        :llm-available="online.llmAvailable.value"
+        :effective-llm-enabled="online.effectiveLlmEnabled.value"
         :my-seat="online.mySeat.value"
         :is-creator="online.isCreator.value"
         :all-occupied-ready="allOccupiedReady"
@@ -492,6 +526,7 @@ function changeTableTheme(theme: TableThemeName) {
         @copy-room="copyRoomId"
         @toggle-ready="toggleReady"
         @start-remote="startRemoteMatch"
+        @reserve-seat="online.reserveLlmSeat($event.seat, $event.providerId, $event.style)"
         @leave-room="leaveRemoteRoom"
         @close-room="closeRemoteRoom"
         @leave-match="leaveRemoteMatch"

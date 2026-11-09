@@ -11,7 +11,8 @@ import RoomPanel from './RoomPanel.vue'
 import type { TableThemeName } from '../table/three/tableTheme'
 import type { CharacterId } from '../../game/llm/animeCharacters'
 import type { GameMode } from '../../game/core/contracts/activeGamePort'
-import type { RoomMeta, RoomSeatState } from '../../game/online/api/roomApi'
+import type { LlmSeatRequest, RoomMeta, RoomSeatState } from '../../game/online/api/roomApi'
+import type { SeatLlmReservation } from './roomSeatLlm'
 import type { StoredSession } from '../../game/online/session/remoteSessionStore'
 import { YAOTONG_MODES, type YaotongMode } from '../../game/variants/yaotong/mode'
 
@@ -31,6 +32,10 @@ interface Props {
   roomTimeLimit: number | null
   roomStatus?: string
   roomSeats: Array<RoomSeatState | null>
+  reservedSeats: Array<LlmSeatRequest>
+  llmEnabled: boolean
+  llmAvailable: boolean
+  effectiveLlmEnabled: boolean
   mySeat: number
   isCreator: boolean
   allOccupiedReady: boolean
@@ -53,12 +58,13 @@ const emit = defineEmits<{
   'update:joinCode': [value: string]
   'update:animeCharacterId': [value: CharacterId]
   startLocal: []
-  createRoom: []
+  createRoom: [llmEnabled: boolean]
   joinRoom: []
   resumeSession: []
   copyRoom: []
   toggleReady: []
   startRemote: []
+  reserveSeat: [payload: SeatLlmReservation]
   leaveRoom: []
   closeRoom: []
   leaveMatch: []
@@ -72,6 +78,8 @@ const emit = defineEmits<{
 type DialogName = 'create' | 'join' | 'match' | 'mode' | 'character' | null
 const dialog = ref<DialogName>(null)
 const pickerReturn = ref<'create' | null>(null)
+const remoteLlmEnabled = ref(false)
+const canEnableLlm = computed(() => props.roomMeta?.llmAvailable === true)
 
 const matchOption = computed(() => ({
   name: ({ 4: '东风场', 8: '半庄场', 16: '全庄场' })[props.yaotongLength],
@@ -111,9 +119,14 @@ function selectCharacter(value: CharacterId) {
   dialog.value = null
 }
 
+function openCreate() {
+  remoteLlmEnabled.value = false
+  dialog.value = 'create'
+}
+
 function confirmCreate() {
   dialog.value = null
-  emit('createRoom')
+  emit('createRoom', canEnableLlm.value && remoteLlmEnabled.value)
 }
 
 function confirmJoin() {
@@ -193,7 +206,7 @@ function toggleWakuDemoAuth() {
             <input :value="nicknameInput" maxlength="12" placeholder="输入昵称"
               data-testid="lobby-nickname"
               @input="$emit('update:nicknameInput', ($event.target as HTMLInputElement).value)"
-              @keyup.enter="dialog = 'create'" />
+              @keyup.enter="openCreate" />
           </label>
           <p v-if="roomMeta && !roomId" class="room-meta-note" role="status">
             剩余房间 <b>{{ roomMeta.max - roomMeta.active }}</b> / {{ roomMeta.max }}
@@ -201,7 +214,7 @@ function toggleWakuDemoAuth() {
           <div v-if="!roomId" class="remote-entry-actions">
             <button class="remote-create" data-action-role="primary" data-testid="lobby-create"
               :disabled="!wakuAuthenticated || !nicknameInput.trim() || sessionStatus === 'creating'"
-              @click="dialog = 'create'">
+              @click="openCreate">
               {{ sessionStatus === 'creating' ? '创建中…' : '创建房间' }}
             </button>
             <button class="remote-join-btn" data-action-role="primary" data-testid="lobby-join"
@@ -221,11 +234,11 @@ function toggleWakuDemoAuth() {
             :room-time-limit="roomTimeLimit"
             :room-status="roomStatus"
             :room-seats="roomSeats"
-            :reserved-seats="[]"
-            :llm-enabled="false"
-            :effective-llm-enabled="false"
-            :llm-available="false"
-            :llm-providers="[]"
+            :reserved-seats="reservedSeats"
+            :llm-enabled="llmEnabled"
+            :effective-llm-enabled="effectiveLlmEnabled"
+            :llm-available="llmAvailable"
+            :llm-providers="roomMeta?.llmProviders ?? []"
             :my-seat="mySeat"
             :is-creator="isCreator"
             :session-status="sessionStatus"
@@ -241,6 +254,7 @@ function toggleWakuDemoAuth() {
             @copy="$emit('copyRoom')"
             @toggle-ready="$emit('toggleReady')"
             @start="$emit('startRemote')"
+            @reserve-seat="$emit('reserveSeat', $event)"
             @leave="$emit('leaveRoom')"
             @close="$emit('closeRoom')"
             @resume="$emit('resumeSession')"
@@ -270,11 +284,12 @@ function toggleWakuDemoAuth() {
           rule-label="模式" :rule-name="modeOption.name" :rule-description="modeOption.summary"
           @select-match="openPicker('match', true)" @select-rule="openPicker('mode', true)"
         />
-        <label class="remote-llm-create-option disabled">
-          <input type="checkbox" disabled>
+        <label class="remote-llm-create-option" :class="{ disabled: !canEnableLlm }">
+          <input v-model="remoteLlmEnabled" type="checkbox" :disabled="!canEnableLlm" data-testid="remote-llm-enabled">
           <span>
-            <b>空位使用服务端 AI 补位</b>
-            <small>第一版不含大模型座位；四个座位中未入座的空位由服务端 AI 开局补位。</small>
+            <b>空位使用服务器大模型</b>
+            <small v-if="canEnableLlm">开局时空位用默认模型补齐，房主也可在房间内为每个空位指定模型。</small>
+            <small v-else>大模型当前不可用，空位由规则 AI 补齐。</small>
           </span>
         </label>
         <div class="dialog-actions">

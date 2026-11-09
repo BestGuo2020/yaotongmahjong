@@ -109,6 +109,124 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('useYaotongRemoteGame', () => {
+  it('大模型房的多个空位独立保存模型，开局前等待选择写入服务端', async () => {
+    const scope = effectScope()
+    const roomInfo = {
+      roomId: 'ABC123', status: 'lobby', creatorSeat: 0, seats: [null, null, null, null],
+      llmEnabled: true, llmAvailable: true, effectiveLlmEnabled: true,
+    }
+    const first = { seat: 1, providerId: 'deepseek', style: '稳健' }
+    const second = { seat: 3, providerId: 'kimi', style: '高冷' }
+    api.getRoom
+      .mockResolvedValueOnce({ ...roomInfo, reservedSeats: [] })
+      .mockResolvedValueOnce({ ...roomInfo, reservedSeats: [first, second] })
+    api.reserveLlmSeat
+      .mockResolvedValueOnce({ reservedSeats: [first] })
+      .mockResolvedValueOnce({ reservedSeats: [first, second] })
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.createRoom(8, '甲', undefined, 'hard', true)
+      expect(api.createRoom).toHaveBeenCalledWith(
+        'east', 4, expect.any(String), 'yaotong', true, 8, 'hard',
+      )
+      expect(game.effectiveLlmEnabled.value).toBe(true)
+      expect(game.reservedSeats.value).toEqual([])
+      api.startRoom.mockImplementationOnce(async () => {
+        expect(game.reservedSeats.value).toEqual([first, second])
+        return { roomId: 'ABC123', status: 'playing' }
+      })
+      await Promise.all([
+        game.reserveLlmSeat(1, 'deepseek', '稳健'),
+        game.reserveLlmSeat(3, 'kimi', '高冷'),
+        game.startMatch(),
+      ])
+      expect(api.reserveLlmSeat.mock.calls).toEqual([
+        ['ABC123', 0, 'CODE', 1, 'deepseek', '稳健'],
+        ['ABC123', 0, 'CODE', 3, 'kimi', '高冷'],
+      ])
+      expect(api.startRoom).toHaveBeenCalledOnce()
+      expect(game.reservedSeats.value).toEqual([first, second])
+      await game.leaveRoom()
+      expect(game.reservedSeats.value).toEqual([])
+      expect(game.effectiveLlmEnabled.value).toBe(false)
+    } finally { scope.stop() }
+  })
+
+  it('普通玩家的本家形象按选择顺序同步，准备前等待最后一次更新', async () => {
+    const scope = effectScope()
+    api.joinRoom.mockResolvedValueOnce({
+      roomId: 'ABC123', seat: 1, nickname: '乙', rejoinCode: 'GUEST',
+      playerId: 'wakudemo-b', rejoin: false, characterId: 'qwen',
+    })
+    let finishFirst!: () => void
+    const first = new Promise<void>(resolve => { finishFirst = resolve })
+    api.updateCharacter
+      .mockImplementationOnce(() => first)
+      .mockResolvedValueOnce({ roomId: 'ABC123', seat: 1, characterId: 'doubao' })
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.joinRoom('ABC123', '乙', 'qwen')
+      const setFirst = game.updateCharacter('gpt')
+      const setLast = game.updateCharacter('doubao')
+      const ready = game.ready()
+      await Promise.resolve()
+      expect(game.isCreator.value).toBe(false)
+      expect(api.updateCharacter).toHaveBeenCalledExactlyOnceWith('ABC123', 1, 'GUEST', 'gpt')
+      expect(api.readyRoom).not.toHaveBeenCalled()
+      finishFirst()
+      await Promise.all([setFirst, setLast, ready])
+      expect(api.updateCharacter).toHaveBeenNthCalledWith(2, 'ABC123', 1, 'GUEST', 'doubao')
+      expect(api.readyRoom).toHaveBeenCalledExactlyOnceWith('ABC123', 1, 'GUEST')
+    } finally { scope.stop() }
+  })
+
+  it('模型台词按座位旋转显示，音频只播放当前小局的对应台词', async () => {
+    vi.useFakeTimers()
+    const scope = effectScope()
+    const playLlmAudio = vi.fn()
+    const stopLlmAudio = vi.fn()
+    try {
+      const game = scope.run(() => useYaotongRemoteGame({
+        createPort: false, playLlmAudio, stopLlmAudio,
+        socketFactory: () => { socket = new FakeSocket(); return socket },
+      }))!
+      await game.createRoom(8, '甲')
+      socket.open()
+      const active = snapshot({ seat: 2 })
+      active.view.players[3].playerKind = 'llm'
+      socket.server(active)
+      const speech = { matchId: 'M1', round: 1, seat: 3 }
+      const bubble = { kind: 'llm_message', ...speech, id: 1, text: '先走一步。' }
+      const audioUrl = '/api/tts/audio/' + 'a'.repeat(64) + '.mp3'
+      const audio = { kind: 'llm_audio', ...speech, messageId: 1, audioUrl, cached: true }
+      socket.server({ ...bubble, round: 0 })
+      socket.server({ ...bubble, seat: 0 })
+      expect(game.llmBubbles.value).toEqual({})
+      socket.server(bubble)
+      expect(game.llmBubbles.value[1]).toEqual({ text: '先走一步。', id: 1 })
+      socket.server({ ...audio, messageId: 2 })
+      socket.server(audio)
+      socket.server(audio)
+      expect(playLlmAudio).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(audioUrl), 1, 1, undefined)
+      await vi.advanceTimersByTimeAsync(4000)
+      expect(game.llmBubbles.value).toEqual({})
+
+      socket.server({ ...bubble, id: 2 })
+      stopLlmAudio.mockClear()
+      socket.server({ ...active, round: 2, view: { ...active.view, handNumber: 2 } })
+      expect(stopLlmAudio).toHaveBeenCalled()
+      expect(game.llmBubbles.value).toEqual({})
+      socket.server({ ...audio, messageId: 2 })
+      expect(playLlmAudio).toHaveBeenCalledOnce()
+    } finally { scope.stop() }
+  })
+
   it('联机互动只收当前小局的预设消息，并按本家视角换算发送和接收座位', async () => {
     const scope = effectScope()
     const onInteraction = vi.fn()
