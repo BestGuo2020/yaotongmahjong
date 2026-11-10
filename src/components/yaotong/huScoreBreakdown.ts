@@ -1,11 +1,12 @@
 import type { HandValue, Seat, Settlement, Transfer } from '../../game/variants/yaotong/types'
+import { formatYaotongPatternLabel } from '../../game/variants/yaotong/presentation'
 import { countsOf, tileName, YAO } from '../../game/variants/yaotong/tiles'
 
 /** Use the selected winning decomposition, including special cases such as 素胡. */
 export function handScoreFormula(value: HandValue): string {
   const base = value.h - value.patterns.reduce((sum, pattern) => sum + pattern.points, 0)
   return [{ name: '基础', points: base }, ...value.patterns]
-    .map(part => `${part.name} ${part.points}`).join(' + ')
+    .map(part => `${formatYaotongPatternLabel(part.name)} ${part.points}`).join(' + ')
 }
 
 /** Describe the adopted decomposition, including the actual joker substitutions when recorded. */

@@ -19,6 +19,7 @@ import type {
 import { fromSharedTile } from '../sharedTile'
 import { retainHuWindow } from '../huWindow'
 import { eventKongKind } from '../kongPresentation'
+import { formatYaotongPatternLabel } from '../presentation'
 import { YAOTONG_EMOTES, type YaotongEmote } from '../emotes'
 import { QUICK_CHAT_PHRASES, type QuickChatPhrase } from '../quickChat'
 
@@ -302,7 +303,7 @@ function convertHandValue(value: YtHandValueView): HandValue {
   return {
     h: value.h,
     patternPoints: value.patternPoints,
-    patterns: value.patterns,
+    patterns: value.patterns.map(pattern => ({ ...pattern, name: formatYaotongPatternLabel(pattern.name) })),
     naturalYaos: value.naturalYaos,
     winningYaoNatural: value.winningYaoNatural,
     wildcards: value.wildcards,
@@ -339,7 +340,7 @@ function convertSettlement(
       base: transfer.base,
       multiplier: transfer.multiplier,
       amount: transfer.amount,
-      reason: transfer.reason.replace(/转弯杠|存杠/g, '暗杠').replaceAll('明杠', '杠'),
+      reason: formatYaotongPatternLabel(transfer.reason.replace(/转弯杠|存杠/g, '暗杠').replaceAll('明杠', '杠')),
     })),
     values: Object.fromEntries(
       Object.entries(result.values).map(([seat, value]) => [

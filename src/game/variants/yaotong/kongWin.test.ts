@@ -65,6 +65,17 @@ describe('杠上开花牌型加20分，基础5另计', () => {
     expect(s.result!.transfers.filter(t => t.account === '杠分').map(t => t.amount)).toEqual([10, 10, 10])
   })
 
+  it('旧回放中的杠开在胡分公式里显示全称', () => {
+    const s = kongDraw('turn')
+    expect(act(s, 0, { type: 'hu' })).toBe(true)
+    const value = s.result!.values[0]
+    const recorded = {
+      ...value,
+      patterns: value.patterns.map(pattern => pattern.name === '杠上开花' ? { ...pattern, name: '杠开' } : pattern),
+    }
+    expect(handScoreFormula(recorded)).toBe('基础 5 + 硬胡 10 + 杠上开花 20')
+  })
+
   it('使用赖子的杠上开花是基础5＋牌型20，不误计硬胡', () => {
     const s = kongDraw('turn')
     s.players[0].hand = player('234m 234s 66p 78s 1p').hand

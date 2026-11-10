@@ -6,6 +6,7 @@ import type { GamePlayer } from '../../game/core/contracts/types'
 import { useEffectPlayer } from '../../game/core/presentation/useAudio'
 import type { Account, GameState, Transfer } from '../../game/variants/yaotong/types'
 import { toSharedTile } from '../../game/variants/yaotong/useYaotongPort'
+import { formatYaotongPatternLabel } from '../../game/variants/yaotong/presentation'
 import type { TableThemeName } from '../table/three/tableTheme'
 import { handScoreFormula, yaoUsageText } from './huScoreBreakdown'
 import { YAO } from '../../game/variants/yaotong/tiles'
@@ -83,7 +84,7 @@ function inspect(value: { from: number; to: number; account?: Account }) {
             <tr v-for="(entry, i) in entries" :key="i">
               <td>{{ state.players[entry.from].name }} → {{ state.players[entry.to].name }}</td>
               <td>
-                {{ entry.account }}<small>{{ entry.account === '胡牌分' && result.values[entry.to] ? handScoreFormula(result.values[entry.to]!) : entry.reason }}</small>
+                {{ entry.account }}<small>{{ entry.account === '胡牌分' && result.values[entry.to] ? handScoreFormula(result.values[entry.to]!) : formatYaotongPatternLabel(entry.reason) }}</small>
                 <small v-if="entry.account === '胡牌分' && result.values[entry.to]" class="yaotong-yao-use">{{ yaoUsageText(result.values[entry.to], state.players[entry.to].hand, result.tile === YAO) }}</small>
               </td>
               <td

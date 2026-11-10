@@ -9,6 +9,11 @@ export function yaotongRoundLabel(dealerRound: number): string {
   return `${['东', '南', '西', '北'][Math.floor((dealerRound - 1) / 4)]}${((dealerRound - 1) % 4) + 1}局`
 }
 
+/** 兼容旧牌型名及用「＋」拼接的计分依据。 */
+export function formatYaotongPatternLabel(label: string): string {
+  return label.replace(/(^|＋)杠开(?=＋|$)/g, '$1杠上开花')
+}
+
 export interface SeatStatus {
   declaration: Declaration
   burned: boolean

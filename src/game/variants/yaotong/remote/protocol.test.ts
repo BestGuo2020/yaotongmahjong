@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { convertSnapshot, toActionPayload, type YtSnapshot } from './protocol'
 import { huWindow } from '../huWindow'
+import { winPatternCue } from '../presentation'
 
 function player(seat: number, hand: string[] = [], extra: Record<string, unknown> = {}) {
   return {
@@ -200,6 +201,30 @@ describe('yaotong remote protocol', () => {
     expect(toActionPayload({ type: 'kong', tile: 9 })).toEqual({
       type: 'kong', tile: 9,
     })
+  })
+
+  it('旧联机结算的杠开牌型和计分依据按全称显示', () => {
+    const wire = snapshot()
+    wire.view.phase = 'settled'
+    wire.roundResult = {
+      kind: 'win', winners: [1], source: null, winKind: 'self', tile: 'p3',
+      offender: null, reason: '自摸', indicator: null, chicken: null,
+      ready: [false, true, false, false], deltas: [-35, 105, -35, -35],
+      nextDealer: 1, finished: false,
+      transfers: [{ from: 0, to: 1, account: '胡牌分', base: 35, multiplier: 1, amount: 35, reason: '硬胡＋杠开' }],
+      values: {
+        '1': {
+          h: 35, patternPoints: 30, patterns: [{ name: '硬胡', points: 10 }, { name: '杠开', points: 20 }],
+          naturalYaos: 0, winningYaoNatural: false, wildcards: 0, big: false,
+          structure: 'standard', groups: [['p1', 'p2', 'p3']], resolvedHand: ['p1', 'p2', 'p3'],
+        },
+      },
+    }
+    const result = convertSnapshot(wire).result!
+    expect(result.values[0].patterns).toEqual([{ name: '硬胡', points: 10 }, { name: '杠上开花', points: 20 }])
+    expect(result.transfers[0].reason).toBe('硬胡＋杠上开花')
+    expect(winPatternCue(result, { id: 1, duration: 1000, reducedMotion: false })?.winners)
+      .toEqual([{ seat: 0, label: '杠上开花', tier: 1 }])
   })
 
   it('keeps passed hu scores numeric and preserves private structural restrictions', () => {
