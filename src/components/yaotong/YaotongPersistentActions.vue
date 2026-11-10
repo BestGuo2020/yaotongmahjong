@@ -42,6 +42,20 @@ watch(() => props.showActions && props.sendQuickChat, (send) => { if (!send) clo
 </script>
 
 <template>
+  <button
+    v-if="showAutoPlay" type="button" class="action autoplay-action" :class="{ active: game.local.autoplay.value }" data-action-role="secondary"
+    :aria-pressed="game.local.autoplay.value"
+    :aria-label="game.local.autoplay.value ? '取消机器人托管，恢复手动操作' : '开启机器人托管，自动出牌与过牌'"
+    :title="game.local.autoplay.value ? '机器人托管中：点击恢复手动' : '点击机器人托管：到您的回合自动出牌/过牌'"
+    @click="$emit('toggleAutoPlay')"
+  >
+    <TableControlIcon name="autoplay" />
+  </button>
+  <button v-if="showActions && game.local.hardControls.value && !game.local.holding.value && game.local.waitRemainingMs.value > 0"
+    type="button" class="action wait-action" data-action-role="primary"
+    aria-label="等，暂停牌局并使用本局等待时间" @click="game.local.startHold()">
+    <b>等</b><span class="action-detail">{{ Math.ceil(game.local.waitRemainingMs.value / 1000) }}秒</span>
+  </button>
   <template v-if="showActions && sendQuickChat">
     <button type="button" class="action quick-chat-trigger" data-action-role="secondary"
       aria-label="快捷语" title="快捷语" aria-haspopup="dialog" :aria-expanded="chatOpen" @click="openChat">
@@ -68,20 +82,6 @@ watch(() => props.showActions && props.sendQuickChat, (send) => { if (!send) clo
       </footer>
     </dialog>
   </template>
-  <button
-    v-if="showAutoPlay" type="button" class="action autoplay-action" :class="{ active: game.local.autoplay.value }" data-action-role="secondary"
-    :aria-pressed="game.local.autoplay.value"
-    :aria-label="game.local.autoplay.value ? '取消机器人托管，恢复手动操作' : '开启机器人托管，自动出牌与过牌'"
-    :title="game.local.autoplay.value ? '机器人托管中：点击恢复手动' : '点击机器人托管：到您的回合自动出牌/过牌'"
-    @click="$emit('toggleAutoPlay')"
-  >
-    <TableControlIcon name="autoplay" />
-  </button>
-  <button v-if="showActions && game.local.hardControls.value && !game.local.holding.value && game.local.waitRemainingMs.value > 0"
-    type="button" class="action wait-action" data-action-role="primary"
-    aria-label="等，暂停牌局并使用本局等待时间" @click="game.local.startHold()">
-    <b>等</b><span class="action-detail">{{ Math.ceil(game.local.waitRemainingMs.value / 1000) }}秒</span>
-  </button>
 </template>
 
 <style scoped>

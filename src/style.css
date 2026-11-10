@@ -3971,7 +3971,7 @@ button { font: inherit; }
   position: absolute;
   z-index: 45;
   right: var(--persistent-action-right);
-  /* 为「等」预留第三个位置，固定上方两个入口。 */
+  /* 竖列按最多三个按钮预留高度。 */
   top: min(72%, calc(100% - var(--safe-bottom) - var(--persistent-action-outset) - 8px - 3 * var(--action-edge) - 2 * var(--persistent-action-gap)));
   display: flex;
   flex-direction: column;
