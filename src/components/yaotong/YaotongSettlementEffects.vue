@@ -65,7 +65,7 @@ function measureLabels() {
     bottom: parseFloat(style.paddingBottom), left: parseFloat(style.paddingLeft) }
   const rect = host.getBoundingClientRect()
   if (!rect.width || !rect.height) return
-  const elements = [...(host.parentElement?.querySelectorAll('.hand-rack, .turn-action-row') ?? []),
+  const elements = [...(host.parentElement?.querySelectorAll('.hand-rack, .turn-action-row, .table-persistent-actions:has(> .action)') ?? []),
     ...(host.closest('.game-app')?.querySelectorAll('.top-bar') ?? [])]
   controls.value = elements.map(element => {
     const r = element.getBoundingClientRect()

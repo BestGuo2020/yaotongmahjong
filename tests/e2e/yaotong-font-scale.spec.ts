@@ -49,8 +49,10 @@ for (const { name, viewport, insets, theme } of [
     const actions = row.locator('button.action')
     const icons = actions.locator('svg.table-control-icon')
     const laiziMark = page.locator('.hand-rack .mahjong-tile.laizi .joker-mark').first()
-    await expect(actions).toHaveCount(8, { timeout: 30000 })
-    await expect(icons).toHaveCount(5)
+    await expect(actions).toHaveCount(6, { timeout: 30000 })
+    await expect(icons).toHaveCount(3)
+    const persistent = page.locator('.table-persistent-actions > button')
+    await expect(persistent).toHaveCount(2)
     await expect(laiziMark).toHaveText('癞')
     const iconSizes = () => icons.evaluateAll(elements => elements.map(element => {
       const { width, height } = element.getBoundingClientRect()
@@ -79,6 +81,14 @@ for (const { name, viewport, insets, theme } of [
       return { top: Math.min(...boxes.map(box => box.top)), bottom: Math.max(...boxes.map(box => box.bottom)) }
     })
     const rowBox = (await row.boundingBox())!
+    for (const button of await persistent.all()) {
+      await expect(button).toBeInViewport({ ratio: 1 })
+      const box = (await button.boundingBox())!
+      expect(box.width).toBe(32)
+      expect(box.height).toBe(32)
+      expect(box.x).toBeGreaterThan(rowBox.x + rowBox.width)
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width - insets.right)
+    }
     expect(rowBox.y).toBeGreaterThanOrEqual(opponent.y + opponent.height)
     expect(rowBox.y + rowBox.height).toBeLessThanOrEqual(hand.top)
     const handBottomGap = viewport.height - insets.bottom - hand.bottom

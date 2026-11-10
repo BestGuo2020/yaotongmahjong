@@ -2,6 +2,7 @@ import { createApp, h } from 'vue'
 import '../../../src/style.css'
 import GameTableHud from '../../../src/components/table/GameTableHud.vue'
 import YaotongControls from '../../../src/components/yaotong/YaotongControls.vue'
+import YaotongPersistentActions from '../../../src/components/yaotong/YaotongPersistentActions.vue'
 import SettlementOverlay from '../../../src/components/settlement/SettlementOverlay.vue'
 import YaotongLedger from '../../../src/components/yaotong/YaotongLedger.vue'
 import YaotongRoundOverview from '../../../src/components/yaotong/YaotongRoundOverview.vue'
@@ -131,8 +132,12 @@ createApp({ setup() {
       onHu: () => game.userHu(),
       onPeng: () => game.userPeng(), onPass: () => game.userPass(),
       onGangFromDiscard: () => game.userGangFromDiscard(),
-      autoPlayEnabled: true, autoPlay: false,
-    }, { actions: () => h(YaotongControls, { game, sendQuickChat: crowdedActions ? () => true : undefined, sendEmote: () => {} }) })]),
+      autoPlayEnabled: true,
+    }, {
+      actions: () => h(YaotongControls, { game, sendEmote: () => {} }),
+      'persistent-actions': ({ showActions, showAutoPlay }: { showActions: boolean; showAutoPlay: boolean }) =>
+        h(YaotongPersistentActions, { game, showActions, showAutoPlay, sendQuickChat: crowdedActions ? () => true : undefined }),
+    })]),
     game.result.value ? h(SettlementOverlay, {
       resultTitle: game.resultTitle.value,
       result: game.result.value, resultVisible: true, matchFinished: false, dealer: game.dealer.value,

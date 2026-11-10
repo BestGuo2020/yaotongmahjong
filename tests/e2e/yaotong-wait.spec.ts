@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
-const waitButton = (page: Page) => page.getByRole('button', { name: '等，暂停牌局并使用本局等待时间', exact: true })
+const waitButton = (page: Page) => page.locator('.table-persistent-actions')
+  .getByRole('button', { name: '等，暂停牌局并使用本局等待时间', exact: true })
 async function state(page: Page) {
   return page.evaluate(() => (window as unknown as { waitState: () => { serial: number; remaining: number[]; phase: string; reason?: string; melds: number } }).waitState())
 }
@@ -13,12 +14,20 @@ for (const width of [1280, 844]) {
     await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=hard-wait-idle')
     await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
     await expect(waitButton(page)).toContainText('15秒')
+    const waitBox = (await waitButton(page).boundingBox())!
+    const autoplayBox = (await page.locator('.table-persistent-actions .autoplay-action').boundingBox())!
+    const edge = (width === 844 ? 48 : 52) * 2 / 3
+    expect(waitBox.width).toBeCloseTo(edge, 1)
+    expect(waitBox.height).toBeCloseTo(edge, 1)
+    expect(waitBox.x).toBe(autoplayBox.x)
+    expect(waitBox.y).toBeGreaterThan(autoplayBox.y + autoplayBox.height)
     await expect(page.getByRole('button', { name: '胡', exact: true })).toHaveCount(0)
     await page.evaluate(() => (window as unknown as { setGuidanceScenario: (name: string) => void }).setGuidanceScenario('hard-wait-flow'))
     await waitButton(page).click()
     const serial = (await state(page)).serial
-    await expect(page.getByRole('button', { name: '胡', exact: true })).toBeInViewport({ ratio: 1 })
-    await expect(page.getByRole('button', { name: '过', exact: true })).toBeInViewport({ ratio: 1 })
+    const row = page.locator('.turn-action-row')
+    await expect(row.getByRole('button', { name: '胡', exact: true })).toBeInViewport({ ratio: 1 })
+    await expect(row.getByRole('button', { name: '过', exact: true })).toBeInViewport({ ratio: 1 })
     const countdown = page.getByRole('timer', { name: '本小局剩余等待时间' })
     await expect(countdown).toHaveText('13秒', { timeout: 4000 })
     expect((await state(page)).serial).toBe(serial)

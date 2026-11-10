@@ -2,6 +2,7 @@ import { createApp, h } from 'vue'
 import '../../../src/style.css'
 import GameTableHud from '../../../src/components/table/GameTableHud.vue'
 import YaotongControls from '../../../src/components/yaotong/YaotongControls.vue'
+import YaotongPersistentActions from '../../../src/components/yaotong/YaotongPersistentActions.vue'
 import { useYaotongPort } from '../../../src/game/variants/yaotong/useYaotongPort'
 import { player, ready, table } from '../../../src/game/variants/yaotong/auditFixtures'
 import { themePresentationByName, themePresentationCssVariables } from '../../../src/theme/themePresentation'
@@ -51,11 +52,15 @@ createApp({ setup() {
       userCurrentWaits: game.userCurrentWaits.value, userTingOptions: game.userTingOptions.value,
       userDiscardWaits: game.userDiscardWaits.value, userKongs: game.userKongs.value, userHasWindKong: false,
       rulesetId: 'yaotong', wallTotal: 108, jokerTiles: ['p1'], extraActions: true,
-      autoPlayEnabled: true, autoPlay: game.local.autoplay.value, yaotongView: game.tableView.value,
+      autoPlayEnabled: true, yaotongView: game.tableView.value,
       lockedHand: game.local.user.value?.declaration !== 'none',
       blockedDiscardIndices: game.local.protection.value.discards, canPass: !game.local.protection.value.pass,
       onDiscard: game.userDiscard, onSelectTile: game.selectTile, onClearSelection: game.clearUserSelection,
       onHu: game.userHu, onPass: game.userPass,
-    }, { actions: () => h(YaotongControls, { game }) })]),
+    }, {
+      actions: () => h(YaotongControls, { game, sendEmote: () => {} }),
+      'persistent-actions': ({ showActions, showAutoPlay }: { showActions: boolean; showAutoPlay: boolean }) =>
+        h(YaotongPersistentActions, { game, showActions, showAutoPlay }),
+    })]),
   ])
 } }).mount('#app')

@@ -9,6 +9,7 @@ import RulesPanel from './components/RulesPanel.vue'
 import ReplayListView from './components/replay/ReplayListView.vue'
 import SettlementOverlay from './components/settlement/SettlementOverlay.vue'
 import YaotongControls from './components/yaotong/YaotongControls.vue'
+import YaotongPersistentActions from './components/yaotong/YaotongPersistentActions.vue'
 import { useYaotongQuickChat } from './components/yaotong/useYaotongQuickChat'
 import { useYaotongEmotes } from './components/yaotong/useYaotongEmotes'
 import YaotongLedger from './components/yaotong/YaotongLedger.vue'
@@ -469,7 +470,6 @@ function changeTableTheme(theme: TableThemeName) {
         :user-kongs="userKongs"
         :user-has-wind-kong="false"
         :auto-play-enabled="true"
-        :auto-play="yaotongGame.local.autoplay.value"
         :wall-total="108"
         :extra-actions="!result && !yaotongGame.openingStage.value"
         :locked-hand="yaotongGame.local.user.value?.declaration !== 'none'"
@@ -493,7 +493,6 @@ function changeTableTheme(theme: TableThemeName) {
         @gang-from-discard="userGangFromDiscard"
         @gang="userGang"
         @hu="userHu"
-        @toggle-auto-play="toggleAutoPlay"
         @ready="handleTableReady"
         @next-round="nextRound"
         @return-to-lobby="returnToLobby"
@@ -502,8 +501,12 @@ function changeTableTheme(theme: TableThemeName) {
       >
         <template #actions>
           <YaotongControls :key="interactionHand" :game="yaotongGame"
-            :send-quick-chat="interactionsEnabled ? sendQuickChat : undefined"
             :emotes="interactionsEnabled ? emotes : undefined" :send-emote="sendEmote" />
+        </template>
+        <template #persistent-actions="{ showActions, showAutoPlay }">
+          <YaotongPersistentActions :key="interactionHand" :game="yaotongGame"
+            :show-actions="showActions" :show-auto-play="showAutoPlay"
+            :send-quick-chat="interactionsEnabled ? sendQuickChat : undefined" @toggle-auto-play="toggleAutoPlay" />
         </template>
       </GameTableHud>
 

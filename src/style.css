@@ -3916,21 +3916,91 @@ button { font: inherit; }
   .game-app .yaotong-table .user-identity .avatar { width: 30px; height: 30px; }
 }
 
-/* 幺筒操作行的主操作与辅助按钮共用边长。 */
-.game-app .yaotong-table .turn-action-row {
+.yaotong-control-dialog {
+  position: fixed;
+  inset: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  width: min(var(--dialog-width), calc(100vw - var(--safe-left) - var(--safe-right) - 24px));
+  max-width: none;
+  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--dialog-radius, 14px);
+  background: var(--theme-panel);
+  color: var(--theme-text);
+  box-shadow: 0 16px 60px #0009;
+  text-align: left;
+  overflow: auto;
+}
+.yaotong-control-dialog::backdrop { background: #0009; }
+.yaotong-control-dialog-close {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--theme-text);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+/* 牌桌操作横排与右侧常驻按钮共用主题。 */
+.game-app .yaotong-table {
   --action-text-scale: max(1, env(preferred-text-scale, 1));
   --action-size: 48px;
   --action-edge: max(var(--control-hit-target), calc(var(--action-size) * var(--action-text-scale)));
   --action-radius: 10px;
-  --table-control-icon-size: calc(var(--action-edge) * .7);
-  flex-wrap: nowrap;
+  --persistent-action-edge: calc(var(--action-edge) * 2 / 3);
+  --persistent-action-radius: calc(var(--action-radius) * 2 / 3);
+  --persistent-action-outset: max(0px, calc((var(--control-hit-target) - var(--persistent-action-edge)) / 2));
+  --persistent-action-right: max(2.8%, calc(var(--safe-right) + var(--persistent-action-outset) + 8px));
+  --persistent-action-reserve: calc(var(--persistent-action-right) + var(--persistent-action-edge) + var(--persistent-action-outset) + 6px);
 }
+.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) {
+  --table-control-icon-size: calc(var(--action-edge) * .7);
+}
+.game-app .yaotong-table .turn-action-row { flex-wrap: nowrap; }
+.game-app .yaotong-table:has(.table-persistent-actions > .action) .turn-action-row {
+  --action-row-right: max(10%, var(--persistent-action-reserve));
+  right: var(--action-row-right);
+  max-width: calc(100% - var(--safe-left) - var(--action-row-right) - 8px);
+}
+.game-app .yaotong-table .table-persistent-actions {
+  --action-size: var(--persistent-action-edge);
+  --action-edge: var(--persistent-action-edge);
+  --action-radius: var(--persistent-action-radius);
+  --persistent-action-gap: max(calc(2 * var(--persistent-action-outset) + 2px), clamp(10px, 2.4cqh, 28px));
+  position: absolute;
+  z-index: 45;
+  right: var(--persistent-action-right);
+  /* 为「等」预留第三个位置，固定上方两个入口。 */
+  top: min(72%, calc(100% - var(--safe-bottom) - var(--persistent-action-outset) - 8px - 3 * var(--action-edge) - 2 * var(--persistent-action-gap)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--persistent-action-gap);
+}
+.game-app .yaotong-table .table-persistent-actions > .action {
+  position: relative;
+}
+/* 缩小按钮外观，同时保留至少 44px 的点击范围。 */
+.game-app .yaotong-table .table-persistent-actions > .action::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--control-hit-target);
+  height: var(--control-hit-target);
+  transform: translate(-50%, -50%);
+}
+.game-app .yaotong-table .table-persistent-actions .action:hover { transform: none; }
 .game-app .yaotong-table .action-bar {
   min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
-.game-app .yaotong-table .turn-action-row button.action {
+.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) button.action {
   display: inline-flex;
   flex: none;
   flex-direction: column;
@@ -3945,7 +4015,7 @@ button { font: inherit; }
   border-radius: var(--action-radius);
   text-align: center;
 }
-.game-app .yaotong-table .turn-action-row .action > b {
+.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) .action > b {
   max-width: 100%;
   font-size: calc(var(--action-size) * .48);
   line-height: 1.1;
@@ -3971,7 +4041,7 @@ button { font: inherit; }
 .game-app .yaotong-table .turn-action-row .action > .hu-plan-label:has(> :nth-child(4)) {
   font-size: calc(var(--action-size) * .16);
 }
-.game-app .yaotong-table .turn-action-row .action > .action-detail {
+.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) .action > .action-detail {
   color: inherit;
   opacity: .9;
   font-size: calc(var(--action-size) * .21);
@@ -3979,19 +4049,23 @@ button { font: inherit; }
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.game-app .yaotong-table .turn-action-row .action:is(.primary, .wait-action) {
+.game-app .yaotong-table .table-persistent-actions button.wait-action { gap: 0; }
+.game-app .yaotong-table .table-persistent-actions .wait-action > .action-detail {
+  font-size: max(10px, calc(var(--action-size) * .21));
+}
+.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) .action:is(.primary, .wait-action) {
   border: 2px solid var(--theme-accent-text);
   background: var(--theme-button);
   color: var(--theme-button-text);
   box-shadow: 0 3px 12px #0008, 0 0 10px color-mix(in srgb, var(--theme-accent) 30%, transparent);
 }
-.game-app .yaotong-table .turn-action-row button:is(.quick-chat-trigger, .waiting-action, .yaotong-help-trigger) {
+.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) button:is(.quick-chat-trigger, .waiting-action, .yaotong-help-trigger) {
   border: 1px solid var(--theme-border);
   background: var(--theme-panel);
   color: var(--theme-text);
   box-shadow: 0 4px 10px #0007;
 }
-.game-app .yaotong-table .turn-action-row .action:is([aria-expanded="true"], .primary[aria-pressed="true"]) {
+.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) .action:is([aria-expanded="true"], .primary[aria-pressed="true"]) {
   border-color: var(--theme-accent);
   background: var(--theme-panel-elevated);
   color: var(--theme-accent-text);
@@ -4009,13 +4083,13 @@ button { font: inherit; }
   border-width: 0 0 2px 2px;
   transform: rotate(-45deg);
 }
-.game-app .yaotong-table .turn-action-row .action:focus-visible {
+.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) .action:focus-visible {
   outline: 2px solid var(--theme-accent);
   outline-offset: 2px;
 }
 @media (hover: hover) and (pointer: fine) {
   @container game (min-width: 1000px) and (min-height: 560px) {
-    .game-app .yaotong-table .turn-action-row {
+    .game-app .yaotong-table {
       --action-size: clamp(52px, 3.8cqw, 78px);
       --action-radius: 14px;
     }
@@ -4023,7 +4097,17 @@ button { font: inherit; }
 }
 @media (hover: none) and (pointer: coarse) and (orientation: landscape),
        (orientation: landscape) and (max-width: 1024px) and (max-height: 460px) {
-  .game-app .yaotong-table .turn-action-row { --action-edge: var(--action-size); }
+  .game-app .yaotong-table {
+    --action-edge: var(--action-size);
+    --persistent-action-right: calc(var(--safe-right) + var(--persistent-action-outset) + 8px);
+  }
+  .game-app .yaotong-table:has(.table-persistent-actions > .action) .turn-action-row {
+    --action-row-right: var(--persistent-action-reserve);
+  }
+  .game-app .yaotong-table .table-persistent-actions button.action {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   .game-app .yaotong-table .turn-action-row .turn-timer {
     align-items: center;
     flex: none;
@@ -4046,7 +4130,7 @@ button { font: inherit; }
     -webkit-text-size-adjust: min(calc(100% * env(preferred-text-scale, 1)), var(--action-label-scale-limit));
     text-size-adjust: min(calc(100% * env(preferred-text-scale, 1)), var(--action-label-scale-limit));
   }
-  .game-app .yaotong-table .turn-action-row button.action:is(.wait-action, :has(> .action-label)) {
+  .game-app .yaotong-table .turn-action-row button.action:has(> .action-label) {
     --action-label-scale-limit: 115%;
   }
   .game-app .yaotong-table .turn-action-row button.action.hu-plan {

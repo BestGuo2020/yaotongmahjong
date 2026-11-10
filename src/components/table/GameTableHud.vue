@@ -76,7 +76,7 @@ interface Props {
   userDiscardWaits: WaitInfo | null
   userKongs: TileType[]
   userHasWindKong: boolean
-  /** 多人联机模式：显示托管开关按钮 */
+  /** 显示托管开关按钮 */
   autoPlayEnabled?: boolean
   /** 当前是否已开启托管（联机自动出牌/过牌） */
   autoPlay?: boolean
@@ -356,7 +356,7 @@ const bloodFlowWaitColumns = computed(() => {
   const fit = Math.floor((available + gap) / ((compact ? 30 : 44) + gap))
   return Math.max(1, Math.min(9, tileCount, fit))
 })
-// 托管开关：仅多人联机模式显示；结算/亮相/回大厅等阶段隐藏，其余对局时段（含他人回合）常驻可切换。
+// 托管开关在对局期间可切换，结算、亮牌和大厅阶段隐藏。
 const showAutoPlay = computed(() => Boolean(props.autoPlayEnabled)
   && !['lobby', 'win-effect', 'revealing', 'settled', 'finished'].includes(props.phase))
 // 操作按钮行与倒计时同行：任一方可见时整行出现。
@@ -500,7 +500,7 @@ function handleTileActivation(index: number, event?: PointerEvent) {
 function clearMobileSelection(event: PointerEvent) {
   if (usesFinePointer() || props.selectedIndex < 0 || event.pointerType === 'mouse') return
   const target = event.target as HTMLElement
-  if (target.closest('.hand-tile-slot, .waiting-tip, .turn-action-row')) return
+  if (target.closest('.hand-tile-slot, .waiting-tip, .turn-action-row, .table-persistent-actions')) return
   emit('clearSelection')
   waitsOpen.value = false
   lastTouchTap = { index: -1, time: 0 }
@@ -798,15 +798,17 @@ function onAvatarError(entry: GamePlayer) {
         </template>
       </div>
       <button
-        v-if="showAutoPlay" class="action autoplay-action" :class="{ active: autoPlay }" data-action-role="secondary"
+        v-if="showAutoPlay && rulesetId !== 'yaotong'" class="action autoplay-action" :class="{ active: autoPlay }" data-action-role="secondary"
         :aria-pressed="autoPlay" :aria-label="autoPlay ? '取消机器人托管，恢复手动操作' : '开启机器人托管，自动出牌与过牌'"
         :title="autoPlay ? '机器人托管中：点击恢复手动' : '点击机器人托管：到您的回合自动出牌/过牌'"
         @click="$emit('toggleAutoPlay')"
       >
-        <TableControlIcon v-if="rulesetId === 'yaotong'" name="autoplay" />
-        <b v-else>托管</b>
+        <b>托管</b>
       </button>
       <div v-if="(isUserTurn || actionPrompt) && turnSeconds > 0" class="turn-timer" :class="{ 'prompt-timer': actionPrompt }"><span>{{ turnSeconds }}</span></div>
+    </div>
+    <div v-if="rulesetId === 'yaotong' && showTurnRow" class="table-persistent-actions">
+      <slot name="persistent-actions" :show-actions="showActionBar" :show-auto-play="showAutoPlay" />
     </div>
     <div v-if="activeWaits && waitsOpen" class="waiting-tip compact-waiting-tip" :class="{ 'blood-flow-waiting-tip': bloodFlow }">
       <div v-if="bloodFlow" class="blood-flow-wait-grid" :style="{ '--bf-wait-cols': bloodFlowWaitColumns, gridTemplateColumns: `repeat(${bloodFlowWaitColumns}, minmax(0, 1fr))` }">
