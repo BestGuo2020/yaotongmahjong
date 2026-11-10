@@ -63,6 +63,9 @@ for (const { name, viewport, insets, theme } of [
     const persistent = page.locator('.table-persistent-actions > button')
     await expect(persistent).toHaveCount(2)
     await expect(persistent.last()).toHaveAccessibleName('快捷语')
+    const autoplayBox = (await persistent.first().boundingBox())!
+    const chatBox = (await persistent.last().boundingBox())!
+    expect(chatBox.y - autoplayBox.y - autoplayBox.height).toBeCloseTo(14, 1)
     await expect(laiziMark).toHaveText('癞')
     const iconSizes = () => icons.evaluateAll(elements => elements.map(element => {
       const { width, height } = element.getBoundingClientRect()

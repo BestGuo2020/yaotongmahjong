@@ -3983,6 +3983,7 @@ button { font: inherit; }
   pointer-events: auto;
 }
 .game-app .yaotong-table .table-persistent-actions > .autoplay-action { grid-row: 1; }
+.game-app .yaotong-table .table-persistent-actions > .autoplay-action[data-yaotong-mode="easy"],
 .game-app .yaotong-table .table-persistent-actions > .wait-action { grid-row: 2; }
 .game-app .yaotong-table .table-persistent-actions > .quick-chat-trigger { grid-row: 3; }
 .game-app .yaotong-table .table-persistent-actions > .action {

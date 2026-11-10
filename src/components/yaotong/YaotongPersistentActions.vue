@@ -44,6 +44,7 @@ watch(() => props.showActions && props.sendQuickChat, (send) => { if (!send) clo
 <template>
   <button
     v-if="showAutoPlay" type="button" class="action autoplay-action" :class="{ active: game.local.autoplay.value }" data-action-role="secondary"
+    :data-yaotong-mode="game.local.mode.value"
     :aria-pressed="game.local.autoplay.value"
     :aria-label="game.local.autoplay.value ? '取消机器人托管，恢复手动操作' : '开启机器人托管，自动出牌与过牌'"
     :title="game.local.autoplay.value ? '机器人托管中：点击恢复手动' : '点击机器人托管：到您的回合自动出牌/过牌'"
