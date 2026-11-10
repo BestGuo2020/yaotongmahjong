@@ -1,10 +1,53 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 async function scenario(page: Page, value: string) {
   await page.evaluate((name) => (window as unknown as { setGuidanceScenario: (value: string) => void }).setGuidanceScenario(name), value)
 }
 
 for (const theme of ['jade', 'rosewood', 'happyMahjong', 'llm', 'llmAnime']) {
+  test(`${theme} 常驻按钮共用主题外观与选中描边`, async ({ page }) => {
+    await page.setViewportSize({ width: 844, height: 320 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto(`/tests/e2e/fixtures/yaotong-guidance.html?scenario=hard-wait-idle&quickChat&theme=${theme}`)
+    const rail = page.locator('.table-persistent-actions')
+    const autoplay = rail.locator('.autoplay-action')
+    const wait = rail.getByRole('button', { name: /^等，/ })
+    const chat = rail.getByRole('button', { name: '快捷语', exact: true })
+    await expect(rail.locator('> .action')).toHaveCount(3, { timeout: 30000 })
+    const appearance = (button: Locator) => button.evaluate(element => {
+      const style = getComputedStyle(element)
+      return {
+        border: style.border,
+        radius: style.borderRadius,
+        background: style.background,
+        shadow: style.boxShadow,
+        color: style.color,
+        outlineWidth: style.outlineWidth,
+        outlineColor: style.outlineColor,
+      }
+    })
+
+    const idle = await appearance(autoplay)
+    expect(await appearance(wait)).toEqual(idle)
+    expect(await appearance(chat)).toEqual(idle)
+    if (theme === 'llmAnime') await page.screenshot({ path: 'tmp/yaotong-llmAnime-persistent-after.png' })
+
+    await chat.click()
+    await expect(chat).toHaveAttribute('aria-expanded', 'true')
+    await expect(chat).toHaveCSS('outline-width', '1px')
+    const selected = await appearance(chat)
+    expect(selected.background).toBe(idle.background)
+    await page.getByRole('dialog', { name: '快捷语' }).getByRole('button', { name: '关闭快捷语' }).click()
+    await expect(chat).toHaveAttribute('aria-expanded', 'false')
+
+    await autoplay.click()
+    await expect(autoplay).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(() => appearance(autoplay)).toEqual(selected)
+    await autoplay.click()
+    await expect(autoplay).toHaveAttribute('aria-pressed', 'false')
+    await expect.poll(() => appearance(autoplay)).toEqual(idle)
+  })
+
   for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
     test(`系统防护可点击查看、关闭且不遮挡操作：${theme} ${viewport.width}`, async ({ page }) => {
       await page.setViewportSize(viewport)

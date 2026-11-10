@@ -4060,22 +4060,28 @@ button { font: inherit; }
 .game-app .yaotong-table .table-persistent-actions .wait-action > .action-detail {
   font-size: max(10px, calc(var(--action-size) * .21));
 }
-.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) .action:is(.primary, .wait-action) {
+.game-app .yaotong-table .turn-action-row .action.primary {
   border: 2px solid var(--theme-accent-text);
   background: var(--theme-button);
   color: var(--theme-button-text);
   box-shadow: 0 3px 12px #0008, 0 0 10px color-mix(in srgb, var(--theme-accent) 30%, transparent);
 }
-.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) button:is(.quick-chat-trigger, .waiting-action, .yaotong-help-trigger) {
+.game-app .yaotong-table .turn-action-row button:is(.waiting-action, .yaotong-help-trigger) {
   border: 1px solid var(--theme-border);
   background: var(--theme-panel);
   color: var(--theme-text);
   box-shadow: 0 4px 10px #0007;
 }
-.game-app .yaotong-table :is(.turn-action-row, .table-persistent-actions) .action:is([aria-expanded="true"], .primary[aria-pressed="true"]) {
+.game-app .yaotong-table .turn-action-row .action:is([aria-expanded="true"], .primary[aria-pressed="true"]) {
   border-color: var(--theme-accent);
   background: var(--theme-panel-elevated);
   color: var(--theme-accent-text);
+}
+.game-app .yaotong-table .table-persistent-actions > .action:is([aria-expanded="true"], [aria-pressed="true"]) {
+  border-color: var(--theme-accent);
+  color: var(--theme-accent-text);
+  outline: 1px solid var(--theme-accent);
+  outline-offset: 1px;
 }
 .game-app .yaotong-table .turn-action-row .action[aria-pressed="true"]:has(> .table-control-icon) {
   position: relative;

@@ -43,7 +43,7 @@ watch(() => props.showActions && props.sendQuickChat, (send) => { if (!send) clo
 
 <template>
   <button
-    v-if="showAutoPlay" type="button" class="action autoplay-action" :class="{ active: game.local.autoplay.value }" data-action-role="secondary"
+    v-if="showAutoPlay" type="button" class="action autoplay-action" data-action-role="secondary"
     :data-yaotong-mode="game.local.mode.value"
     :aria-pressed="game.local.autoplay.value"
     :aria-label="game.local.autoplay.value ? '取消机器人托管，恢复手动操作' : '开启机器人托管，自动出牌与过牌'"
@@ -53,7 +53,7 @@ watch(() => props.showActions && props.sendQuickChat, (send) => { if (!send) clo
     <TableControlIcon name="autoplay" />
   </button>
   <button v-if="showActions && game.local.hardControls.value && !game.local.holding.value && game.local.waitRemainingMs.value > 0"
-    type="button" class="action wait-action" data-action-role="primary"
+    type="button" class="action wait-action" data-action-role="secondary"
     aria-label="等，暂停牌局并使用本局等待时间" @click="game.local.startHold()">
     <b>等</b><span class="action-detail">{{ Math.ceil(game.local.waitRemainingMs.value / 1000) }}秒</span>
   </button>

@@ -139,6 +139,7 @@ createApp({ setup() {
         h(YaotongPersistentActions, {
           game, showActions, showAutoPlay,
           sendQuickChat: crowdedActions || query.has('quickChat') ? () => true : undefined,
+          onToggleAutoPlay: () => { game.local.autoplay.value = !game.local.autoplay.value },
         }),
     })]),
     game.result.value ? h(SettlementOverlay, {
