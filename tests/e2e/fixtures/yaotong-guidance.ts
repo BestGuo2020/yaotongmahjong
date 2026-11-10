@@ -136,7 +136,10 @@ createApp({ setup() {
     }, {
       actions: () => h(YaotongControls, { game, sendEmote: () => {} }),
       'persistent-actions': ({ showActions, showAutoPlay }: { showActions: boolean; showAutoPlay: boolean }) =>
-        h(YaotongPersistentActions, { game, showActions, showAutoPlay, sendQuickChat: crowdedActions ? () => true : undefined }),
+        h(YaotongPersistentActions, {
+          game, showActions, showAutoPlay,
+          sendQuickChat: crowdedActions || query.has('quickChat') ? () => true : undefined,
+        }),
     })]),
     game.result.value ? h(SettlementOverlay, {
       resultTitle: game.resultTitle.value,

@@ -11,7 +11,7 @@ for (const width of [1280, 844]) {
   test(`老手等常驻、暂停整桌、按过累计扣时 ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 844 ? 390 : 720 })
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=hard-wait-idle')
+    await page.goto('/tests/e2e/fixtures/yaotong-guidance.html?scenario=hard-wait-idle&quickChat')
     await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30000 })
     await expect(waitButton(page)).toContainText('15秒')
     const waitBox = (await waitButton(page).boundingBox())!
@@ -21,9 +21,15 @@ for (const width of [1280, 844]) {
     expect(waitBox.height).toBeCloseTo(edge, 1)
     expect(waitBox.x).toBe(autoplayBox.x)
     expect(waitBox.y).toBeGreaterThan(autoplayBox.y + autoplayBox.height)
+    const quickChat = page.getByRole('button', { name: '快捷语', exact: true })
+    await expect(quickChat).toBeInViewport({ ratio: 1 })
+    const chatBox = (await quickChat.boundingBox())!
+    expect(chatBox.y).toBeGreaterThan(waitBox.y + waitBox.height)
     await expect(page.getByRole('button', { name: '胡', exact: true })).toHaveCount(0)
     await page.evaluate(() => (window as unknown as { setGuidanceScenario: (name: string) => void }).setGuidanceScenario('hard-wait-flow'))
     await waitButton(page).click()
+    await expect(waitButton(page)).toHaveCount(0)
+    expect(await quickChat.boundingBox()).toEqual(chatBox)
     const serial = (await state(page)).serial
     const row = page.locator('.turn-action-row')
     await expect(row.getByRole('button', { name: '胡', exact: true })).toBeInViewport({ ratio: 1 })
@@ -37,6 +43,7 @@ for (const width of [1280, 844]) {
     expect(remaining).toBeLessThan(14000)
     expect(remaining).toBeGreaterThan(10000)
     await expect(waitButton(page)).toBeVisible()
+    expect(await quickChat.boundingBox()).toEqual(chatBox)
     await expect.poll(async () => (await state(page)).serial).toBeGreaterThan(serial)
   })
   test(`等累计15秒用完后常驻胡，不会自动代胡 ${width}`, async ({ page }) => {

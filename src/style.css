@@ -3973,11 +3973,18 @@ button { font: inherit; }
   right: var(--persistent-action-right);
   /* 竖列按最多三个按钮预留高度。 */
   top: min(72%, calc(100% - var(--safe-bottom) - var(--persistent-action-outset) - 8px - 3 * var(--action-edge) - 2 * var(--persistent-action-gap)));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  grid-auto-rows: var(--action-edge);
+  justify-items: center;
   gap: var(--persistent-action-gap);
+  pointer-events: none;
 }
+.game-app .yaotong-table .table-persistent-actions > :is(.action, .quick-chat-dialog) {
+  pointer-events: auto;
+}
+.game-app .yaotong-table .table-persistent-actions > .autoplay-action { grid-row: 1; }
+.game-app .yaotong-table .table-persistent-actions > .wait-action { grid-row: 2; }
+.game-app .yaotong-table .table-persistent-actions > .quick-chat-trigger { grid-row: 3; }
 .game-app .yaotong-table .table-persistent-actions > .action {
   position: relative;
 }
