@@ -462,12 +462,14 @@ export function useAudio() {
     await Promise.all(endings)
   }
 
-  function stopLlmAudio() {
+  function stopLlmAudio(keepPlaying = false) {
     llmAudioQueue.splice(0, llmAudioQueue.length).forEach((item) => settleLlmMidpoint(item, false))
-    activeLlmItem?.cancel?.()
-    if (activeLlmAudio) activeLlmAudio.pause()
-    activeLlmAudio = null
-    activeLlmItem = null
+    if (!keepPlaying || !activeLlmItem?.started) {
+      activeLlmItem?.cancel?.()
+      if (activeLlmAudio) activeLlmAudio.pause()
+      activeLlmAudio = null
+      activeLlmItem = null
+    }
     groupAudios.forEach((audio) => { audio.pause(); audio.currentTime = 0 })
     groupAudios.clear()
   }

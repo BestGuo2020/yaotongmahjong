@@ -39,7 +39,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // 非 JSON 错误体，保留 HTTP 状态码。
     }
-    if (response.status === 401 && code === 'AUTH_REQUIRED') {
+    if (response.status === 401 && code === 'AUTH_REQUIRED' && browserSessionToken() === token) {
       saveBrowserSession(null)
       // 联机接口要求登录：通知应用层引导登录。
       window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT))

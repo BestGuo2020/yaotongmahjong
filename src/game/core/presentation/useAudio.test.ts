@@ -1,7 +1,7 @@
 import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AUDIO_PREFERENCES_STORAGE_KEY, useAudio } from './useAudio'
-import { dispatchLocalLlmAudio, playLlmAudioGroup, resetLlmAudioBusForTests } from './llmAudioBus'
+import { cancelLocalLlmAudioPlayback, dispatchLocalLlmAudio, playLlmAudioGroup, resetLlmAudioBusForTests } from './llmAudioBus'
 
 class MockAudio {
   static instances: MockAudio[] = []
@@ -170,6 +170,29 @@ describe('useAudio LLM 语音播放', () => {
     second.emit('timeupdate')
     await expect(secondMidpoint).resolves.toBe(true)
     second.emit('ended')
+  })
+
+  it('进入结算时让已过中点的语音播完，清掉尚未开始的旧台词', async () => {
+    const audio = useAudio()
+    const discard = audio.playLocalLlmAudioUntilMidpoint('/discard.mp3', 1, 1, 'important')
+    const active = MockAudio.instances.find(item => item.src === '/discard.mp3')!
+    active.emit('playing')
+    active.currentTime = 2
+    active.emit('timeupdate')
+    await expect(discard).resolves.toBe(true)
+
+    const stale = audio.playLocalLlmAudioUntilMidpoint('/stale.mp3', 2, 2, 'important')
+    cancelLocalLlmAudioPlayback(true)
+    await expect(stale).resolves.toBe(false)
+    expect(active.pause).not.toHaveBeenCalled()
+
+    const reaction = audio.playLocalLlmAudioUntilMidpoint('/result.mp3', 3, 3, 'important', { waitForCompletion: true })
+    expect(MockAudio.instances.some(item => item.src === '/result.mp3')).toBe(false)
+    active.emit('ended')
+    const resultAudio = MockAudio.instances.find(item => item.src === '/result.mp3')!
+    resultAudio.emit('playing')
+    resultAudio.emit('ended')
+    await expect(reaction).resolves.toBe(true)
   })
 
   it('已开播普通台词播完后再播放 important，动作仍在中点放行', async () => {

@@ -49,7 +49,7 @@ export interface YaotongRemoteGameOptions {
     url: string, seat: number, id: number, priority?: 'normal' | 'important', queueImportant?: boolean,
     hooks?: LlmAudioPlaybackHooks,
   ) => void | Promise<unknown>
-  stopLlmAudio?: () => void
+  stopLlmAudio?: (keepPlaying?: boolean) => void
   getCharacterId?: () => string
   socketFactory?: Parameters<typeof createRoomSocketTransport>[0]['socketFactory']
   onInteraction?: (event: YtInteraction) => void
@@ -159,7 +159,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     remoteSessionStore.saveSession(storedSession.value)
   }
 
-  function clearLlmSpeech(keepRoundSpeechBusy = false) {
+  function clearLlmSpeech(keepRoundSpeechBusy = false, keepPlaying = false) {
     roundSpeech?.abort.abort()
     roundSpeech = null
     roundSpeechSupported = false
@@ -170,7 +170,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     llmBubbles.value = {}
     pendingOrderedSpeech.clear()
     playedLlmAudio.clear()
-    options.stopLlmAudio?.()
+    options.stopLlmAudio?.(keepPlaying)
   }
 
   function clearLlmBubble(seat: number, id: number) {
@@ -249,7 +249,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
 
   function handleLlmSpeech(message: unknown) {
     const state = inner.state.value
-    const scope = message as { matchId?: unknown; round?: unknown; messageId?: unknown }
+    const scope = message as { matchId?: unknown; round?: unknown; messageId?: unknown; awaitMidpoint?: unknown }
     if (!state || socket.status.value !== 'connected' || scope.matchId !== state.remoteMatchId
         || scope.round !== state.handNumber) return
     const speech = decodeServerMessage(message)
@@ -303,6 +303,30 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     if (!matches || playedLlmAudio.has(messageId)) return
     pendingOrderedSpeech.delete(messageId)
     playedLlmAudio.add(messageId)
+    if (isAction && speech.actionKind === 'discard' && scope.awaitMidpoint === true) {
+      const sameHand = () => inner.state.value?.remoteMatchId === scope.matchId
+        && inner.state.value?.handNumber === scope.round && socket.status.value === 'connected'
+      let started = false
+      const isCurrent = () => {
+        const current = inner.state.value
+        return sameHand() && (started || (current?.phase === 'discard'
+          && current.current === seat && current.serial === state.serial))
+      }
+      const acknowledge = () => {
+        if (sameHand() && playedLlmAudio.has(messageId)) {
+          socket.send({ kind: 'llm_midpoint', matchId: state.remoteMatchId, round: state.handNumber, messageId })
+        }
+      }
+      try {
+        const playback = options.playLlmAudio?.(API_BASE + speech.audioUrl, seat, messageId, speech.priority, true, {
+          isCurrent, onStarted: () => { started = true },
+        })
+        void Promise.resolve(playback).then(acknowledge, acknowledge)
+      } catch {
+        acknowledge()
+      }
+      return
+    }
     const playback = options.playLlmAudio?.(API_BASE + speech.audioUrl, seat, messageId, speech.priority, ordered)
     if (playback) void playback.catch(() => { /* 气泡继续展示 */ })
   }
@@ -440,7 +464,7 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
   const socket = createRoomSocketTransport({
     getUrl: () => roomId.value && rejoinCode.value
       ? `${WS_BASE}/ws/room/${encodeURIComponent(roomId.value)}`
-        + `?rejoin_code=${encodeURIComponent(rejoinCode.value)}`
+        + `?rejoin_code=${encodeURIComponent(rejoinCode.value)}&llm_midpoint=1`
       : null,
     onMessage: handleMessage,
     socketFactory: options.socketFactory,
@@ -501,7 +525,10 @@ export function useYaotongRemoteGame(options: YaotongRemoteGameOptions = {}) {
     () => inner.state.value?.remoteMatchId,
     () => inner.state.value?.handNumber,
     () => inner.state.value?.phase === 'settled',
-  ], () => clearLlmSpeech(), { flush: 'sync' })
+  ], ([matchId, hand, settled], [previousMatchId, previousHand]) => {
+    // 同小局进入结算时清掉排队的旧台词，已经开口的语音自然播完。
+    clearLlmSpeech(false, settled && matchId === previousMatchId && hand === previousHand)
+  }, { flush: 'sync' })
   watch(socket.status, () => clearLlmSpeech(true), { flush: 'sync' })
 
   const interactionsAvailable = computed(() => {

@@ -41,3 +41,20 @@ it('authenticates API requests without cookies and clears an expired explicit se
   await expect(request('/api/me/stats')).rejects.toThrow('AUTH_REQUIRED')
   expect(removeItem).toHaveBeenCalledWith('yaotong.auth.session')
 })
+
+it('keeps a newer login when an earlier authenticated request returns 401', async () => {
+  let token = 'previous-session'
+  const removeItem = vi.fn()
+  const dispatchEvent = vi.fn()
+  vi.stubGlobal('sessionStorage', { getItem: () => token, removeItem })
+  vi.stubGlobal('window', { dispatchEvent })
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: false, status: 401, json: async () => ({ detail: { code: 'AUTH_REQUIRED' } }),
+  }))
+  const { request } = await import('./httpClient')
+  const priorRequest = request('/api/rooms/meta')
+  token = 'current-session'
+  await expect(priorRequest).rejects.toThrow('AUTH_REQUIRED')
+  expect(removeItem).not.toHaveBeenCalled()
+  expect(dispatchEvent).not.toHaveBeenCalled()
+})

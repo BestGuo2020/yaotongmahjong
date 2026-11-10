@@ -47,14 +47,14 @@ interface LocalLlmAudioDetail {
 
 let player: LlmAudioPlayer | null = null
 let playerEnabled: (() => boolean) | null = null
-let cancelPlayback: (() => void) | null = null
+let cancelPlayback: ((keepPlaying?: boolean) => void) | null = null
 let groupPlayer: LlmAudioGroupPlayer | null = null
 let groupEnabled: (() => boolean) | null = null
 
 export function registerLlmAudioPlayer(
   next: LlmAudioPlayer,
   isEnabled: () => boolean = () => true,
-  cancel: () => void = () => {},
+  cancel: (keepPlaying?: boolean) => void = () => {},
 ): () => void {
   player = next
   playerEnabled = isEnabled
@@ -73,8 +73,8 @@ export function canPlayLocalLlmAudio(): boolean {
   return Boolean(player && playerEnabled?.())
 }
 
-export function cancelLocalLlmAudioPlayback(): void {
-  cancelPlayback?.()
+export function cancelLocalLlmAudioPlayback(keepPlaying = false): void {
+  cancelPlayback?.(keepPlaying)
 }
 
 /**
