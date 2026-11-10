@@ -277,6 +277,7 @@ const presentedScoreFlowEvent = computed<ScoreFlowEvent | null>(() => props.bloo
   : null))
 const waitsOpen = ref(false)
 const userNicknameOpen = ref(false)
+const userIdentityBesideHand = ref(false)
 const tableReady = ref(false)
 const tableLoadError = ref('')
 const tableLoadAttempt = ref(0)
@@ -425,6 +426,28 @@ const userDrawnIndex = computed(() => {
   if (rawDrawn >= 0 && rawDrawn < hand.length) return rawDrawn
   return hand.length > baseHand ? hand.length - 1 : -1
 })
+
+watch([tableHudElement, () => props.rulesetId], ([hud, rulesetId], _, onCleanup) => {
+  if (!hud || rulesetId !== 'yaotong') return
+  const identity = hud.querySelector('.user-identity')
+  const rack = hud.querySelector('.hand-rack')
+  if (!identity || !rack) return
+
+  const measure = () => {
+    const firstTile = rack.firstElementChild
+    userIdentityBesideHand.value = Boolean(firstTile
+      && identity.getBoundingClientRect().right + 8 <= firstTile.getBoundingClientRect().left)
+  }
+  const observer = new ResizeObserver(measure)
+  observer.observe(identity)
+  observer.observe(rack)
+  const stop = watch([() => displayedUserHand.value.length, () => props.user.melds.length, userDrawnIndex],
+    measure, { immediate: true, flush: 'post' })
+  onCleanup(() => {
+    observer.disconnect()
+    stop()
+  })
+}, { flush: 'post' })
 
 watch(() => props.userDiscardWaits, (value) => { waitsOpen.value = Boolean(value) })
 watch(() => props.isUserTurn, (value) => { if (!value) waitsOpen.value = false })
@@ -705,7 +728,7 @@ function onAvatarError(entry: GamePlayer) {
     </Transition>
 
     <section class="user-area">
-      <div class="user-identity" data-yaotong-seat="0" :class="{ active: currentPlayer === 0, 'action-active': tableActionEvent?.actorIndex === 0 || yaotongView?.declarationCues.some(cue => cue.actorIndex === 0), 'nickname-open': userNicknameOpen }" :style="userAnimeStyle">
+      <div class="user-identity" data-yaotong-seat="0" :class="{ active: currentPlayer === 0, 'action-active': tableActionEvent?.actorIndex === 0 || yaotongView?.declarationCues.some(cue => cue.actorIndex === 0), 'nickname-open': userNicknameOpen, 'beside-hand': userIdentityBesideHand }" :style="userAnimeStyle">
         <span v-if="dealer === 0" class="dealer-badge">庄</span>
         <button v-if="rulesetId === 'yaotong'" type="button" class="avatar-button"
           :aria-label="`查看${user.name}的昵称`" :aria-expanded="userNicknameOpen"

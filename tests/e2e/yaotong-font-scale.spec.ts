@@ -87,9 +87,18 @@ for (const { name, viewport, insets, theme } of [
     const opponent = (await page.locator('.seat-top .avatar-wrap').boundingBox())!
     const handBounds = () => page.locator('.hand-rack .hand-tile-slot').evaluateAll(tiles => {
       const boxes = tiles.map(tile => tile.getBoundingClientRect())
-      return { top: Math.min(...boxes.map(box => box.top)), bottom: Math.max(...boxes.map(box => box.bottom)) }
+      return {
+        left: Math.min(...boxes.map(box => box.left)),
+        top: Math.min(...boxes.map(box => box.top)),
+        bottom: Math.max(...boxes.map(box => box.bottom)),
+      }
     })
     const hand = await handBounds()
+    const identity = page.locator('.user-identity')
+    await expect(identity).toHaveCSS('bottom', '38px')
+    const card = (await identity.boundingBox())!
+    expect(card.x + card.width).toBeLessThanOrEqual(hand.left - 8)
+    expect(card.y + card.height).toBeGreaterThan(hand.top)
     const rowBox = (await row.boundingBox())!
     for (const button of await persistent.all()) {
       await expect(button).toBeInViewport({ ratio: 1 })
@@ -131,6 +140,11 @@ for (const { name, viewport, insets, theme } of [
     await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { ...insets, bottom: 0 } })
     await expect(page.locator('.user-area')).toHaveCSS('bottom', '0px')
     expect(viewport.height - (await handBounds()).bottom).toBeCloseTo(9, 1)
+
+    await page.setViewportSize({ ...viewport, width: 700 })
+    await expect(identity).not.toHaveClass(/\bbeside-hand\b/)
+    const raisedCard = (await identity.boundingBox())!
+    expect(raisedCard.y + raisedCard.height).toBeLessThanOrEqual((await handBounds()).top)
   })
 }
 

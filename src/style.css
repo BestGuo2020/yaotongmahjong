@@ -4228,6 +4228,9 @@ button { font: inherit; }
     left: 8px;
     bottom: calc(var(--hand-zone-height) + 12px);
   }
+  @container game (max-height: 460px) {
+    .game-app .yaotong-table .user-identity.beside-hand { bottom: 38px; }
+  }
 }
 
 /* 昵称包进 span 后仍沿用 strong 的文字样式，不能被各主题的积分 span 强调色/字号覆盖。 */
