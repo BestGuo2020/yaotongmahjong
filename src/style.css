@@ -244,7 +244,7 @@ button { font: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 max(16px, var(--safe-right)) 0 max(13px, var(--safe-left));
+  padding: 0 16px 0 13px;
   background: var(--theme-top-bar);
   font-size: clamp(14px, 1.15cqw, 19px);
   color: #b9c4b5;
@@ -2443,6 +2443,8 @@ button { font: inherit; }
     --seat-avatar-size: clamp(44px, 6cqh, 56px);
     --top-seat-inline-anchor: 66%;
     --hand-zone-height: calc(clamp(72px, 13cqh, 112px) + var(--safe-bottom));
+    /* 横屏的手牌区高度已包含底部安全区。 */
+    --controls-bottom: calc(var(--hand-zone-height) + var(--hud-gap));
     --hud-gap: 6px;
     /* 移动端立绘缩放 1.15（桌面 200% 见 .game-app 根 token）。 */
     --action-art-scale: 1.15;
@@ -2457,8 +2459,8 @@ button { font: inherit; }
   .top-bar {
     --topbar-control-inset: 6px;
     height: var(--topbar-height);
-    padding-right: max(8px, var(--safe-right));
-    padding-left: max(8px, var(--safe-left));
+    padding-right: 8px;
+    padding-left: 8px;
   }
   .top-bar nav { gap: 2px; }
   .round-info { max-width: 46%; overflow: hidden; padding: 3px 8px; text-overflow: ellipsis; white-space: nowrap; }

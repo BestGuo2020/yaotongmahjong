@@ -59,6 +59,7 @@ for (const { name, viewport, insets, theme } of [
     const icons = actions.locator('svg.table-control-icon')
     const laiziMark = page.locator('.hand-rack .mahjong-tile.laizi .joker-mark').first()
     await expect(actions).toHaveCount(6, { timeout: 30000 })
+    await expect(row).toHaveCSS('bottom', `${78 + insets.bottom}px`)
     await expect(icons).toHaveCount(3)
     const persistent = page.locator('.table-persistent-actions > button')
     await expect(persistent).toHaveCount(2)
@@ -143,12 +144,15 @@ for (const { name, viewport, insets, theme } of [
 
     await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { ...insets, bottom: 0 } })
     await expect(page.locator('.user-area')).toHaveCSS('bottom', '0px')
+    await expect(row).toHaveCSS('bottom', '78px')
     expect(viewport.height - (await handBounds()).bottom).toBeCloseTo(9, 1)
 
     await page.setViewportSize({ ...viewport, width: 700 })
     await expect(identity).not.toHaveClass(/\bbeside-hand\b/)
-    const raisedCard = (await identity.boundingBox())!
-    expect(raisedCard.y + raisedCard.height).toBeLessThanOrEqual((await handBounds()).top)
+    await expect.poll(async () => {
+      const raisedCard = (await identity.boundingBox())!
+      return raisedCard.y + raisedCard.height - (await handBounds()).top
+    }).toBeLessThanOrEqual(0)
   })
 }
 

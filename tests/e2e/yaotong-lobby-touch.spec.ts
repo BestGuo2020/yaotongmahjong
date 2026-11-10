@@ -85,6 +85,11 @@ for (const { name, viewport, insets } of [
     await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets })
     await cdp.send('Emulation.setEmulatedOSTextScale', { scale: 2 })
     await expect(page.locator('.game-app')).toHaveCSS('--safe-bottom', `${insets.bottom}px`)
+    const topBar = page.locator('.top-bar')
+    await expect(topBar).toHaveCSS('left', `${insets.left}px`)
+    await expect(topBar).toHaveCSS('padding-left', '8px')
+    const nav = (await topBar.locator('nav').boundingBox())!
+    expect(viewport.width - nav.x - nav.width).toBeCloseTo(insets.right + 8, 1)
 
     async function withinSafeArea(layer: Locator) {
       await expect(layer).toBeVisible()
