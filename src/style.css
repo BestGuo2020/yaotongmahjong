@@ -1588,7 +1588,6 @@ button { font: inherit; }
 .game-app[data-table-theme="happyMahjong"] .table-action-cue {
   border-radius: 28%;
   background: radial-gradient(circle at 42% 35%, rgba(247,202,78,.94) 0 24%, rgba(240,122,93,.78) 46%, transparent 72%);
-  animation: happy-action-pop .58s cubic-bezier(.18,.92,.24,1.25) both;
 }
 .game-app[data-table-theme="happyMahjong"] .table-action-cue::before,
 .game-app[data-table-theme="happyMahjong"] .table-action-cue::after { border-radius: 26%; border-color: rgba(255,249,232,.72); }
@@ -3138,7 +3137,10 @@ button { font: inherit; }
 .game-app[data-table-theme="happyMahjong"] .table-action-cue { border-radius: 28%; background: radial-gradient(circle at 42% 34%, var(--event-primary) 0 25%, color-mix(in srgb, var(--event-secondary) 82%, #0e3b48) 47%, transparent 72%); }
 .game-app[data-table-theme="happyMahjong"] .table-action-cue.action-chi::after { border-style: dashed; transform: rotate(14deg); }
 .game-app[data-table-theme="happyMahjong"] .table-action-cue.action-gang { box-shadow: 7px 7px 0 rgba(240,122,93,.35); }
-.game-app[data-table-theme="happyMahjong"] .table-action-cue.action-win { background: radial-gradient(circle at 50% 46%, #f7ca4e 0 24%, #ef7657 43%, transparent 70%), radial-gradient(circle at 18% 18%, #fff9e8 0 3px, transparent 4px); }
+.game-app[data-table-theme="happyMahjong"] .table-action-cue.action-win {
+  background: radial-gradient(circle at 50% 46%, #f7ca4e 0 24%, #ef7657 43%, transparent 70%), radial-gradient(circle at 18% 18%, #fff9e8 0 3px, transparent 4px);
+  animation: happy-action-pop .58s cubic-bezier(.18,.92,.24,1.25) both;
+}
 
 .game-app[data-table-theme="rosewood"] .table-action-cue { border-radius: 5px; background: radial-gradient(circle, color-mix(in srgb, var(--event-primary) 58%, #6f2d20) 0 34%, color-mix(in srgb, var(--event-secondary) 48%, transparent) 50%, transparent 72%); }
 .game-app[data-table-theme="rosewood"] .table-action-cue.action-chi { --event-primary: #cf8d57; }
@@ -3768,11 +3770,6 @@ button { font: inherit; }
 }
 .final-footer > .result-disclaimer-note { flex-basis: 100%; }
 .game-app .final-board .final-footer > button { margin-top: 0; }
-.game-app .final-board .final-footer > button.secondary {
-  background: transparent;
-  border-color: var(--theme-border);
-  color: var(--theme-text);
-}
 .game-app .settlement-card:has(.yaotong-ledger) > .settlement-footer,
 .game-app .final-board > .final-footer {
   position: static;

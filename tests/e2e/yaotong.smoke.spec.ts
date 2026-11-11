@@ -32,6 +32,13 @@ for (const theme of ['jade', 'rosewood', 'happyMahjong', 'llm', 'llmAnime']) {
         await expect(row).toBeInViewport({ ratio: 1 })
       await expect(ranking.getByRole('button', { name: '查看本局结算', exact: true })).toBeInViewport({ ratio: 1 })
       await expect(ranking.getByRole('button', { name: '返回大厅', exact: true })).toBeInViewport({ ratio: 1 })
+      const [detailsStyle, lobbyStyle] = await ranking.locator('.final-footer > button').evaluateAll(buttons => buttons.map(button => {
+        const style = getComputedStyle(button)
+        const { width, height } = button.getBoundingClientRect()
+        return { width, height, border: style.border, radius: style.borderRadius,
+          background: style.background, shadow: style.boxShadow, color: style.color, font: style.font }
+      }))
+      expect(detailsStyle).toEqual(lobbyStyle)
       const overflow = await ranking.evaluate(board => board.scrollHeight - board.clientHeight)
       expect(overflow, '排名不应需要滚动整张结算卡片').toBeLessThanOrEqual(1)
     })

@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import { TABLE_ACTION_CUE_DURATION_MS } from '../../src/game/core/presentation/tableActionCue'
+import { TABLE_THEME_NAMES } from '../../src/theme/themeIdentity'
 
 test('用户提供的暗杠音效可加载并在浏览器解码', async ({ page }) => {
   await page.goto('/tests/e2e/fixtures/yaotong-kong.html')
@@ -15,6 +17,41 @@ test('用户提供的暗杠音效可加载并在浏览器解码', async ({ page 
   expect(decoded.duration).toBeGreaterThan(1)
   expect(decoded.duration).toBeLessThan(1.2)
 })
+
+for (const theme of TABLE_THEME_NAMES) {
+  test(`${theme}：吃、碰、杠的动作字各播放一次`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    await page.goto(`/tests/e2e/fixtures/yaotong-kong.html?theme=${theme}`)
+    await expect(page.locator('.game-table-hud')).toBeVisible()
+
+    for (const type of ['chi', 'peng', 'discard-gang'] as const) {
+      const animations = await page.evaluate(async ({ type, duration }) => {
+        const { __setTableActionCueLab: setCue } = window as Window & {
+          __setTableActionCueLab: (action: typeof type | null, seat?: number) => void
+        }
+        const names: string[] = []
+        function record(event: AnimationEvent) {
+          if (event.target instanceof HTMLElement && event.target.dataset.actionType === type && !event.pseudoElement) {
+            names.push(event.animationName)
+          }
+        }
+
+        document.addEventListener('animationstart', record)
+        try {
+          setCue(type, 1)
+          await new Promise<void>(resolve => window.setTimeout(resolve, duration))
+          return names
+        } finally {
+          setCue(null)
+          document.removeEventListener('animationstart', record)
+        }
+      }, { type, duration: TABLE_ACTION_CUE_DURATION_MS })
+
+      expect(animations, type).toHaveLength(1)
+      await expect(page.locator(`[data-action-type="${type}"]`)).toHaveCount(0)
+    }
+  })
+}
 
 for (const theme of ['happyMahjong', 'llmAnime']) {
   for (const mobile of [false, true]) {
