@@ -2,6 +2,34 @@ import { expect, test, type Locator } from '@playwright/test'
 
 test.use({ hasTouch: true, isMobile: true })
 
+test('手机全屏横置后页面铺到边缘，顶栏避开左右切口', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /viewport-fit=cover/)
+  const cdp = await context.newCDPSession(page)
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 47, bottom: 34 } })
+  const gate = page.locator('.orientation-gate')
+  await expect(gate).toHaveCSS('padding-top', '47px')
+  await expect(gate).toHaveCSS('padding-bottom', '34px')
+  await gate.getByRole('button', { name: '进入全屏横屏' }).tap()
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true)
+
+  const viewport = { width: 844, height: 390 }
+  await page.setViewportSize(viewport)
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, right: 21, bottom: 14, left: 47 } })
+  await expect(gate).toBeHidden()
+  const app = page.locator('.game-app')
+  await expect(app).toBeVisible()
+  expect(await app.boundingBox()).toEqual({ x: 0, y: 0, ...viewport })
+  await expect(page.locator('.top-bar')).toHaveCSS('left', '47px')
+  await expect(page.locator('.top-bar')).toHaveCSS('right', '21px')
+  const background = await page.locator('html').evaluate(root => ({
+    page: getComputedStyle(root).backgroundColor,
+    backdrop: getComputedStyle(root, '::backdrop').backgroundColor,
+  }))
+  expect(background.backdrop).toBe(background.page)
+})
+
 for (const theme of ['jade', 'happyMahjong', 'rosewood', 'llm', 'llmAnime']) {
   for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
     test(`${theme} ${viewport.width}：触摸可打开、关闭底部回放和两处规则入口`, async ({ page }) => {
