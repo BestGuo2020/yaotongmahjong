@@ -35,8 +35,32 @@ test.describe('Android Edge 全屏', () => {
     userAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36 EdgA/151.0.0.0',
   })
 
-  test('先横置再进入全屏，退出后可在窄屏牌桌重新进入', async ({ page }) => {
+  test('竖屏点一次进入原生全屏并请求锁定横屏', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 892 })
+    await page.addInitScript(() => {
+      Object.defineProperty(screen.orientation, 'lock', {
+        configurable: true,
+        value: async (orientation: string) => {
+          const root = document.documentElement
+          root.dataset.orientationLocked = orientation
+          root.dataset.fullscreenAtLock = String(document.fullscreenElement === root)
+        },
+      })
+    })
+    await page.goto('/')
+    const gate = page.getByRole('dialog', { name: '请横屏游玩' })
+    await gate.getByRole('button', { name: '进入全屏横屏' }).tap()
+    const root = page.locator('html')
+    await expect(root).toHaveAttribute('data-orientation-locked', 'landscape')
+    await expect(root).toHaveAttribute('data-fullscreen-at-lock', 'true')
+
+    await page.setViewportSize({ width: 850, height: 412 })
+    await expect(gate).toBeHidden()
+    await expect(page.locator('.lobby')).toBeVisible()
+  })
+
+  test('已横置时可直接进入全屏，退出后可在窄屏牌桌重新进入', async ({ page }) => {
+    await page.setViewportSize({ width: 850, height: 412 })
     await page.addInitScript(() => {
       Object.defineProperty(screen.orientation, 'lock', {
         configurable: true,
@@ -53,14 +77,7 @@ test.describe('Android Edge 全屏', () => {
       }
     })
     await page.goto('/')
-    const gate = page.getByRole('dialog', { name: '请横屏游玩' })
     const fullscreen = page.getByRole('button', { name: '进入全屏', exact: true })
-    await expect(gate).toContainText('横屏后可点右上角的全屏按钮')
-    await expect(gate.getByRole('button')).toHaveCount(0)
-    await expect(fullscreen).toBeHidden()
-
-    await page.setViewportSize({ width: 850, height: 412 })
-    await expect(gate).toBeHidden()
     await expect(page.locator('.lobby')).toBeVisible()
     await fullscreen.tap()
     await expect(page.locator('.top-bar').getByRole('status')).toHaveText('暂时无法进入全屏，请重试。')
