@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { isTableThemeName, type TableThemeName } from '../../theme/themeIdentity'
 import { themePresentationByName, themePresentationCssVariables } from '../../theme/themePresentation'
 import { resolveInitialTableTheme } from '../table/three/tableThemePreference'
+import { canUseEdgeFullscreen, isAndroidEdge, requestPageFullscreen } from './mobileFullscreen'
 
 const props = defineProps<{ themeName?: TableThemeName }>()
 const observedTheme = ref<TableThemeName>(resolveInitialTableTheme(
@@ -28,7 +29,7 @@ async function enterLandscapeFullscreen() {
   message.value = ''
   try {
     if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen({ navigationUI: 'hide' })
+      await requestPageFullscreen()
     }
     const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> }
     await orientation?.lock?.('landscape')
@@ -80,8 +81,14 @@ onUnmounted(() => {
       <div class="phone-rotate-icon" aria-hidden="true"><span></span></div>
       <p class="eyebrow">LANDSCAPE MODE</p>
       <h2 id="orientation-title">请横屏游玩</h2>
-      <p>为了完整显示牌桌，请进入全屏并将手机旋转为横屏。</p>
-      <button type="button" @click="enterLandscapeFullscreen">进入全屏横屏</button>
+      <!-- Android Edge 在竖屏请求全屏并锁横屏时可能残留浏览器工具栏。 -->
+      <p v-if="isAndroidEdge">
+        开启手机自动旋转后横置手机。<template v-if="canUseEdgeFullscreen">横屏后可点右上角的全屏按钮。</template>
+      </p>
+      <template v-else>
+        <p>为了完整显示牌桌，请进入全屏并将手机旋转为横屏。</p>
+        <button type="button" @click="enterLandscapeFullscreen">进入全屏横屏</button>
+      </template>
       <small v-if="message" role="status">{{ message }}</small>
     </div>
   </div>

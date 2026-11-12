@@ -8,6 +8,7 @@ import { TABLE_THEME_OPTIONS, type TableThemeName } from '../table/three/tableTh
 import { saveTableThemePreference } from '../table/three/tableThemePreference'
 import { THEME_PRESENTATIONS } from '../../theme/themePresentation'
 import TableControlIcon from '../table/TableControlIcon.vue'
+import EdgeFullscreenButton from './EdgeFullscreenButton.vue'
 
 interface Props {
   gameMode: GameMode
@@ -195,6 +196,7 @@ onBeforeUnmount(() => {
       <button type="button" class="topbar-control" aria-label="查看规则" title="查看规则" @click="emit('openRules')">
         <TableControlIcon name="rules" />
       </button>
+      <EdgeFullscreenButton />
     </nav>
   </header>
 </template>

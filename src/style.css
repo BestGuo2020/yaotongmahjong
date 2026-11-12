@@ -2466,6 +2466,14 @@ button { font: inherit; }
   }
   .top-bar nav { gap: 2px; }
   .round-info { max-width: 46%; overflow: hidden; padding: 3px 8px; text-overflow: ellipsis; white-space: nowrap; }
+  :root:not(:fullscreen) .top-bar:has(.edge-fullscreen-entry) .round-info {
+    position: static;
+    order: 1;
+    min-width: 0;
+    margin-inline: 4px;
+    transform: none;
+  }
+  :root:not(:fullscreen) .top-bar:has(.edge-fullscreen-entry) nav { order: 2; }
 
   .has-three-scene .seat-top {
     top: var(--top-seat-anchor);

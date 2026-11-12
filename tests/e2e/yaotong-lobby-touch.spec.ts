@@ -30,6 +30,63 @@ test('手机全屏横置后页面铺到边缘，顶栏避开左右切口', async
   expect(background.backdrop).toBe(background.page)
 })
 
+test.describe('Android Edge 全屏', () => {
+  test.use({
+    userAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36 EdgA/151.0.0.0',
+  })
+
+  test('先横置再进入全屏，退出后可在窄屏牌桌重新进入', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 892 })
+    await page.addInitScript(() => {
+      Object.defineProperty(screen.orientation, 'lock', {
+        configurable: true,
+        value: async () => { document.documentElement.dataset.orientationLocked = 'true' },
+      })
+      const requestFullscreen = Element.prototype.requestFullscreen
+      let refuseOnce = true
+      Element.prototype.requestFullscreen = async function (options) {
+        if (refuseOnce) {
+          refuseOnce = false
+          throw new DOMException('Fullscreen rejected', 'NotAllowedError')
+        }
+        await requestFullscreen.call(this, options)
+      }
+    })
+    await page.goto('/')
+    const gate = page.getByRole('dialog', { name: '请横屏游玩' })
+    const fullscreen = page.getByRole('button', { name: '进入全屏', exact: true })
+    await expect(gate).toContainText('横屏后可点右上角的全屏按钮')
+    await expect(gate.getByRole('button')).toHaveCount(0)
+    await expect(fullscreen).toBeHidden()
+
+    await page.setViewportSize({ width: 850, height: 412 })
+    await expect(gate).toBeHidden()
+    await expect(page.locator('.lobby')).toBeVisible()
+    await fullscreen.tap()
+    await expect(page.locator('.top-bar').getByRole('status')).toHaveText('暂时无法进入全屏，请重试。')
+    await fullscreen.tap()
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true)
+    await expect(fullscreen).toBeHidden()
+    await expect(page.locator('html')).not.toHaveAttribute('data-orientation-locked', 'true')
+
+    await page.evaluate(() => document.exitFullscreen())
+    await expect(fullscreen).toBeVisible()
+    await expect(page.locator('.top-bar').getByRole('status')).toHaveCount(0)
+
+    await page.setViewportSize({ width: 568, height: 320 })
+    await page.locator('.start-button').tap()
+    const roundInfo = page.locator('.round-info')
+    await expect(roundInfo).toBeVisible()
+    const roundBox = (await roundInfo.boundingBox())!
+    const controlsBox = (await page.locator('.top-bar nav').boundingBox())!
+    expect(roundBox.x + roundBox.width).toBeLessThan(controlsBox.x)
+    await fullscreen.tap()
+    await page.waitForFunction(() => document.fullscreenElement === document.documentElement)
+    await expect(fullscreen).toBeHidden()
+    await expect(page.locator('html')).not.toHaveAttribute('data-orientation-locked', 'true')
+  })
+})
+
 for (const theme of ['jade', 'happyMahjong', 'rosewood', 'llm', 'llmAnime']) {
   for (const viewport of [{ width: 844, height: 390 }, { width: 667, height: 320 }]) {
     test(`${theme} ${viewport.width}：触摸可打开、关闭底部回放和两处规则入口`, async ({ page }) => {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 defineProps<{
   name: 'declare' | 'chat' | 'hint' | 'protection' | 'waits' | 'autoplay'
-    | 'theme' | 'exit' | 'audio' | 'mute' | 'rules' | 'close'
+    | 'theme' | 'exit' | 'audio' | 'mute' | 'rules' | 'close' | 'fullscreen'
 }>()
 </script>
 
@@ -60,6 +60,7 @@ defineProps<{
       <path v-else d="m16.5 9.5 5 5m0-5-5 5" />
     </g>
     <path v-else-if="name === 'rules'" d="M3.5 5.5c3-1 5.8-.5 8.5 1.5 2.7-2 5.5-2.5 8.5-1.5V18c-3-1-5.8-.5-8.5 1.5C9.3 17.5 6.5 17 3.5 18V5.5ZM12 7v12.5" />
+    <path v-else-if="name === 'fullscreen'" d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5" />
     <path v-else d="m6 6 12 12M18 6 6 18" />
   </svg>
 </template>
