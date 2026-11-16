@@ -113,12 +113,14 @@ test('原报和报听提示按当前选择更新，老手模式不出现新手�
   const declare = page.getByRole('button', { name: '报听', exact: true })
   const waits = page.getByRole('button', { name: '查看听牌提示', exact: true })
   const autoplay = page.getByRole('button', { name: '开启机器人托管，自动出牌与过牌', exact: true })
-  for (const button of [declare, trigger, waits, autoplay]) {
+  await expect(declare).toHaveText('报听')
+  for (const button of [trigger, waits, autoplay]) {
     await expect(button).toHaveText('')
     await expect(button.locator('svg[aria-hidden="true"]')).toBeVisible()
   }
   await declare.click()
   const cancel = page.getByRole('button', { name: '取消报听', exact: true })
+  await expect(cancel).toHaveText('取消报听')
   await expect(cancel).toHaveAttribute('aria-pressed', 'true')
   await expect(cancel).toHaveAttribute('title', '取消报听')
   await expect(trigger).toHaveAccessibleDescription('报听已选，请打带箭头的牌')

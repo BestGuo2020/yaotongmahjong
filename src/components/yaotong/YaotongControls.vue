@@ -89,15 +89,14 @@ watch(() => hints.value.map((hint) => hint.id).join(','), closeHelp)
     </template>
     <button
       v-if="!game.local.holding.value && game.canArmDeclaration.value"
-      class="action primary"
-      :class="{ active: game.declarationArmed.value }"
+      class="action primary action-declare"
       data-action-role="primary"
       :aria-label="declarationLabel"
       :title="declarationLabel"
       :aria-pressed="game.declarationArmed.value"
       @click="game.declarationArmed.value = !game.declarationArmed.value"
     >
-      <TableControlIcon name="declare" />
+      <b>{{ declarationLabel }}</b>
     </button>
   </template>
   <template v-if="emotes">

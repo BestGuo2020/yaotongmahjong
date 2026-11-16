@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineProps<{
-  name: 'declare' | 'chat' | 'hint' | 'protection' | 'waits' | 'autoplay'
+  name: 'chat' | 'hint' | 'protection' | 'waits' | 'autoplay'
     | 'theme' | 'exit' | 'audio' | 'mute' | 'rules' | 'close' | 'fullscreen'
 }>()
 </script>
@@ -8,11 +8,7 @@ defineProps<{
 <template>
   <svg class="table-control-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-    <g v-if="name === 'declare'">
-      <path d="M3.5 10.5v3a1 1 0 0 0 1 1h4l8 4v-13l-8 4h-4a1 1 0 0 0-1 1Z" />
-      <path d="M8.5 9.5v5m-3 0 1.5 5h3l-1.5-5m11-5.5 2-1.5m-2 7.5 2 1.5" />
-    </g>
-    <g v-else-if="name === 'chat'">
+    <g v-if="name === 'chat'">
       <path d="M21 11.2c0 4-4 7.2-9 7.2a11 11 0 0 1-3.4-.5L4 20l1.3-4.1A6.4 6.4 0 0 1 3 11.2C3 7.2 7 4 12 4s9 3.2 9 7.2Z" />
       <g fill="currentColor" stroke="none">
         <circle cx="8" cy="11.2" r="1.15" />
