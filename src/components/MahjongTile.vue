@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { TILE_META } from '../game/core/rules/tiles'
+import { displayImageSrc } from '../game/core/presentation/imagePreload'
 import { tileBackUrl, tileFaceUrl, type TileAssetTheme } from '../game/core/presentation/tileAssets'
 import type { TileType } from '../game/core/contracts/types'
 
@@ -64,7 +65,7 @@ const tileLabel = computed(() => {
 })
 const tileStyle = computed(() => {
   if (shownTile.value === 'back') {
-    return { '--tile-back-image': `url("${tileBackUrl(props.themeName)}")` }
+    return { '--tile-back-image': `url("${displayImageSrc(tileBackUrl(props.themeName))}")` }
   }
   // 优先用预加载的内存 blob URL；预加载未完成时回退网络地址（浏览器缓存兜底）
   return { backgroundImage: `url("${tileFaceUrl(shownTile.value as TileType, props.themeName)}")` }

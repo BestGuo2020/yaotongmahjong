@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
+import { displayImageSrc, loadDecodedImage, materializeImage } from '../../../game/core/presentation/imagePreload'
 
 export const WEATHER_TEXTURE_FILES = {
   wind: 'wind_trail.png', ribbon: 'effect_trail_02.png', crescent: 'effect_flash_00.png',
@@ -35,7 +36,7 @@ export function parseWeatherMesh(text: string): THREE.BufferGeometry {
 }
 
 let loaded: Promise<WeatherAssets> | null = null
-/** Small, shared immutable sources are preloaded with the table, before any kong can occur. */
+/** Shared immutable sources are prepared at startup and reused by each table. */
 export function preloadWeatherAssets(): Promise<WeatherAssets> {
   if (loaded) return loaded
   const base = `${import.meta.env.BASE_URL}effects/yaotong-weather/`
@@ -43,16 +44,19 @@ export function preloadWeatherAssets(): Promise<WeatherAssets> {
     const textures = {} as WeatherAssets['textures'], meshes = {} as WeatherAssets['meshes']
     const tasks = [
       ...Object.entries(WEATHER_TEXTURE_FILES).map(async ([name, file]) => {
-        const texture = await new THREE.TextureLoader().loadAsync(base + file)
+        const url = base + file
+        await materializeImage(url)
+        const texture = new THREE.Texture(await loadDecodedImage(displayImageSrc(url)))
         texture.name = file
         texture.colorSpace = name === 'mask' ? THREE.NoColorSpace : THREE.SRGBColorSpace
         texture.minFilter = THREE.LinearFilter
         texture.magFilter = THREE.LinearFilter
         texture.generateMipmaps = false
+        texture.needsUpdate = true
         textures[name as keyof typeof textures] = texture
       }),
       ...Object.entries(WEATHER_MESH_FILES).map(async ([name, file]) => {
-        const response = await fetch(base + file)
+        const response = await fetch(base + file, { cache: 'force-cache', signal: AbortSignal.timeout(15_000) })
         if (!response.ok) throw new Error(`Weather mesh ${file}: ${response.status}`)
         const geometry = parseWeatherMesh(await response.text())
         geometry.name = file

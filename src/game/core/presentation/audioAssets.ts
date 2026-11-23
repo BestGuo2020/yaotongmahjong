@@ -28,7 +28,7 @@ export const EFFECT_AUDIO_ASSETS = [
     'zhuanwangang',
   ].map((name) => `sounds/${name}.ogg`),
 ] as const
-/** 幺筒快捷语男声（豆包 TTS 2.0 预生成）；按需播放，不加入启动预加载。 */
+/** 幺筒快捷语男声（豆包 TTS 2.0 预生成）。 */
 export const QUICK_CHAT_AUDIO_ASSETS = [
   'sounds/chat-follow.ogg',
   'sounds/chat-listen.ogg',

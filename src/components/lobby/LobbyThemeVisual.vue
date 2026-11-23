@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { animeCharacterAvatarUrl } from '../../game/llm/animeCharacterPreference'
 import { resolveAnimeCharacter, type CharacterId } from '../../game/llm/animeCharacters'
 import { tableThemeIdentity, type TableThemeName } from '../../theme/themeIdentity'
+import { lobbyThemeImageUrl } from '../../theme/themePresentation'
+import { displayImageSrc } from '../../game/core/presentation/imagePreload'
 
 const props = defineProps<{
   themeName: TableThemeName
@@ -16,11 +18,9 @@ const imageReady = ref(false)
 const themeIdentity = computed(() => tableThemeIdentity(props.themeName))
 const currentCharacter = computed(() => resolveAnimeCharacter(props.characterId))
 const isAnime = computed(() => props.themeName === 'llmAnime')
-const visualImageUrl = computed(() => {
-  if (isAnime.value) return animeCharacterAvatarUrl(props.characterId)
-  if (props.themeName === 'llm') return `${import.meta.env.BASE_URL}img/llm-table.webp`
-  return `${import.meta.env.BASE_URL}themes/lobby/v1/${props.themeName}.png`
-})
+const visualImageUrl = computed(() => displayImageSrc(props.themeName === 'llmAnime'
+  ? animeCharacterAvatarUrl(props.characterId)
+  : lobbyThemeImageUrl(props.themeName)))
 
 watch(() => [props.themeName, props.characterId], () => {
   imageFailed.value = false

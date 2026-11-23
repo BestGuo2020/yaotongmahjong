@@ -52,7 +52,7 @@ function currentLocalCharacters(): CharacterId[] {
   return [...new Set(ids)]
 }
 
-function assetsFor(ids: readonly CharacterId[]): string[] {
+export function animeCharacterAssetUrls(ids: readonly CharacterId[]): string[] {
   return [...new Set([
     // 动作立绘的可见窗口最短，先于座位头像请求。
     ...ids.flatMap(id => [animeActionArtUrl(id, 'peng'), animeActionArtUrl(id, 'hu')]),
@@ -75,13 +75,13 @@ function assetsFor(ids: readonly CharacterId[]): string[] {
 export function preloadAnimeCharacterAssets(activeCharacters?: Iterable<unknown>): Promise<void> {
   if (activeCharacters) {
     const ids = [...new Set([...activeCharacters].map(resolveAnimeCharacterId))]
-    const active = assetsFor(ids)
+    const active = animeCharacterAssetUrls(ids)
     // 牌桌给出实际四家后，只等待他们的图片；其他预热任务不应挡住开局。
     return materializeImages(active)
       .then(() => preloadImages(active.filter(url => !materializedImageSrc(url))))
   }
   if (assetPreloadReady) return assetPreloadReady
-  const priority = assetsFor(currentLocalCharacters())
+  const priority = animeCharacterAssetUrls(currentLocalCharacters())
   assetPreloadReady = materializeImages(priority)
     .then(() => preloadImages(priority.filter(url => !materializedImageSrc(url))))
     .finally(() => { assetPreloadReady = null })

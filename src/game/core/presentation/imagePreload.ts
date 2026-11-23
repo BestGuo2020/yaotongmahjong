@@ -3,8 +3,10 @@
 // 2) `materializeImages` —— 抓成 blob URL 并预热解码，渲染时直接引用（对齐 tileAssets 的存法：
 //    同源本地字节、不会再触发校验请求，解码结果已在浏览器图片缓存里）。
 //
-// 两者语义一致：失败静默，失败项不记入，后续调用仍会重试。
+// 批量入口失败静默，启动加载使用严格的单图入口报告失败。
 import { ref } from 'vue'
+
+const IMAGE_TIMEOUT_MS = 15_000
 
 // 本页已成功预取过的 URL：再次调用（主题往返、房间元数据轮询、设置重存）不再创建请求，
 // 是否联网完全交给浏览器缓存，本模块不重复发起。失败的不记入，后续调用仍会重试。
@@ -39,26 +41,51 @@ export function preloadImages(urls: Iterable<string | null | undefined>): Promis
   })).then(() => {})
 }
 
-/** 预热解码：把 blob URL 解一遍，之后新建 <img> 引用同一 blob 时可直接上屏。 */
-async function warmDecode(url: string): Promise<void> {
-  if (typeof Image === 'undefined') return
-  const image = new Image()
-  image.src = url
-  try {
-    if (typeof image.decode === 'function') await image.decode()
-    else await new Promise<void>((resolve) => { image.onload = () => resolve(); image.onerror = () => resolve() })
-  } catch {
-    // 解码失败不阻塞：仍然保留 blob URL（<img> 会自行重试解码）。
-  }
+/** 用于首屏门闸和 3D 纹理，等图片确认可以绘制后才计入完成。 */
+export function loadDecodedImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    const timeout = setTimeout(() => {
+      finish(new Error('Image loading timed out'))
+      image.removeAttribute('src')
+    }, IMAGE_TIMEOUT_MS)
+    function finish(error?: unknown) {
+      clearTimeout(timeout)
+      image.onload = null
+      image.onerror = null
+      if (error) reject(error)
+      else resolve(image)
+    }
+    image.onload = () => {
+      const decoding = typeof image.decode === 'function' ? image.decode() : Promise.resolve()
+      void decoding.then(() => finish(), finish)
+    }
+    image.onerror = () => finish(new Error('Image loading failed'))
+    image.src = url
+  })
 }
 
-async function materializeOne(url: string): Promise<void> {
-  const response = await fetch(url, { cache: 'force-cache' })
-  if (!response.ok) throw new Error(`materialize failed: ${response.status}`)
-  const objectUrl = URL.createObjectURL(await response.blob())
-  await warmDecode(objectUrl)
-  materialized.set(url, objectUrl)
-  materializedImageVersion.value += 1
+/** 同一原始 URL 复用请求和 blob，失败项可以重试。 */
+export function materializeImage(url: string): Promise<void> {
+  if (materialized.has(url)) return Promise.resolve()
+  const existing = materializing.get(url)
+  if (existing) return existing
+
+  const task = (async () => {
+    const response = await fetch(url, { cache: 'force-cache', signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) })
+    if (!response.ok) throw new Error(`Image ${url}: HTTP ${response.status}`)
+    const objectUrl = URL.createObjectURL(await response.blob())
+    try {
+      await loadDecodedImage(objectUrl)
+      materialized.set(url, objectUrl)
+      materializedImageVersion.value += 1
+    } catch (error) {
+      URL.revokeObjectURL(objectUrl)
+      throw new Error(`Image ${url} could not be decoded`, { cause: error })
+    }
+  })().finally(() => materializing.delete(url))
+  materializing.set(url, task)
+  return task
 }
 
 /**
@@ -67,17 +94,9 @@ async function materializeOne(url: string): Promise<void> {
  * 失败静默：调用方用 `materializedImageSrc()` 拿不到就回退原始 URL，行为不会变差。
  */
 export function materializeImages(urls: Iterable<string | null | undefined>): Promise<void> {
-  if (typeof fetch === 'undefined' || typeof URL?.createObjectURL !== 'function') return Promise.resolve()
-  const targets = [...new Set(urls)]
-    .filter((url): url is string => Boolean(url) && !materialized.has(url))
-  return Promise.all(targets.map((url) => {
-    const existing = materializing.get(url)
-    if (existing) return existing
-    const task = materializeOne(url).catch(() => { /* 失败静默，之后可重试 */ })
-    materializing.set(url, task)
-    void task.finally(() => materializing.delete(url))
-    return task
-  })).then(() => {})
+  if (typeof Image === 'undefined' || typeof fetch === 'undefined' || typeof URL?.createObjectURL !== 'function') return Promise.resolve()
+  const targets = [...new Set(urls)].filter((url): url is string => Boolean(url))
+  return Promise.allSettled(targets.map(materializeImage)).then(() => {})
 }
 
 /** 已物化好的 blob URL；还没就绪返回 null（调用方回退原始 URL）。 */

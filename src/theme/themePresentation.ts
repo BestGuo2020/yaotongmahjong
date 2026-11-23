@@ -68,6 +68,10 @@ export function resolveThemeAssetUrl(path: string, baseUrl = import.meta.env.BAS
   return `${normalizedBase}${path.replace(/^\/+/, '')}`
 }
 
+export function lobbyThemeImageUrl(name: Exclude<TableThemeName, 'llmAnime'>): string {
+  return resolveThemeAssetUrl(name === 'llm' ? 'img/llm-table.webp' : `themes/lobby/v1/${name}.png`)
+}
+
 function identity(name: TableThemeName, colorScheme: 'dark' | 'light'): ThemePresentation['identity'] {
   const { label, description } = tableThemeIdentity(name)
   return {

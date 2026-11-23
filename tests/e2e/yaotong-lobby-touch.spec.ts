@@ -9,6 +9,7 @@ test('手机全屏横置后页面铺到边缘，顶栏避开左右切口', async
   const cdp = await context.newCDPSession(page)
   await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 47, bottom: 34 } })
   const gate = page.locator('.orientation-gate')
+  await expect(gate).toBeVisible({ timeout: 20_000 })
   await expect(gate).toHaveCSS('padding-top', '47px')
   await expect(gate).toHaveCSS('padding-bottom', '34px')
   await gate.getByRole('button', { name: '进入全屏横屏' }).tap()

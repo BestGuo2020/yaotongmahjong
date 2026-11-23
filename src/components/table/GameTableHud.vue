@@ -36,9 +36,6 @@ import {
 } from '../../theme/themeEventPresentation'
 
 const MahjongTable3D = defineAsyncComponent(() => import('../MahjongTable3D.vue'))
-// 预热 3D 牌桌组件 chunk：首次开局时若等挂载才加载，WebGL 场景初始化会
-// 与骰子动画竞争首帧，导致骰子动画被压缩/跳过。应用启动即预取。
-void import('../MahjongTable3D.vue')
 
 interface Props {
   themeName: TableThemeName
@@ -790,7 +787,7 @@ function onAvatarError(entry: GamePlayer) {
         <button v-if="userCurrentWaits || userTingOptions.length" class="action waiting-action" :class="{ active: waitsOpen }" data-action-role="secondary" aria-label="查看听牌提示" :title="userCurrentWaits ? '已听牌，查看听口' : '查看打哪张可听'" :aria-expanded="waitsOpen" @click="toggleWaits">
           <TableControlIcon v-if="rulesetId === 'yaotong'" name="waits" />
           <template v-else-if="themeName === 'llmAnime'"><b>听</b><span>牌</span></template>
-          <img v-else class="action-icon" :src="`${imageBase}tips.png`" alt="" />
+          <img v-else class="action-icon" :src="displayImageSrc(`${imageBase}tips.png`)" alt="" />
         </button>
         <template v-if="actionPrompt?.type === 'claim'">
           <button v-if="actionPrompt.canHu && !yaotongView?.confirmHuPlan && !yaotongView?.manualHuControls" class="action hu" data-action-role="major" @click="$emit('hu')"><b>胡</b></button>

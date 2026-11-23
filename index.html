@@ -46,9 +46,83 @@
       }
     </script>
     <title>幺筒麻将 · 一筒入局，好戏开场</title>
+    <style>
+      #game-startup {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        box-sizing: border-box;
+        padding: 24px;
+        overflow: auto;
+        color: #f8f3df;
+        background: radial-gradient(ellipse at 50% 40%, #1c4937, #08110e 75%);
+        font: 15px "Microsoft YaHei", "PingFang SC", sans-serif;
+      }
+      .startup-panel { width: min(100%, 380px); }
+      .startup-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 30px; }
+      .startup-brand img { flex: none; width: 44px; height: 44px; }
+      .startup-brand h1 {
+        margin: 0;
+        font: 700 clamp(28px, 6vw, 40px) / 1.15 "Noto Serif SC", "Songti SC", SimSun, serif;
+        letter-spacing: .1em;
+      }
+      .startup-status { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+      .startup-status p { margin: 0; text-wrap: pretty; }
+      #startup-percent { color: #dfbd68; font: 700 18px "Microsoft YaHei", sans-serif; font-variant-numeric: tabular-nums; }
+      #startup-progress {
+        display: block;
+        width: 100%;
+        height: 6px;
+        margin: 12px 0 10px;
+        appearance: none;
+        overflow: hidden;
+        border: 0;
+        border-radius: 8px;
+        background: #08110e;
+        box-shadow: 0 0 0 1px rgba(174, 189, 177, .24);
+      }
+      #startup-progress::-webkit-progress-bar { background: #08110e; }
+      #startup-progress::-webkit-progress-value { background: linear-gradient(90deg, #b99249, #dfbd68); transition: width .15s ease-out; }
+      #startup-progress::-moz-progress-bar { background: linear-gradient(90deg, #b99249, #dfbd68); }
+      #startup-detail { min-height: 1.4em; margin: 0; color: #aebdb1; font-size: 13px; }
+      #startup-retry {
+        min-height: 44px;
+        margin-top: 12px;
+        padding: 0 18px;
+        border: 1px solid #b99249;
+        border-radius: 5px;
+        color: #f8f3df;
+        background: #123327;
+        font: inherit;
+        cursor: pointer;
+      }
+      #startup-retry:hover { background: #1c4937; }
+      #startup-retry:focus-visible { outline: 2px solid #dfbd68; outline-offset: 3px; }
+      @media (prefers-reduced-motion: reduce) {
+        #startup-progress::-webkit-progress-value { transition: none; }
+      }
+    </style>
+    <noscript><style>#game-startup { display: none; }</style></noscript>
   </head>
   <body>
     <noscript>请启用 JavaScript 以开始幺筒麻将对局。</noscript>
+    <section id="game-startup" aria-labelledby="startup-title">
+      <div class="startup-panel">
+        <div class="startup-brand">
+          <img src="./favicon.svg" alt="" width="44" height="44" />
+          <h1 id="startup-title">幺筒麻将</h1>
+        </div>
+        <div class="startup-status">
+          <p id="startup-status" role="status">正在加载游戏界面</p>
+          <span id="startup-percent" aria-hidden="true" hidden></span>
+        </div>
+        <progress id="startup-progress" max="100" aria-label="游戏资源加载进度"></progress>
+        <p id="startup-detail"></p>
+        <button id="startup-retry" type="button" hidden>重新加载</button>
+      </div>
+    </section>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

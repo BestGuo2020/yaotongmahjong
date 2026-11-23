@@ -5,6 +5,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js'
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
 import { preloadTileImages, preloadedTileImages, tileBackUrl, type TileAssetTheme } from '../game/core/presentation/tileAssets'
+import { displayImageSrc, loadDecodedImage } from '../game/core/presentation/imagePreload'
 import type { TileType } from '../game/core/contracts/types'
 import { createAdaptiveQualityController, parseQualityOverride, QUALITY_LEVELS } from './table/three/adaptiveQuality'
 import { createDicePresenter } from './table/three/dicePresenter'
@@ -153,7 +154,7 @@ async function loadTableSurfaceTexture(theme: TableTheme | undefined) {
   if (!config || !renderer) return undefined
 
   try {
-    const texture = await new THREE.TextureLoader().loadAsync(config.url)
+    const texture = new THREE.Texture(await loadDecodedImage(displayImageSrc(config.url)))
     if (destroyed) {
       texture.dispose()
       return undefined
@@ -177,10 +178,15 @@ async function loadTableSurfaceTexture(theme: TableTheme | undefined) {
 async function loadTileBackTexture(themeName: TileAssetTheme) {
   if (themeName !== 'llmAnime') return undefined
   try {
-    const texture = await new THREE.TextureLoader().loadAsync(tileBackUrl(themeName))
+    const texture = new THREE.Texture(await loadDecodedImage(displayImageSrc(tileBackUrl(themeName))))
+    if (destroyed) {
+      texture.dispose()
+      return undefined
+    }
     texture.colorSpace = THREE.SRGBColorSpace
     texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping
     texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8)
+    texture.needsUpdate = true
     return own(texture)
   } catch (error) {
     console.warn('[table] llmAnime 牌背图片加载失败，使用主题渐变回退', error)

@@ -118,7 +118,7 @@ interface LlmAudioItem {
   started?: boolean
 }
 
-export function useAudio() {
+export function useAudio({ preloadEffects = true } = {}) {
   const initialPreferences = readAudioPreferences()
   const soundOn = ref(initialPreferences.soundOn)
   const bgmOn = ref(initialPreferences.bgmOn)
@@ -131,6 +131,7 @@ export function useAudio() {
   const bgmStarted = ref(false)
   const activeEffects = new Set<EffectAudio>()
   const effectTemplates = new Map<string, HTMLAudioElement>()
+  const effectPreloads = new Map<string, Promise<void>>()
   const effectObjectUrls = new Set<string>()
   const llmAudioQueue: LlmAudioItem[] = []
   let activeLlmAudio: HTMLAudioElement | null = null
@@ -180,20 +181,34 @@ export function useAudio() {
     return response
   }
 
-  async function preloadEffect(name: string) {
-    try {
+  function preloadEffect(name: string): Promise<void> {
+    if (disposed || effectTemplates.has(name)) return Promise.resolve()
+    const pending = effectPreloads.get(name)
+    if (pending) return pending
+    const loading = (async () => {
       const blob = await (await fetchAudioAsset(name)).blob()
       if (disposed) return
       const objectUrl = URL.createObjectURL(blob)
       effectObjectUrls.add(objectUrl)
       effectTemplates.set(name, createTemplate(objectUrl))
-    } catch {
-      // 单个资源失败时，播放入口仍可用原始地址重试。
-    }
+    })().finally(() => effectPreloads.delete(name))
+    effectPreloads.set(name, loading)
+    return loading
   }
 
   // 主动 fetch 才能确保移动浏览器完整下载资源；单纯 audio.preload 可能被系统忽略。
-  const effectsReady = Promise.all(EFFECT_AUDIO_FILES.map(preloadEffect)).then(() => {})
+  const effectsReady = Promise.allSettled(preloadEffects ? EFFECT_AUDIO_FILES.map(preloadEffect) : []).then(() => {})
+
+  async function preloadAudioAsset(file: string) {
+    const asset = resolveAudioAsset(file)
+    if (!asset) throw new Error(`Unknown audio asset: ${file}`)
+    if (asset.startsWith('sounds/')) return preloadEffect(asset)
+
+    await preloadBgmTrack(asset)
+    if (!bgmBuffers.has(asset) && !bgmFallbackUrls.has(asset)) {
+      throw new Error(`Failed to preload music: ${file}`)
+    }
+  }
 
   function playEffect(name: string, volume = 1, onFinish?: () => void): EffectAudio | null {
     if (!soundOn.value || !effectsOn.value || !name) return null
@@ -836,6 +851,7 @@ export function useAudio() {
     startBgm,
     preloadBgm,
     preloadBgmTrack,
+    preloadAudioAsset,
     fadeToBgm,
     fadeToDefaultBgm,
   }

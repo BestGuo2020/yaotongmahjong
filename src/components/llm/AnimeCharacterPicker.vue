@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { ANIME_CHARACTERS, type CharacterId } from '../../game/llm/animeCharacters'
 import { animeCharacterAvatarUrl } from '../../game/llm/animeCharacterPreference'
+import { displayImageSrc } from '../../game/core/presentation/imagePreload'
 import { preloadAnimeCharacterAssets } from '../../game/core/presentation/llmAnimeAssets'
 
 const props = defineProps<{ modelValue: CharacterId }>()
@@ -30,7 +31,7 @@ function selectCharacter(characterId: CharacterId) {
         <div class="anime-character-preview-art">
           <img
             v-if="!failedAvatars.has(currentCharacter.id)"
-            :src="animeCharacterAvatarUrl(currentCharacter.id)"
+            :src="displayImageSrc(animeCharacterAvatarUrl(currentCharacter.id))"
             :alt="`${currentCharacter.label}形象预览`"
             decoding="async"
             @error="markAvatarFailed(currentCharacter.id)"
@@ -58,7 +59,7 @@ function selectCharacter(characterId: CharacterId) {
           <span class="anime-character-thumb">
             <img
               v-if="!failedAvatars.has(character.id)"
-              :src="animeCharacterAvatarUrl(character.id)"
+              :src="displayImageSrc(animeCharacterAvatarUrl(character.id))"
               alt=""
               aria-hidden="true"
               loading="lazy"

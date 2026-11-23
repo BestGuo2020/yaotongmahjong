@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import GameShellHeader from './components/shell/GameShellHeader.vue'
 import OrientationGate from './components/shell/OrientationGate.vue'
 import GameTableHud from './components/table/GameTableHud.vue'
@@ -20,8 +20,7 @@ import { useYaotongGame } from './game/variants/yaotong/useYaotongGame'
 import { useYaotongRemoteGame } from './game/variants/yaotong/remote/useYaotongRemoteGame'
 import type { YaotongEmoteId } from './game/variants/yaotong/emotes'
 import type { QuickChatPhrase } from './game/variants/yaotong/quickChat'
-import { DEFAULT_BGM_FILE, useAudio } from './game/core/presentation/useAudio'
-import { READY_BGM_ASSET } from './game/core/presentation/audioAssets'
+import { useAudio } from './game/core/presentation/useAudio'
 import { preloadTileImages } from './game/core/presentation/tileAssets'
 import { cancelLocalLlmAudioPlayback } from './game/core/presentation/llmAudioBus'
 import type { GameMode } from './game/core/contracts/activeGamePort'
@@ -36,10 +35,15 @@ import {
 import { themePresentationByName, themePresentationCssVariables } from './theme/themePresentation'
 import { readAnimeCharacterPreference, saveAnimeCharacterPreference } from './game/llm/animeCharacterPreference'
 import type { CharacterId } from './game/llm/animeCharacters'
-import { preloadAnimeCharacterAssets } from './game/core/presentation/llmAnimeAssets'
 import { useReplayRecorder } from './game/replay/useReplayRecorder'
 import type { ReplayMatch, ReplayRound } from './game/replay/types'
+import { gameStartupTasks, StartupModuleError } from './startup/gameStartupAssets'
+import { createStartupLoader } from './startup/startupLoader'
+import type { createStartupScreen } from './startup/startupScreen'
+import './style.css'
 
+const { startupScreen } = defineProps<{ startupScreen: ReturnType<typeof createStartupScreen> }>()
+const startupReady = ref(false)
 const ReplayViewer = defineAsyncComponent(() => import('./components/replay/ReplayViewer.vue'))
 const replayOpen = ref(false)
 const replayView = shallowRef<{ match: ReplayMatch; rounds: ReplayRound[] } | null>(null)
@@ -83,16 +87,8 @@ if (initialThemeCandidate !== null && initialThemeCandidate !== initialTableThem
   window.history.replaceState(window.history.state, '', canonicalUrl)
 }
 
-const { playEffect, playEffectAndWait, effectsReady, playLlmAudio, playLocalLlmAudioUntilMidpoint, startBgm, preloadBgmTrack,
-  soundOn, bgmOn, effectsOn } = useAudio()
-const tableBgmReady = Promise.all([preloadBgmTrack(DEFAULT_BGM_FILE), preloadBgmTrack(READY_BGM_ASSET)])
-function waitForTableAudio() {
-  if (!soundOn.value) return Promise.resolve()
-  return Promise.all([
-    effectsOn.value ? effectsReady : undefined,
-    bgmOn.value ? tableBgmReady : undefined,
-  ]).then(() => {})
-}
+const { playEffect, playEffectAndWait, playLlmAudio, playLocalLlmAudioUntilMidpoint, startBgm, preloadAudioAsset,
+  soundOn, effectsOn } = useAudio({ preloadEffects: false })
 // 快捷语：纯手动发送；静音时只显示气泡、不朗读。气泡复用 GameTableHud 的现有 bubble。
 const quickChat = useYaotongQuickChat({
   enabled: () => soundOn.value && effectsOn.value,
@@ -141,11 +137,31 @@ const tableThemeName = computed<TableThemeName>(() => {
 })
 const themePresentation = computed(() => themePresentationByName(tableThemeName.value))
 const themePresentationStyle = computed(() => themePresentationCssVariables(themePresentation.value))
+const loadStartupAssets = createStartupLoader(gameStartupTasks(tableThemeName.value, preloadAudioAsset), startupScreen.update)
+
+async function prepareStartup() {
+  try {
+    await loadStartupAssets()
+    await preloadTileImages(tableThemeName.value)
+  } catch (error) {
+    console.error('游戏资源加载失败', error)
+    // 浏览器会缓存同一页面的模块加载错误，重新导入需要刷新页面。
+    const reload = error instanceof AggregateError && error.errors.some(cause => cause instanceof StartupModuleError)
+    startupScreen.fail('部分游戏资源加载失败，请重试。', reload
+      ? () => window.location.reload()
+      : () => void prepareStartup())
+    return
+  }
+  startupReady.value = true
+  await nextTick()
+  startupScreen.remove()
+}
+
+onMounted(() => void prepareStartup())
 watch(tableThemeName, (theme) => {
   gameTableReady.value = false
   void preloadTileImages(theme).catch(() => { /* 牌桌挂载后走现有重试流程 */ })
-  if (theme === 'llmAnime') void preloadAnimeCharacterAssets()
-}, { immediate: true, flush: 'sync' })
+}, { flush: 'sync' })
 watch(replayView, (view) => { if (view) gameTableReady.value = false })
 const replay = useReplayRecorder({ meta: () => ({
   rulesetId: 'yaotong', rulesetName: '幺筒麻将', themeName: tableThemeName.value,
@@ -416,8 +432,8 @@ function changeTableTheme(theme: TableThemeName) {
 </script>
 
 <template>
-  <OrientationGate v-if="!replayOpen && !replayView" :theme-name="tableThemeName" />
-  <main class="game-app"
+  <OrientationGate v-if="startupReady && !replayOpen && !replayView" :theme-name="tableThemeName" />
+  <main v-if="startupReady" class="game-app"
     :class="[{ 'is-lobby': showLobby }, themePresentation.typography.headingClass]"
     :data-table-theme="tableThemeName"
     :data-round-speech="roundSpeechBusy ? 'active' : undefined"
@@ -482,7 +498,6 @@ function changeTableTheme(theme: TableThemeName) {
         :emotes-enabled="interactionsEnabled"
         :joker-tiles="jokerTiles"
         :theme-name="tableThemeName"
-        :wait-for-audio="waitForTableAudio"
         ruleset-id="yaotong"
         :wall-break-index="wallBreakIndex"
         @select-tile="selectTile"

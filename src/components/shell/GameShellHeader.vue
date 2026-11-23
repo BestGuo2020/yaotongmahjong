@@ -4,6 +4,7 @@ import { BASE_SCORE } from '../../game/core/rules/rules'
 import type { GameMode } from '../../game/core/contracts/activeGamePort'
 import type { GamePhase } from '../../game/core/contracts/gamePort'
 import { useAudioControls } from '../../game/core/presentation/useAudio'
+import { displayImageSrc } from '../../game/core/presentation/imagePreload'
 import { TABLE_THEME_OPTIONS, type TableThemeName } from '../table/three/tableTheme'
 import { saveTableThemePreference } from '../table/three/tableThemePreference'
 import { THEME_PRESENTATIONS } from '../../theme/themePresentation'
@@ -151,7 +152,7 @@ onBeforeUnmount(() => {
             @click="chooseTheme(option.value)"
           >
             <span class="theme-card-preview" :style="{ background: option.previewBackground }" aria-hidden="true">
-              <img :src="option.previewUrl" alt="" loading="lazy" @error="hideBrokenPreview" />
+              <img :src="displayImageSrc(option.previewUrl)" alt="" loading="lazy" @error="hideBrokenPreview" />
             </span>
             <span class="theme-card-copy"><strong>{{ option.label }}</strong><small>{{ option.description }}</small></span>
             <i aria-hidden="true"></i>

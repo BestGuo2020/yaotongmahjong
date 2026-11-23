@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { YaotongEmoteId } from '../../game/variants/yaotong/emotes'
+import { displayImageSrc } from '../../game/core/presentation/imagePreload'
+import { emoteArtUrl } from './emoteArtAssets'
 
 const props = withDefaults(defineProps<{
   kind: YaotongEmoteId
@@ -11,28 +13,14 @@ const props = withDefaults(defineProps<{
   animated?: boolean
 }>(), { size: 44, variant: 'item', animated: false })
 
-const IMAGES: Partial<Record<YaotongEmoteId, { item: string; hit?: string }>> = {
-  tomato: { item: 'tomato.png', hit: 'tomato-splat.png' },
-  egg: { item: 'egg.png', hit: 'egg-splat.png' },
-  pan: { item: 'pan.png' },
-  kiss: { item: 'kiss.png' },
-  like: { item: 'like.png' },
-  banana: { item: 'banana-peel.png' },
-}
-
-const image = computed(() => {
-  const entry = IMAGES[props.kind]
-  if (!entry) return ''
-  const file = props.variant === 'hit' && entry.hit ? entry.hit : entry.item
-  return `${import.meta.env.BASE_URL}images/emotes/${file}`
-})
+const image = computed(() => displayImageSrc(emoteArtUrl(props.kind, props.variant)))
 const sheet = computed(() => props.animated && (props.kind === 'tomato' || props.kind === 'egg')
   ? props.kind
   : '')
 const sheetWidth = computed(() => props.kind === 'egg' ? Math.round(props.size * 0.625) : props.size)
 const sheetEnd = computed(() => `-${(props.kind === 'egg' ? 19 : 20) * sheetWidth.value}px`)
 const sheetImage = computed(() => sheet.value
-  ? `url(${import.meta.env.BASE_URL}images/emotes/${sheet.value}-impact.png)`
+  ? `url("${displayImageSrc(emoteArtUrl(sheet.value, 'sheet'))}")`
   : 'none')
 </script>
 
