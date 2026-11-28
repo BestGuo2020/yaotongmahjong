@@ -6,10 +6,16 @@ const tileExtent = new THREE.Vector3(.67, .34, .67)
 const contactShadowExtent = new THREE.Vector3(.76, 0, .91)
 const feltFloor = -.65
 
+export interface DiscardDamage {
+  previousHighlight: THREE.Vector3 | null
+  highlight: THREE.Vector3
+}
+
 export function createDiscardRedraw(meshes: readonly THREE.Mesh[], contactShadowY?: number) {
   const last = new THREE.Vector3()
   const min = new THREE.Vector3(), max = new THREE.Vector3()
-  const previousPosition = new THREE.Vector3()
+  const extent = tileExtent.clone()
+  if (contactShadowY != null) extent.max(contactShadowExtent)
   const point = new THREE.Vector3(), direction = new THREE.Vector3()
   const size = new THREE.Vector2(), screen = new THREE.Vector4(), shadow = new THREE.Vector4()
   const savedShadow = new THREE.Vector4(), savedScreen = new THREE.Vector4()
@@ -17,7 +23,6 @@ export function createDiscardRedraw(meshes: readonly THREE.Mesh[], contactShadow
   const view = new THREE.Frustum(), lightView = new THREE.Frustum(), crop = new THREE.Matrix4()
   const hidden: THREE.Mesh[] = [], shadowSkipped: THREE.Mesh[] = []
   let previousId: number | null = null
-  let needsCleanFrame = true
 
   function projectBox(camera: THREE.Camera, width: number, height: number, pad: number, rect: THREE.Vector4) {
     let x0 = width, x1 = 0, y0 = height, y1 = 0
@@ -43,22 +48,37 @@ export function createDiscardRedraw(meshes: readonly THREE.Mesh[], contactShadow
   }
 
   function render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera,
-    light: THREE.DirectionalLight, discard: { id: number; position: THREE.Vector3 }, dirty: boolean) {
-    const previous = previousId
+    light: THREE.DirectionalLight, discard: { id: number; position: THREE.Vector3 }, dirty: boolean,
+    damage: DiscardDamage | null = null) {
+    const newDiscard = previousId !== discard.id
     previousId = discard.id
-    previousPosition.copy(last)
-    min.copy(last).min(discard.position).sub(tileExtent)
-    max.copy(last).max(discard.position).add(tileExtent)
+    if (newDiscard) last.copy(discard.position)
+    min.copy(last).min(discard.position)
+    max.copy(last).max(discard.position)
     last.copy(discard.position)
     const map = renderer.shadowMap.enabled ? light.shadow.map : null
-    const changed = dirty || previous !== discard.id
-    // 真机上换牌后的第一张完整帧仍有抗锯齿边缘差异，下一帧完整绘制后再局部复用。
-    if (changed || needsCleanFrame || (renderer.shadowMap.enabled && (!map || renderer.shadowMap.type === THREE.VSMShadowMap))) {
-      needsCleanFrame = changed
+    // 只有从静止帧进入普通本家出牌时，调用方才能给出首帧的完整变化范围。
+    const firstFrameDamage = newDiscard ? damage : null
+    if (((dirty || newDiscard) && !firstFrameDamage)
+      || (renderer.shadowMap.enabled && (!map || renderer.shadowMap.type === THREE.VSMShadowMap))) {
       renderer.render(scene, camera)
       return
     }
 
+    if (firstFrameDamage) {
+      min.min(firstFrameDamage.highlight)
+      max.max(firstFrameDamage.highlight)
+      if (firstFrameDamage.previousHighlight) {
+        min.min(firstFrameDamage.previousHighlight)
+        max.max(firstFrameDamage.previousHighlight)
+      }
+    }
+    min.sub(extent)
+    max.add(extent)
+    if (contactShadowY != null) {
+      min.y = Math.min(min.y, contactShadowY)
+      max.y = Math.max(max.y, contactShadowY)
+    }
     camera.updateMatrixWorld()
     if (map) {
       // 在灯光空间重画飞牌扫过的区域，桌面还要覆盖新旧阴影的落点。
@@ -76,12 +96,6 @@ export function createDiscardRedraw(meshes: readonly THREE.Mesh[], contactShadow
       const penumbra = texel * (light.shadow.radius + 2) * (1 + Math.hypot(direction.x, direction.z) / -direction.y)
       min.addScalar(-penumbra)
       max.addScalar(penumbra)
-    }
-    if (contactShadowY != null) {
-      point.copy(previousPosition).min(discard.position).sub(contactShadowExtent).setY(contactShadowY)
-      min.min(point)
-      point.copy(previousPosition).max(discard.position).add(contactShadowExtent).setY(contactShadowY)
-      max.max(point)
     }
     renderer.getSize(size)
     // 额外一圈桌面像素涵盖 PCF 阴影过滤和抗锯齿的边缘。
@@ -132,7 +146,6 @@ export function createDiscardRedraw(meshes: readonly THREE.Mesh[], contactShadow
     render,
     reset() {
       previousId = null
-      needsCleanFrame = true
     },
   }
 }

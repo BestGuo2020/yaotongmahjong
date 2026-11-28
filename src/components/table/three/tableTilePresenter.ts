@@ -76,6 +76,7 @@ export function createTableTilePresenter(options: TableTilePresenterOptions) {
   const meldTweens: MeldTween[] = []
   const discardTweens: DiscardTween[] = []
   const movingDiscard = { id: -1, position: new THREE.Vector3() }
+  let discardHighlight: THREE.Vector3 | null = null
   let wallHeadInstance: ReturnType<TileInstanceRenderer['add']> | null = null
   const hiddenPosition = new THREE.Vector3()
   const hiddenRotation = new THREE.Quaternion()
@@ -285,6 +286,7 @@ function addDiscards(playerIndex) {
       addTableTile(pos, quat, tileName)
     }
     if (highlighted) {
+      discardHighlight = pos
       // 最新一张弃牌的高亮垫片保持独立 mesh（仅 1 张，无需合批）。
       const marker = new THREE.Mesh(
         scene.userData.discardHighlightGeometry,
@@ -698,6 +700,7 @@ function rebuildTableTiles() {
   if(epoch!==sourceEpoch){sourceEpoch=epoch;sourceTransforms.clear();ownDrawScreens.clear()}
   drawnTransforms.clear();addedTransforms.clear();flights.length=0
   handFaceInstances.length = 0
+  discardHighlight = null
   clearDynamicScene()
   dealTweens.length = 0
   meldTweens.length = 0
@@ -813,6 +816,7 @@ function rebuildTableTiles() {
   }
 
   return { rebuild: rebuildTableTiles, animate, meldTransform, alignMeldBottom, sourceTileRotationOffset,
+    get discardHighlight() { return discardHighlight },
     removeWallHead() {
       if (!wallHeadInstance || props.openingStage || props.revealHands || props.winEffect || props.settlementIndicator || props.wall.length < 3) return false
       // 本家手牌由 HUD 显示，普通摸牌只需收起墙头及其接触阴影。

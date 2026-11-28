@@ -23,7 +23,7 @@ import {
 } from './table/three/sceneRenderProfile'
 import { tableThemeByName, type TableTheme } from './table/three/tableTheme'
 import { createTileInstanceRenderer } from './table/three/tileInstanceRenderer'
-import { createDiscardRedraw } from './table/three/discardRedraw'
+import { createDiscardRedraw, type DiscardDamage } from './table/three/discardRedraw'
 import { TABLE_LAYOUT } from '../game/core/presentation/tableLayout'
 import { createMultiWinEffectPresenter } from './table/three/multiWinEffectPresenter'
 import { createTableTilePresenter } from './table/three/tableTilePresenter'
@@ -130,15 +130,17 @@ let lastFrameAt = 0
 // 静止停帧：只有「有动画在跑」或「状态变更（dirty）」时才重绘，否则停掉 RAF。
 let rendering = false
 let dirty = false
+let discardDamage: DiscardDamage | null = null
 let started = false
 let renderedFrames = 0
 // 静止停顿后重新开画时，帧间隔会被放大成一个假的大间隔，喂给 adaptiveQuality 会误判卡顿。
 // 超过该阈值的间隔视为「新的一段」，frameMs 归零，不参与降档判断。
 const FRAME_GAP_RESET_MS = 250
 
-function invalidate() {
+function invalidate(damage: DiscardDamage | null = null) {
   // 挂载期（首帧 render() 之前）的变更由首帧统一绘制，避免在 compileAsync 期间提前开画。
   if (!started) return
+  discardDamage = dirty ? null : damage
   dirty = true
   if (!rendering && !animationFrame) animationFrame = requestAnimationFrame(render)
 }
@@ -318,7 +320,9 @@ function render(time = 0) {
   if (!renderer) return
   rendering = true
   const wasDirty = dirty
+  const pendingDiscardDamage = discardDamage
   dirty = false
+  discardDamage = null
   let keepGoing = false
   try {
     perfHud?.frame(time)
@@ -387,7 +391,8 @@ function render(time = 0) {
     const movingDiscard = discardRedraw && !outlineEffect && !diceActive && !weatherActive && !winFrame && !bloodFlowActive
       && !props.revealHands && !props.openingStage && tableTiles.singleMovingDiscard()
     if (movingDiscard && discardRedraw && shadowLight) {
-      discardRedraw.render(renderer, scene, camera, shadowLight, movingDiscard, wasDirty || dirty)
+      discardRedraw.render(renderer, scene, camera, shadowLight, movingDiscard, wasDirty || dirty,
+        dirty ? null : pendingDiscardDamage)
     } else {
       discardRedraw?.reset()
       if (outlineEffect) outlineEffect.render(scene, camera)
@@ -651,14 +656,15 @@ watch([
   () => props.players[0]?.concealedTileCount ?? null,
   () => props.wall.length,
   () => props.wallHeadDrawn,
+  () => props.players[0]?.discards.join(',') ?? '',
+  () => props.lastDiscard?.id,
   () => (props.players.map((player, seat) => [
     seat ? player.hand.length : null,
     seat ? player.concealedTileCount : null,
     seat ? player.drawnTileIndex : null,
-    player.discards.join(','),
+    seat ? player.discards.join(',') : null,
     player.melds.map((meld) => `${meld.type}:${meld.from ?? '-'}:${meld.tiles.join(',')}`).join('|'),
   ]).flat() as unknown[]).concat(
-    props.lastDiscard?.id,
     props.sidewaysDiscards?.map(indices => indices.join(',')).join('|'),
     props.neutralPengOrientation,
     props.revealHands,
@@ -694,14 +700,23 @@ watch([
     props.localSeat,
   ),
 ] as const,
-  ([hand, drawn, concealed, wall, head, layout], [oldHand, , oldConcealed, oldWall, oldHead, oldLayout]) => {
+  ([hand, drawn, concealed, wall, head, river, discardId, layout],
+    [oldHand, , oldConcealed, oldWall, oldHead, oldRiver, oldDiscardId, oldLayout]) => {
+    const sameLayout = layout.length === oldLayout.length && layout.every((value, index) => value === oldLayout[index])
     const ownDraw = mobileDiscards && props.currentPlayer === 0 && drawn === hand - 1 && hand === oldHand + 1
       && (oldConcealed == null ? concealed == null : concealed === oldConcealed + 1)
-      && wall === oldWall - 1 && head === oldHead + 1
-      && layout.length === oldLayout.length && layout.every((value, index) => value === oldLayout[index])
+      && wall === oldWall - 1 && head === oldHead + 1 && river === oldRiver && discardId === oldDiscardId && sameLayout
+    // 本家手牌在 HUD 中。静止桌面只追加一张弃牌时，3D 首帧仅变化飞牌和新旧高亮。
+    const canClipDiscardStart = discardRedraw && !animationFrame && !rendering && sameLayout
+      && !props.revealHands && !props.openingStage && !props.winEffect && !props.winPresentation && !props.settlementIndicator
+      && wall === oldWall && head === oldHead && hand === oldHand - 1 && discardId !== oldDiscardId
+      && props.lastDiscard?.from === 0
+      && river === (oldRiver ? `${oldRiver},${props.lastDiscard.tile}` : props.lastDiscard.tile)
+    const previousHighlight = canClipDiscardStart ? tableTiles?.discardHighlight ?? null : null
     if (!ownDraw || !tableTiles?.removeWallHead()) tableTiles?.rebuild()
+    const highlight = canClipDiscardStart ? tableTiles?.discardHighlight : null
     bloodFlowWinEffects?.sync()
-    invalidate()
+    invalidate(highlight ? { previousHighlight, highlight } : null)
   },
 )
 
@@ -764,7 +779,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <canvas ref="canvas" class="mahjong-scene" @webglcontextrestored="invalidate" :data-table-theme="props.themeName ?? 'jade'"
+  <canvas ref="canvas" class="mahjong-scene" @webglcontextrestored="invalidate()" :data-table-theme="props.themeName ?? 'jade'"
     :data-sideways-discards="JSON.stringify(props.sidewaysDiscards)"
     :data-neutral-peng="props.neutralPengOrientation ? '1' : '0'" aria-hidden="true"></canvas>
 </template>

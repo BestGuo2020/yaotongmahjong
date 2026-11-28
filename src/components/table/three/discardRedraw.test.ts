@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { describe, expect, it, vi } from 'vitest'
-import { createDiscardRedraw } from './discardRedraw'
+import { createDiscardRedraw, type DiscardDamage } from './discardRedraw'
 
 describe('飞牌局部重绘', () => {
   it('沿用整帧分辨率，重画前后位置，恢复相机、阴影和桌面物件的状态', () => {
@@ -31,14 +31,13 @@ describe('飞牌局部重绘', () => {
       render: vi.fn(() => { snapshots.push({ clipped, shadow: map.scissorTest, visible: far.visible, size: scissor.clone() }) }),
     }
     const redraw = createDiscardRedraw([far])
-    const draw = (id: number, x: number, dirty = false) =>
-      redraw.render(renderer as unknown as THREE.WebGLRenderer, scene, camera, light, { id, position: new THREE.Vector3(x, .6, 0) }, dirty)
+    const draw = (id: number, x: number, dirty = false, damage?: DiscardDamage) =>
+      redraw.render(renderer as unknown as THREE.WebGLRenderer, scene, camera, light, { id, position: new THREE.Vector3(x, .6, 0) }, dirty, damage)
     draw(1, 0)
     draw(1, .1)
-    draw(1, .2)
-    expect(snapshots.slice(0, 2).every(s => !s.clipped)).toBe(true)
-    expect(snapshots[2]).toMatchObject({ clipped: true, shadow: true, visible: false })
-    expect(snapshots[2].size.z).toBeLessThan(250)
+    expect(snapshots[0].clipped).toBe(false)
+    expect(snapshots[1]).toMatchObject({ clipped: true, shadow: true, visible: false })
+    expect(snapshots[1].size.z).toBeLessThan(250)
     expect(camera.projectionMatrix).toEqual(projection)
     expect(map.scissor).toEqual(saved)
     expect(map.scissorTest).toBe(false)
@@ -50,7 +49,27 @@ describe('飞牌局部重绘', () => {
     draw(2, .4)
     redraw.reset()
     draw(2, .5)
-    expect(snapshots.slice(3).every(s => !s.clipped)).toBe(true)
+    expect(snapshots.slice(2).map(s => s.clipped)).toEqual([false, true, false, false])
+
+    // 首帧需要覆盖飞牌起点、原弃牌降回常态的位置，以及新高亮。
+    redraw.reset()
+    const highlight = new THREE.Vector3(2, .48, 0)
+    const previousHighlight = new THREE.Vector3(-2, .48, -1)
+    draw(3, 0, true, { highlight, previousHighlight })
+    const firstClipped = snapshots.at(-1)!
+    expect(firstClipped.clipped).toBe(true)
+    for (const point of [new THREE.Vector3(0, .6, 0), highlight, previousHighlight]) {
+      const projected = point.clone().project(camera)
+      expect((projected.x + 1) * 400).toBeGreaterThan(firstClipped.size.x)
+      expect((projected.x + 1) * 400).toBeLessThan(firstClipped.size.x + firstClipped.size.z)
+      expect((projected.y + 1) * 200).toBeGreaterThan(firstClipped.size.y)
+      expect((projected.y + 1) * 200).toBeLessThan(firstClipped.size.y + firstClipped.size.w)
+    }
+    draw(3, .1, true, { highlight, previousHighlight })
+    expect(snapshots.at(-1)?.clipped).toBe(false)
+    light.shadow.map = null
+    draw(4, 0, true, { highlight, previousHighlight })
+    expect(snapshots.at(-1)?.clipped).toBe(false)
     map.dispose()
     far.geometry.dispose()
   })
