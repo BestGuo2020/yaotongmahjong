@@ -325,6 +325,7 @@ watch(() => props.flipTile, () => { flipOpen.value = false })
 const touchStarts = new Map<number, { index: number; x: number; y: number; startedAt: number }>()
 let lastTouchTap = { index: -1, time: 0 }
 let suppressTileClickUntil = 0
+let touchTapStart: { index: number; id: number; x: number; y: number; time: number } | null = null
 
 const roundResultPresentation = computed(() => props.result ? resolveRoundResultPresentation(props.result) : null)
 const userAvatar = computed(() => displayImageSrc(props.themeName === 'llmAnime'
@@ -518,14 +519,42 @@ function cancelTileGesture(event: PointerEvent) {
   touchStarts.delete(event.pointerId)
 }
 
-function handleTileActivation(index: number, event?: PointerEvent) {
-  if (!props.isUserTurn) return
-  if (props.blockedDiscardIndices?.includes(index)) return
-  if (props.lockedHand && index !== props.user.drawnTileIndex) return
-  if (props.bloodFlow?.seats[props.user.seat].locked && index !== props.user.drawnTileIndex) return
+function beginTouchTileTap(index: number, event: TouchEvent) {
+  if (props.rulesetId !== 'yaotong') return
+  const touch = event.changedTouches[0]
+  touchTapStart = event.touches.length === 1 && touch && event.target instanceof Element && event.target.closest('.mahjong-tile')
+    ? { index, id: touch.identifier, x: touch.clientX, y: touch.clientY, time: performance.now() }
+    : null
+}
+
+function finishTouchTileTap(index: number, event: TouchEvent) {
+  if (props.rulesetId !== 'yaotong') return
+  const start = touchTapStart
+  touchTapStart = null
+  if (!event.cancelable) return
+  // 松手时处理触屏双击。取消浏览器合成的 click，避免出牌后的牌架布局堵在该输入任务里。
+  event.preventDefault()
+  if (!start || start.index !== index || event.touches.length || performance.now() - start.time >= 700) return
+  const touch = Array.from(event.changedTouches).find(touch => touch.identifier === start.id)
+  if (!touch || Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 12) return
+  handleTileActivation(index, event)
+}
+
+function cancelTouchTileTap() {
+  touchTapStart = null
+}
+
+function canActivateTile(index: number) {
+  return props.isUserTurn && !props.blockedDiscardIndices?.includes(index)
+    && (!(props.lockedHand || props.bloodFlow?.seats[props.user.seat].locked) || index === props.user.drawnTileIndex)
+}
+
+function handleTileActivation(index: number, event?: Event) {
+  if (!canActivateTile(index)) return
   const now = performance.now()
   if (now < suppressTileClickUntil) return
-  const isTouch = event?.pointerType === 'touch' || event?.pointerType === 'pen' || !usesFinePointer()
+  const pointerType = event && 'pointerType' in event ? event.pointerType : undefined
+  const isTouch = event?.type === 'touchend' || pointerType === 'touch' || pointerType === 'pen' || !usesFinePointer()
   if (!isTouch) {
     hoveredDiscard.value = null
     waitsOpen.value = false
@@ -791,6 +820,7 @@ function onAvatarError(entry: GamePlayer) {
           :class="{ drawn: userDrawnIndex === index, 'ting-discard': isTingDiscard(index, tile), 'reform-discard': isReformDiscard(index, tile) }"
           @mouseenter="previewDesktopWaits(tile, index)" @mouseleave="clearDesktopWaits"
           @pointerdown.stop="beginTileGesture(index, $event)" @pointerup.stop="finishTileGesture(index, $event)" @pointercancel="cancelTileGesture"
+          @touchstart.passive="beginTouchTileTap(index, $event)" @touchend="finishTouchTileTap(index, $event)" @touchcancel="cancelTouchTileTap"
         >
           <span class="hand-hit-area" aria-hidden="true"></span>
           <span v-if="isTingDiscard(index, tile) && !isReformDiscard(index, tile)" class="ting-arrow" aria-hidden="true"></span>

@@ -6,9 +6,20 @@ test.describe('手机 3D 牌桌', () => {
   test('双击出牌从首帧开始按原分辨率局部重绘，并完成飞牌入河', async ({ page }) => {
     test.setTimeout(90_000)
     await page.addInitScript(() => {
+      document.addEventListener('touchend', event => {
+        if (!(event.target instanceof Element) || !event.target.closest('.hand-tile-slot.drawn')) return
+        const root = document.querySelector<HTMLElement>('.game-app')
+        if (root) root.dataset.drawnTileReleases = String(Number(root.dataset.drawnTileReleases ?? 0) + 1)
+      }, true)
+      document.addEventListener('click', event => {
+        if (!(event.target instanceof Element) || !event.target.closest('.hand-tile-slot.drawn')) return
+        const root = document.querySelector<HTMLElement>('.game-app')
+        if (root) root.dataset.drawnTileClicks = String(Number(root.dataset.drawnTileClicks ?? 0) + 1)
+      }, true)
       const { clear, scissor } = WebGL2RenderingContext.prototype
       WebGL2RenderingContext.prototype.clear = function (mask) {
         if (this.canvas instanceof HTMLCanvasElement && this.canvas.dataset.observeDiscardRedraw === '1'
+          && this.canvas.closest<HTMLElement>('.game-app')?.dataset.discards === '1'
           && this.getParameter(this.DRAW_FRAMEBUFFER_BINDING) === null) {
           this.canvas.dataset.firstDiscardRedraw = this.isEnabled(this.SCISSOR_TEST) ? 'clipped' : 'full'
           delete this.canvas.dataset.observeDiscardRedraw
@@ -36,16 +47,29 @@ test.describe('手机 3D 牌桌', () => {
     const initialBuffer = await buffer()
     expect(initialBuffer.retained).toBe(true)
     await canvas.evaluate(element => { delete element.dataset.discardScissor })
-    await page.clock.install()
     const drawn = page.locator('.hand-rack.playable .hand-tile-slot.drawn .mahjong-tile')
     await drawn.tap()
     await canvas.evaluate(element => { element.dataset.observeDiscardRedraw = '1' })
     await drawn.tap()
     await expect(page.locator('.game-app')).toHaveAttribute('data-discards', '1')
-    await page.clock.runFor(450)
+    await expect(page.locator('.game-app')).toHaveAttribute('data-drawn-tile-releases', '2')
+    await expect(page.locator('.game-app')).not.toHaveAttribute('data-drawn-tile-clicks', /\d+/)
     await expect(canvas).toHaveAttribute('data-first-discard-redraw', 'clipped')
     await expect(canvas).toHaveAttribute('data-discard-scissor', /^\d+x\d+$/)
     expect(await buffer()).toEqual(initialBuffer)
+  })
+
+  test('向上滑动一次只弃一张牌', async ({ page, context }) => {
+    await page.goto('/tests/e2e/fixtures/yaotong-auto-discard.html?quality=low', { waitUntil: 'domcontentloaded' })
+    const drawn = page.locator('.hand-rack.playable .hand-tile-slot.drawn .mahjong-tile')
+    await expect(drawn).toBeVisible()
+    const box = (await drawn.boundingBox())!
+    const x = box.x + box.width / 2, y = box.y + box.height / 2
+    const cdp = await context.newCDPSession(page)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 46 }] })
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await expect(page.locator('.game-app')).toHaveAttribute('data-discards', '1')
   })
 })
 
