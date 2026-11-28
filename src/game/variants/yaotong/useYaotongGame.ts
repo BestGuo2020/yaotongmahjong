@@ -359,11 +359,23 @@ export function useYaotongGame(options: {
       : game.players[nextSeat]?.afterKong
         ? YAOTONG_AI_KONG_DISCARD_MS
         : YAOTONG_AI_DISCARD_MS
+    const serial = game.serial
+    let planned: Command | null | undefined
+    if (game.phase === 'discard' && typeof globalThis.requestIdleCallback === 'function'
+        && typeof globalThis.cancelIdleCallback === 'function') {
+      // 在原有思考时间内算好动作，出牌帧只提交当前牌局的决策。
+      const idle = globalThis.requestIdleCallback(() => {
+        if (state.value === game && game.serial === serial) planned = chooseAction(game, nextSeat)
+      }, { timeout: Math.floor(delay / 2) })
+      cleanup(() => globalThis.cancelIdleCallback(idle))
+    }
     timer = setTimeout(
       () => {
+        if (state.value !== game) return
         const command: Command | null = nextSeat === 0 && !autoplay.value && game.phase === 'response'
-          ? { type: 'respond', action: 'pass', deferHu: true } : chooseAction(game, nextSeat)
-        if (command && state.value === game) dispatch(command, nextSeat)
+          ? { type: 'respond', action: 'pass', deferHu: true }
+          : game.serial === serial && planned !== undefined ? planned : chooseAction(game, nextSeat)
+        if (command) dispatch(command, nextSeat)
       },
       delay,
     )

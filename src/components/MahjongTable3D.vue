@@ -23,6 +23,7 @@ import {
 } from './table/three/sceneRenderProfile'
 import { tableThemeByName, type TableTheme } from './table/three/tableTheme'
 import { createTileInstanceRenderer } from './table/three/tileInstanceRenderer'
+import { createDiscardRedraw } from './table/three/discardRedraw'
 import { TABLE_LAYOUT } from '../game/core/presentation/tableLayout'
 import { createMultiWinEffectPresenter } from './table/three/multiWinEffectPresenter'
 import { createTableTilePresenter } from './table/three/tableTilePresenter'
@@ -35,6 +36,7 @@ import { preloadWeatherAssets } from './table/three/yaotongWeatherAssets'
 import { cuePhase } from '../game/variants/lotus/bloodFlow/presentation'
 
 const props = withDefaults(defineProps<TableProps>(), {
+  retainDiscardFrame: false,
   sidewaysDiscards: () => [], neutralPengOrientation: false,
   players: () => [], localSeat: 0, currentPlayer: -1, lastDiscard: null, wall: () => [], wallHeadDrawn: 0, wallCount: 0, horses: () => [],
   revealHands: false, winnerIndex: -1, winEffect: null, winPresentation: null,
@@ -95,6 +97,8 @@ const WALL_DEAL_ORIGIN_Y = 1.1  // 发牌从牌山 head 槽位上方起飞的初
 // 触屏设备（真机）判定：主指针 coarse 且无 hover。
 const isMobileLike = typeof window.matchMedia === 'function'
   && window.matchMedia('(hover: none) and (pointer: coarse)').matches
+const mobileDiscards = isMobileLike && props.retainDiscardFrame
+let discardRedraw: ReturnType<typeof createDiscardRedraw> | null = null
 // 渲染分辨率上限（清晰度 vs 帧率）：桌面 3、真机 2.5（在 2 的清晰与 3 的帧率间取平衡）。
 // URL 带 ?pr=<数字> 可覆盖。
 let pixelRatioCap = parseFloat(new URLSearchParams(window.location.search).get('pr') ?? '') || (isMobileLike ? 2.5 : 3)
@@ -313,6 +317,7 @@ function render(time = 0) {
   animationFrame = 0
   if (!renderer) return
   rendering = true
+  const wasDirty = dirty
   dirty = false
   let keepGoing = false
   try {
@@ -379,8 +384,15 @@ function render(time = 0) {
       canvasElement.dataset.cameraDirection = camera.getWorldDirection(new THREE.Vector3()).toArray().join(',')
       canvasElement.dataset.handFaceRects = JSON.stringify(tableTiles.handFaceScreenRects(camera))
     }
-    if (outlineEffect) outlineEffect.render(scene, camera)
-    else renderer.render(scene, camera)
+    const movingDiscard = discardRedraw && !outlineEffect && !diceActive && !weatherActive && !winFrame && !bloodFlowActive
+      && !props.revealHands && !props.openingStage && tableTiles.singleMovingDiscard()
+    if (movingDiscard && discardRedraw && shadowLight) {
+      discardRedraw.render(renderer, scene, camera, shadowLight, movingDiscard, wasDirty || dirty)
+    } else {
+      discardRedraw?.reset()
+      if (outlineEffect) outlineEffect.render(scene, camera)
+      else renderer.render(scene, camera)
+    }
     kongWeather?.renderOverlay(renderer)
     renderedFrames += 1
     keepGoing = diceActive || tilesActive || weatherActive || Boolean(winFrame) || bloodFlowActive || dirty
@@ -400,16 +412,16 @@ onMounted(async () => {
   const activeThemeName = (props.themeName ?? new URLSearchParams(window.location.search).get('theme') ?? 'jade') as TileAssetTheme
   // llmAnime 默认走二次元 cel；?animeTable=0 可强制关闭回退写实 PBR。
   animeTable = activeThemeName === 'llmAnime' && new URLSearchParams(window.location.search).get('animeTable') !== '0'
-  const activeTheme = tableThemeByName(activeThemeName)
+  let activeTheme = tableThemeByName(activeThemeName)
   // 真机降低牌体圆角细分（segments→2）：RoundedBoxGeometry 三角面数随 segments² 增长，
   // 是 494k 三角面的主要来源之一；桌面保持原细分（llmAnime=4）。
-  if (isMobileLike) {
+  if (isMobileLike && activeTheme) {
     const base = activeTheme.tileGeometry ?? { segments: 6, baseRadius: .07, capRadius: .072 }
-    activeTheme.tileGeometry = { ...base, segments: 2 }
+    activeTheme = { ...activeTheme, tileGeometry: { ...base, segments: 2 } }
   }
   renderProfile = tableSceneRenderProfile(activeThemeName)
 
-  // 真机性能：触屏设备把 llmAnime 的 VSM 2048 软阴影降为 PCFSoft 1024，
+  // 真机性能：触屏设备把 llmAnime 的 VSM 2048 软阴影降为 PCF 1024，
   // 并用半球光+主光提亮来补偿去掉的面光（RectAreaLight LTC 极贵）。
   if (isMobileLike && renderProfile.shadows.mapType === THREE.VSMShadowMap) {
     renderProfile = {
@@ -418,7 +430,7 @@ onMounted(async () => {
       keyLight: { ...renderProfile.keyLight, intensity: renderProfile.keyLight.intensity * 1.5 },
       shadows: {
         ...renderProfile.shadows,
-        mapType: THREE.PCFSoftShadowMap,
+        mapType: THREE.PCFShadowMap,
         mapSize: 1024,
         radius: 1,
         blurSamples: 8,
@@ -444,7 +456,8 @@ onMounted(async () => {
     }
   }
 
-  renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: aaEnabled, alpha: true, powerPreference: 'high-performance' })
+  renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: aaEnabled, alpha: true,
+    powerPreference: 'high-performance', preserveDrawingBuffer: mobileDiscards })
   applyRendererProfile(renderer, renderProfile)
   if (cheapTable || animeTable) renderer.shadowMap.enabled = false
   renderer.setClearColor(0x050706, 0)
@@ -518,11 +531,11 @@ onMounted(async () => {
       defaultKeepAlive: true,
     })
   }
+  const contactShadowY = animeTable ? .075 : undefined
   tileInstances = createTileInstanceRenderer({
     capacity: props.bloodFlowBatches ? 512 : undefined,
     scene,
-    ownDynamic,
-    dynamicGroups,
+    own,
     getAtlasMaterial: tableScene.getAtlasMaterial,
     getAtlasCapGeometry: tableScene.getAtlasCapGeometry,
     atlasCellUvFor: tableScene.atlasCellUvFor,
@@ -532,12 +545,13 @@ onMounted(async () => {
     isJoker: (tile) => tileMarkerFor(tile, props.jokerTiles, props.wildcardTiles, props.laiziOnly) === 'joker',
     isWildcard: (tile) => tileMarkerFor(tile, props.jokerTiles, props.wildcardTiles, props.laiziOnly) === 'wildcard',
     isLaizi: (tile) => tileMarkerFor(tile, props.jokerTiles, props.wildcardTiles, props.laiziOnly) === 'laizi',
-    contactShadowY: animeTable ? 0.075 : undefined,
+    contactShadowY,
   })
   tableTiles = createTableTilePresenter({
     projectOwnDraw:point=>{applyTableCamera(tableCameraPosition(renderProfile));camera.updateMatrixWorld();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(point.x*2-1,1-point.y*2),camera);return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-.56),new THREE.Vector3())},
     props,
     scene,
+    smoothDiscardMotion: mobileDiscards,
     dynamicGroups,
     ownDynamic,
     clearDynamicScene,
@@ -587,6 +601,9 @@ onMounted(async () => {
   kongWeather = createYaotongKongWeather({ scene, assets: weatherAssets, cues: () => props.kongWeather ?? [], localSeat: () => props.localSeat })
   scene.userData.tileImages = preloadedTileImages(activeThemeName)
   tableScene.addTable()
+  if (mobileDiscards && renderer.getContext().getContextAttributes()?.preserveDrawingBuffer) {
+    discardRedraw = createDiscardRedraw(tableScene.staticMeshes, contactShadowY)
+  }
   tableTiles.rebuild()
   if (adaptiveQuality.overridden) adaptiveQuality.apply()
   resizeObserver = new ResizeObserver(resize)
@@ -628,11 +645,16 @@ onMounted(async () => {
   }
 })
 
-watch(
-  () => (props.players.map((player) => [
-    player.hand.length,
-    player.concealedTileCount,
-    player.drawnTileIndex,
+watch([
+  () => props.players[0]?.hand.length ?? 0,
+  () => props.players[0]?.drawnTileIndex ?? -1,
+  () => props.players[0]?.concealedTileCount ?? null,
+  () => props.wall.length,
+  () => props.wallHeadDrawn,
+  () => (props.players.map((player, seat) => [
+    seat ? player.hand.length : null,
+    seat ? player.concealedTileCount : null,
+    seat ? player.drawnTileIndex : null,
     player.discards.join(','),
     player.melds.map((meld) => `${meld.type}:${meld.from ?? '-'}:${meld.tiles.join(',')}`).join('|'),
   ]).flat() as unknown[]).concat(
@@ -648,7 +670,7 @@ watch(
     props.winPresentation?.tile,
     props.winPresentation?.robbedKong,
     props.dealAnimation.serial,
-    props.wall?.length,
+    props.openingStage,
     props.horses?.length,
     props.jokerTiles?.join(','),
     props.wildcardTiles?.join(','),
@@ -658,6 +680,8 @@ watch(
     props.settlementIndicator?.seat,
     props.settlementIndicator?.tile,
     props.wallBreakIndex,
+    props.wallTotal,
+    props.tableActionEvent?.id,
     props.bloodFlowBatches?.map(b => b.batchId).join(','),
     props.bloodFlowCompact,
     props.bloodFlowPresentationKey,
@@ -669,10 +693,13 @@ watch(
     props.bloodFlowOwnDraw?.y,
     props.localSeat,
   ),
-  // 发牌批次只刷新已有实例的 count / matrix / UV，避免每 150-260ms
-  // 销毁并重建整套 InstancedMesh 与 GPU buffer。
-  () => {
-    tableTiles?.rebuild({ reuseInstances: props.openingStage === 'deal' })
+] as const,
+  ([hand, drawn, concealed, wall, head, layout], [oldHand, , oldConcealed, oldWall, oldHead, oldLayout]) => {
+    const ownDraw = mobileDiscards && props.currentPlayer === 0 && drawn === hand - 1 && hand === oldHand + 1
+      && (oldConcealed == null ? concealed == null : concealed === oldConcealed + 1)
+      && wall === oldWall - 1 && head === oldHead + 1
+      && layout.length === oldLayout.length && layout.every((value, index) => value === oldLayout[index])
+    if (!ownDraw || !tableTiles?.removeWallHead()) tableTiles?.rebuild()
     bloodFlowWinEffects?.sync()
     invalidate()
   },
@@ -737,7 +764,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <canvas ref="canvas" class="mahjong-scene" :data-table-theme="props.themeName ?? 'jade'"
+  <canvas ref="canvas" class="mahjong-scene" @webglcontextrestored="invalidate" :data-table-theme="props.themeName ?? 'jade'"
     :data-sideways-discards="JSON.stringify(props.sidewaysDiscards)"
     :data-neutral-peng="props.neutralPengOrientation ? '1' : '0'" aria-hidden="true"></canvas>
 </template>

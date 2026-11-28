@@ -424,24 +424,49 @@ const userDrawnIndex = computed(() => {
   return hand.length > baseHand ? hand.length - 1 : -1
 })
 
-watch([tableHudElement, () => props.rulesetId], ([hud, rulesetId], _, onCleanup) => {
+watch([tableHudElement, () => props.rulesetId, () => props.themeName], ([hud, rulesetId], _, onCleanup) => {
   if (!hud || rulesetId !== 'yaotong') return
   const identity = hud.querySelector('.user-identity')
   const rack = hud.querySelector('.hand-rack')
   if (!identity || !rack) return
 
+  const placements = new Map<string, boolean>()
+  const handLayout = () => `${displayedUserHand.value.length}/${props.user.melds.length}/${userDrawnIndex.value}`
+  let frame = 0
+  let timer = 0
   const measure = () => {
     const firstTile = rack.firstElementChild
     userIdentityBesideHand.value = Boolean(firstTile
       && identity.getBoundingClientRect().right + 8 <= firstTile.getBoundingClientRect().left)
+    placements.set(handLayout(), userIdentityBesideHand.value)
   }
-  const observer = new ResizeObserver(measure)
+  const observer = new ResizeObserver(() => {
+    placements.clear()
+    measure()
+  })
   observer.observe(identity)
   observer.observe(rack)
-  const stop = watch([() => displayedUserHand.value.length, () => props.user.melds.length, userDrawnIndex],
-    measure, { immediate: true, flush: 'post' })
+  observer.observe(hud)
+  const stop = watch(handLayout, (layout) => {
+    const cached = placements.get(layout)
+    if (cached !== undefined) {
+      userIdentityBesideHand.value = cached
+      return
+    }
+    if (frame || timer) return
+    // 新的手牌布局等浏览器绘制后再读取位置，避开摸打当帧的强制排版。
+    frame = requestAnimationFrame(() => {
+      frame = 0
+      timer = window.setTimeout(() => {
+        timer = 0
+        measure()
+      }, 0)
+    })
+  }, { flush: 'post' })
   onCleanup(() => {
     observer.disconnect()
+    cancelAnimationFrame(frame)
+    clearTimeout(timer)
     stop()
   })
 }, { flush: 'post' })
@@ -591,7 +616,7 @@ function onAvatarError(entry: GamePlayer) {
       :theme-name="themeName"
       :players="players" :local-seat="user.seat" :current-player="currentPlayer" :last-discard="lastDiscard"
       :wall="wall" :wall-head-drawn="wallHeadDrawn" :wall-count="wallCount"
-      :wall-total="wallTotal" :laizi-only="rulesetId === 'yaotong'"
+      :wall-total="wallTotal" :laizi-only="rulesetId === 'yaotong'" :retain-discard-frame="rulesetId === 'yaotong'"
       :horses="result?.horses" :reveal-hands="tableRevealHands" :winner-index="winningPlayerIndex"
       :joker-tiles="jokerTiles" :wildcard-tiles="wildcardTiles"
       :win-effect="presentedWinEffect" :win-presentation="presentedWinPresentation" :deal-animation="dealAnimation"

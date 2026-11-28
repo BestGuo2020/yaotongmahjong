@@ -1,5 +1,44 @@
 import { expect, test } from '@playwright/test'
 
+test.describe('手机 3D 牌桌', () => {
+  test.use({ isMobile: true, hasTouch: true, deviceScaleFactor: 2, viewport: { width: 844, height: 390 } })
+
+  test('双击出牌后原分辨率局部重绘，并完成飞牌入河', async ({ page }) => {
+    test.setTimeout(90_000)
+    await page.addInitScript(() => {
+      const { scissor } = WebGL2RenderingContext.prototype
+      WebGL2RenderingContext.prototype.scissor = function (x, y, width, height) {
+        if (this.canvas instanceof HTMLCanvasElement && this.canvas.classList.contains('mahjong-scene')
+          && this.getParameter(this.DRAW_FRAMEBUFFER_BINDING) === null && width > 0 && height > 0
+          && width < this.drawingBufferWidth && height < this.drawingBufferHeight) {
+          this.canvas.dataset.discardScissor = `${width}x${height}`
+        }
+        scissor.call(this, x, y, width, height)
+      }
+    })
+    await page.goto('/tests/e2e/fixtures/yaotong-auto-discard.html?quality=low', { waitUntil: 'domcontentloaded' })
+    const canvas = page.locator<HTMLCanvasElement>('canvas.mahjong-scene')
+    await expect(canvas).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.table-loading')).toHaveCount(0, { timeout: 30_000 })
+    const buffer = () => canvas.evaluate(element => ({
+      retained: element.getContext('webgl2')?.getContextAttributes()?.preserveDrawingBuffer,
+      width: element.width,
+      height: element.height,
+    }))
+    const initialBuffer = await buffer()
+    expect(initialBuffer.retained).toBe(true)
+    await canvas.evaluate(element => { delete element.dataset.discardScissor })
+    await page.clock.install()
+    const drawn = page.locator('.hand-rack.playable .hand-tile-slot.drawn .mahjong-tile')
+    await drawn.tap()
+    await drawn.tap()
+    await expect(page.locator('.game-app')).toHaveAttribute('data-discards', '1')
+    await page.clock.runFor(450)
+    await expect(canvas).toHaveAttribute('data-discard-scissor', /^\d+x\d+$/)
+    expect(await buffer()).toEqual(initialBuffer)
+  })
+})
+
 for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390 }]) {
   for (const scenario of ['ready', 'original']) {
     test(`${scenario}声明后无需点击手牌，自动摸切并保留原手牌：${viewport.width}`, async ({ page }) => {

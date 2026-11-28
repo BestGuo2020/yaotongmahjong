@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { isHorseForSeat, sortTilesWithJokers } from '../../../game/core/rules/tiles'
 import { meldDisplayTiles, meldSourceTileIndex } from '../../../game/core/rules/rules'
 import { addedKongTileOffset, TABLE_LAYOUT, OPPOSITE_HAND_Z, meldTileCenter, discardTileLayout, meldTrackTransform, concealedMeldClear, concealedSideX, pointFromSeat } from '../../../game/core/presentation/tableLayout'
@@ -33,6 +32,11 @@ interface DealTween extends InstanceTween {
   target: THREE.Vector3
 }
 
+interface DiscardTween extends DealTween {
+  elapsed: number
+  lastFrameAt: number | null
+}
+
 interface MeldTween extends InstanceTween {
   baseX: number
   baseZ: number
@@ -44,6 +48,7 @@ interface TableTilePresenterOptions {
   projectOwnDraw?(point:{x:number;y:number}):THREE.Vector3|null
   props: Readonly<ResolvedTableProps>
   scene: THREE.Scene
+  smoothDiscardMotion?: boolean
   dynamicGroups: THREE.Object3D[]
   ownDynamic<T>(resource: T): T
   clearDynamicScene(): void
@@ -60,7 +65,7 @@ interface TableTilePresenterOptions {
 }
 
 export function createTableTilePresenter(options: TableTilePresenterOptions) {
-  const { props, scene, dynamicGroups, ownDynamic, clearDynamicScene, makeFaceTile, tableScene } = options
+  const { props, scene, dynamicGroups, ownDynamic, clearDynamicScene, makeFaceTile, tableScene, smoothDiscardMotion } = options
   const { tileInstances } = options
   const TILE_LAYER_Z = options.tileLayerZ
   const PLAY_AREA_OFFSET_Z = options.playAreaOffsetZ
@@ -69,10 +74,14 @@ export function createTableTilePresenter(options: TableTilePresenterOptions) {
   const WALL_DEAL_ORIGIN_Y = options.wallDealOriginY
   const dealTweens: DealTween[] = []
   const meldTweens: MeldTween[] = []
-  const discardTweens: DealTween[] = []
+  const discardTweens: DiscardTween[] = []
+  const movingDiscard = { id: -1, position: new THREE.Vector3() }
+  let wallHeadInstance: ReturnType<TileInstanceRenderer['add']> | null = null
+  const hiddenPosition = new THREE.Vector3()
+  const hiddenRotation = new THREE.Quaternion()
   let continuingDeals = new Map<string, DealTween>()
   let continuingMelds = new Map<string, MeldTween>()
-  let continuingDiscards = new Map<string, DealTween>()
+  let continuingDiscards = new Map<string, DiscardTween>()
   let animatedDealSerial = -1
   let pendingDealAnimation = false
   let animatedFlipKey: string | null = null
@@ -269,6 +278,8 @@ function addDiscards(playerIndex) {
         quat,
         startedAt: continuing?.startedAt ?? performance.now(),
         duration: 360,
+        elapsed: continuing?.elapsed ?? 0,
+        lastFrameAt: continuing?.lastFrameAt ?? null,
       })
     } else {
       addTableTile(pos, quat, tileName)
@@ -276,7 +287,7 @@ function addDiscards(playerIndex) {
     if (highlighted) {
       // 最新一张弃牌的高亮垫片保持独立 mesh（仅 1 张，无需合批）。
       const marker = new THREE.Mesh(
-        ownDynamic(new RoundedBoxGeometry(.76, .045, 1.02, 2, .02)),
+        scene.userData.discardHighlightGeometry,
         scene.userData.highlightMaterial,
       )
       marker.position.set(transform.x, y - .205, transform.z + PLAY_AREA_OFFSET_Z)
@@ -525,6 +536,7 @@ function addFlipIndicator() {
 // 开杠/红中从牌尾补张（pop）不计入，因此牌尾端会正确地随之缩短。
 // 莲花麻将：翻精墩整体移出牌墙，牌墙张位跳过翻精墩，并在该墩翻出指示牌。
 function addWall() {
+  wallHeadInstance = null
   const tiles = props.wall || []
   if (!tiles.length) return
   const breakIndex = resolveBreakIndex()
@@ -549,7 +561,8 @@ function addWall() {
     const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, slot.rotationY, 0))
     // 背朝上：绕 X 转 180°，使 base 底面的牌背（backMaterial）朝上（与暗杠首尾一致）。
     quat.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0)))
-    addTableTile(new THREE.Vector3(slot.x, y, slot.z), quat, null)
+    const instance = addTableTile(new THREE.Vector3(slot.x, y, slot.z), quat, null)
+    if (index === 0) wallHeadInstance = instance
   })
   addFlipIndicator()
 }
@@ -665,9 +678,8 @@ function sourcePose(source:SourceTileEvent):FlightPose {
   const p=discardSourcePos(seat)
   return {x:seat===0?5.8:p.x,y:p.y,z:p.z,rotation:seat*Math.PI/2,tilt:seat===0?0:-Math.PI/2}
 }
-function rebuildTableTiles({ reuseInstances = false }: { reuseInstances?: boolean } = {}) {
+function rebuildTableTiles() {
   if (!scene || !props.players.length || !scene.userData.tileImages) return
-  const reuse = reuseInstances && tileInstances.canReuse()
   const epoch=`${props.bloodFlowPresentationKey}/${props.localSeat}`
   // Rebind active motions to the newly built instances. Refreshing a snapshot
   // or a blood-flow overlay must not erase a normal discard/meld mid-flight.
@@ -678,20 +690,22 @@ function rebuildTableTiles({ reuseInstances = false }: { reuseInstances?: boolea
   )
   continuingDeals = active(dealTweens)
   continuingMelds = active(meldTweens)
-  continuingDiscards = active(discardTweens)
+  continuingDiscards = smoothDiscardMotion && retain
+    ? new Map(discardTweens.map(tween => [tween.motionKey, tween]))
+    : active(discardTweens)
   pendingDealAnimation = props.dealAnimation.serial !== animatedDealSerial
   if (props.openingStage !== 'flip') animatedFlipKey = null
   if(epoch!==sourceEpoch){sourceEpoch=epoch;sourceTransforms.clear();ownDrawScreens.clear()}
   drawnTransforms.clear();addedTransforms.clear();flights.length=0
   handFaceInstances.length = 0
-  if (!reuse) clearDynamicScene()
+  clearDynamicScene()
   dealTweens.length = 0
   meldTweens.length = 0
   discardTweens.length = 0
   pendingTableActionAnimation = props.tableActionEvent?.id !== animatedTableActionId
     ? props.tableActionEvent
     : null
-  beginTableInstances(reuse)
+  beginTableInstances()
   for (let playerIndex = 0; playerIndex < 4; playerIndex += 1) {
     addConcealedHand(playerIndex)
     addDiscards(playerIndex)
@@ -728,7 +742,7 @@ function rebuildTableTiles({ reuseInstances = false }: { reuseInstances?: boolea
   animatedDealSerial = props.dealAnimation.serial
   // Sample the original timeline before this rebuilt frame is rendered, so the
   // tile neither snaps to its destination nor restarts from its origin.
-  animate(now, new THREE.Vector3())
+  animate(now, new THREE.Vector3(), false)
   continuingDeals.clear(); continuingMelds.clear(); continuingDiscards.clear()
   if (pendingTableActionAnimation) animatedTableActionId = pendingTableActionAnimation.id
   pendingTableActionAnimation = null
@@ -736,7 +750,7 @@ function rebuildTableTiles({ reuseInstances = false }: { reuseInstances?: boolea
   options.addWinningDisplayTile()
 }
 
-  function animate(time: number, scratchVector: THREE.Vector3) {
+  function animate(time: number, scratchVector: THREE.Vector3, presented = true) {
     let indicatorMoving = false
     if (indicatorMotion && indicatorInstance) {
       // Finish within the existing hand-reveal stage; no extra settlement delay.
@@ -775,14 +789,23 @@ function rebuildTableTiles({ reuseInstances = false }: { reuseInstances?: boolea
       return progress < 1
     })
     meldTweens.splice(0, meldTweens.length, ...keepMeld)
+    const drawTime = smoothDiscardMotion && presented && discardTweens.length ? performance.now() : 0
     const keepDiscard = discardTweens.filter((tween) => {
-      const progress = Math.min(1, Math.max(0, (time - tween.startedAt) / tween.duration))
-      const eased = 1 - (1 - progress) ** 3
+      // 以真正绘制的首帧起步。长帧限制位移，重建实例时沿用上一帧的进度。
+      if (smoothDiscardMotion && presented) {
+        if (tween.lastFrameAt !== null) tween.elapsed += Math.min(32, Math.max(0, drawTime - tween.lastFrameAt))
+        tween.lastFrameAt = drawTime
+      }
+      const elapsed = smoothDiscardMotion ? tween.elapsed : time - tween.startedAt
+      const progress = THREE.MathUtils.clamp(elapsed / tween.duration, 0, 1)
+      const eased = smoothDiscardMotion ? progress * progress * (3 - 2 * progress) : 1 - (1 - progress) ** 3
       const arc = Math.sin(progress * Math.PI) * .32
       const bounce = Math.sin(progress * Math.PI) * (1 - progress) * .1
       scratchVector.lerpVectors(tween.origin, tween.target, eased)
       scratchVector.y = THREE.MathUtils.lerp(tween.origin.y, tween.target.y, eased) + arc + bounce
       tileInstances.set(tween.baseIndex, tween.capMesh, tween.capIndex, scratchVector, tween.quat, 1)
+      movingDiscard.id = animatedDiscardId
+      movingDiscard.position.copy(scratchVector)
       return progress < 1
     })
     discardTweens.splice(0, discardTweens.length, ...keepDiscard)
@@ -790,6 +813,18 @@ function rebuildTableTiles({ reuseInstances = false }: { reuseInstances?: boolea
   }
 
   return { rebuild: rebuildTableTiles, animate, meldTransform, alignMeldBottom, sourceTileRotationOffset,
+    removeWallHead() {
+      if (!wallHeadInstance || props.openingStage || props.revealHands || props.winEffect || props.settlementIndicator || props.wall.length < 3) return false
+      // 本家手牌由 HUD 显示，普通摸牌只需收起墙头及其接触阴影。
+      const { baseIndex, capMesh, capIndex } = wallHeadInstance
+      tileInstances.set(baseIndex, capMesh, capIndex, hiddenPosition, hiddenRotation, 0)
+      wallHeadInstance = null
+      return true
+    },
+    singleMovingDiscard() {
+      return discardTweens.length === 1 && !dealTweens.length && !meldTweens.length && !flights.length && !indicatorMotion
+        ? movingDiscard : null
+    },
     // 相机实验室读取真实实例几何的投影，供 HUD 遮挡验收；正式构建不采集手牌实例。
     handFaceScreenRects(camera: THREE.Camera) {
       camera.updateMatrixWorld()

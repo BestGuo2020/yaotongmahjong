@@ -4,8 +4,7 @@ import type { TileType } from '../../../game/core/contracts/types'
 interface TileInstanceRendererOptions {
   capacity?: number
   scene: THREE.Scene
-  ownDynamic<T>(resource: T): T
-  dynamicGroups: THREE.Object3D[]
+  own<T>(resource: T): T
   getAtlasMaterial(): THREE.Material
   getJokerAtlasMaterial?: () => THREE.Material
   getWildcardAtlasMaterial?: () => THREE.Material
@@ -50,13 +49,9 @@ export function createTileInstanceRenderer(options: TileInstanceRendererOptions)
   let wildcardAtlasCapMesh: THREE.InstancedMesh | null = null
   let laiziAtlasCapMesh: THREE.InstancedMesh | null = null
   let shadowMesh: THREE.InstancedMesh | null = null
-  let atlasUvAttribute: THREE.InstancedBufferAttribute | null = null
   let atlasUvData: Float32Array | null = null
-  let jokerAtlasUvAttribute: THREE.InstancedBufferAttribute | null = null
   let jokerAtlasUvData: Float32Array | null = null
-  let wildcardAtlasUvAttribute: THREE.InstancedBufferAttribute | null = null
   let wildcardAtlasUvData: Float32Array | null = null
-  let laiziAtlasUvAttribute: THREE.InstancedBufferAttribute | null = null
   let laiziAtlasUvData: Float32Array | null = null
   let backCapCount = 0
   let atlasCapCount = 0
@@ -64,6 +59,7 @@ export function createTileInstanceRenderer(options: TileInstanceRendererOptions)
   let wildcardAtlasCapCount = 0
   let laiziAtlasCapCount = 0
   let instanceCount = 0
+  let building = false
   const matrix = new THREE.Matrix4()
   const scaleVector = new THREE.Vector3()
   const shadowMatrix = new THREE.Matrix4()
@@ -71,7 +67,7 @@ export function createTileInstanceRenderer(options: TileInstanceRendererOptions)
   const shadowScale = new THREE.Vector3()
 
   function createCap(topMaterial: THREE.Material, geometry: THREE.BufferGeometry) {
-    const cap = options.ownDynamic(new THREE.InstancedMesh(
+    const cap = options.own(new THREE.InstancedMesh(
       geometry,
       [options.scene.userData.tileSide, options.scene.userData.tileSide, topMaterial,
         options.scene.userData.tileBottom, options.scene.userData.tileSide, options.scene.userData.tileSide],
@@ -80,26 +76,16 @@ export function createTileInstanceRenderer(options: TileInstanceRendererOptions)
     cap.castShadow = true
     cap.receiveShadow = true
     cap.frustumCulled = false
+    cap.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     options.scene.add(cap)
-    options.dynamicGroups.push(cap)
     return cap
   }
 
-  function canReuse() {
-    return Boolean(
-      baseMesh?.parent === options.scene
-      && backCapMesh?.parent === options.scene
-      && atlasCapMesh?.parent === options.scene
-      && jokerAtlasCapMesh?.parent === options.scene
-      && wildcardAtlasCapMesh?.parent === options.scene
-      && laiziAtlasCapMesh?.parent === options.scene
-      && (options.contactShadowY == null || shadowMesh?.parent === options.scene),
-    )
-  }
-
-  function begin(reuse = false) {
-    if (!reuse || !canReuse()) {
-      baseMesh = options.ownDynamic(new THREE.InstancedMesh(
+  function begin() {
+    building = true
+    // 实例及其缓冲区随整张牌桌释放，跨摸打、碰杠和开局批次复用。
+    if (!baseMesh) {
+      baseMesh = options.own(new THREE.InstancedMesh(
         options.scene.userData.tileBaseGeometry,
         [options.scene.userData.faceSide, options.scene.userData.faceSide, options.scene.userData.faceSide,
           options.scene.userData.backMaterial, options.scene.userData.faceSide, options.scene.userData.faceSide],
@@ -108,51 +94,43 @@ export function createTileInstanceRenderer(options: TileInstanceRendererOptions)
       baseMesh.castShadow = true
       baseMesh.receiveShadow = true
       baseMesh.frustumCulled = false
+      baseMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
       options.scene.add(baseMesh)
-      options.dynamicGroups.push(baseMesh)
       backCapMesh = createCap(options.scene.userData.tileBottom, options.scene.userData.tileCapGeometry)
       atlasCapMesh = createCap(options.getAtlasMaterial(), options.getAtlasCapGeometry())
       jokerAtlasCapMesh = createCap(
         options.getJokerAtlasMaterial?.() ?? options.getAtlasMaterial(),
-        options.ownDynamic(options.getAtlasCapGeometry().clone()),
+        options.own(options.getAtlasCapGeometry().clone()),
       )
       wildcardAtlasCapMesh = createCap(
         options.getWildcardAtlasMaterial?.() ?? options.getAtlasMaterial(),
-        options.ownDynamic(options.getAtlasCapGeometry().clone()),
+        options.own(options.getAtlasCapGeometry().clone()),
       )
       laiziAtlasCapMesh = createCap(
         options.getLaiziAtlasMaterial?.() ?? options.getAtlasMaterial(),
-        options.ownDynamic(options.getAtlasCapGeometry().clone()),
+        options.own(options.getAtlasCapGeometry().clone()),
       )
       if (options.contactShadowY != null) {
-        const shadowTexture = options.ownDynamic(makeContactShadowTexture())
-        const shadowMaterial = options.ownDynamic(new THREE.MeshBasicMaterial({
+        const shadowTexture = options.own(makeContactShadowTexture())
+        const shadowMaterial = options.own(new THREE.MeshBasicMaterial({
           map: shadowTexture,
           transparent: true,
           depthWrite: false,
         }))
-        shadowMesh = options.ownDynamic(new THREE.InstancedMesh(
-          options.ownDynamic(new THREE.PlaneGeometry(1.15, 1.45)),
+        shadowMesh = options.own(new THREE.InstancedMesh(
+          options.own(new THREE.PlaneGeometry(1.15, 1.45)),
           shadowMaterial,
           INSTANCE_CAPACITY,
         ))
         shadowMesh.frustumCulled = false
         shadowMesh.renderOrder = 1
+        shadowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
         options.scene.add(shadowMesh)
-        options.dynamicGroups.push(shadowMesh)
       }
-      atlasUvData = new Float32Array(INSTANCE_CAPACITY * 2)
-      atlasUvAttribute = new THREE.InstancedBufferAttribute(atlasUvData, 2)
-      atlasCapMesh.geometry.setAttribute('aUvOffset', atlasUvAttribute)
-      jokerAtlasUvData = new Float32Array(INSTANCE_CAPACITY * 2)
-      jokerAtlasUvAttribute = new THREE.InstancedBufferAttribute(jokerAtlasUvData, 2)
-      jokerAtlasCapMesh.geometry.setAttribute('aUvOffset', jokerAtlasUvAttribute)
-      wildcardAtlasUvData = new Float32Array(INSTANCE_CAPACITY * 2)
-      wildcardAtlasUvAttribute = new THREE.InstancedBufferAttribute(wildcardAtlasUvData, 2)
-      wildcardAtlasCapMesh.geometry.setAttribute('aUvOffset', wildcardAtlasUvAttribute)
-      laiziAtlasUvData = new Float32Array(INSTANCE_CAPACITY * 2)
-      laiziAtlasUvAttribute = new THREE.InstancedBufferAttribute(laiziAtlasUvData, 2)
-      laiziAtlasCapMesh.geometry.setAttribute('aUvOffset', laiziAtlasUvAttribute)
+      atlasUvData = createUvData(atlasCapMesh)
+      jokerAtlasUvData = createUvData(jokerAtlasCapMesh)
+      wildcardAtlasUvData = createUvData(wildcardAtlasCapMesh)
+      laiziAtlasUvData = createUvData(laiziAtlasCapMesh)
     }
     backCapCount = 0
     atlasCapCount = 0
@@ -162,22 +140,31 @@ export function createTileInstanceRenderer(options: TileInstanceRendererOptions)
     instanceCount = 0
   }
 
+  function createUvData(mesh: THREE.InstancedMesh) {
+    const data = new Float32Array(INSTANCE_CAPACITY * 2)
+    mesh.geometry.setAttribute('aUvOffset', new THREE.InstancedBufferAttribute(data, 2).setUsage(THREE.DynamicDrawUsage))
+    return data
+  }
+
+  function updateMatrix(mesh: THREE.InstancedMesh, index: number, value: THREE.Matrix4) {
+    mesh.setMatrixAt(index, value)
+    if (!building) {
+      mesh.instanceMatrix.addUpdateRange(index * 16, 16)
+      mesh.instanceMatrix.needsUpdate = true
+    }
+  }
+
   function set(baseIndex: number, capMesh: THREE.InstancedMesh, capIndex: number, position: THREE.Vector3, quaternion: THREE.Quaternion, scale: number) {
     scaleVector.setScalar(scale)
     matrix.compose(position, quaternion, scaleVector)
-    baseMesh!.setMatrixAt(baseIndex, matrix.multiply(TILE_BASE_OFFSET))
+    updateMatrix(baseMesh!, baseIndex, matrix.multiply(TILE_BASE_OFFSET))
     matrix.compose(position, quaternion, scaleVector)
-    capMesh.setMatrixAt(capIndex, matrix.multiply(TILE_CAP_OFFSET))
-    // setMatrixAt only mutates the CPU-side buffer. Mark both attributes dirty so
-    // deal/discard/meld tween matrices are uploaded on the next render frame.
-    baseMesh!.instanceMatrix.needsUpdate = true
-    capMesh.instanceMatrix.needsUpdate = true
+    updateMatrix(capMesh, capIndex, matrix.multiply(TILE_CAP_OFFSET))
     if (shadowMesh && options.contactShadowY != null) {
       shadowPosition.set(position.x + CONTACT_SHADOW_OFFSET_X, options.contactShadowY, position.z + CONTACT_SHADOW_OFFSET_Z)
       shadowScale.setScalar(scale)
       shadowMatrix.compose(shadowPosition, CONTACT_SHADOW_QUAT, shadowScale)
-      shadowMesh.setMatrixAt(baseIndex, shadowMatrix)
-      shadowMesh.instanceMatrix.needsUpdate = true
+      updateMatrix(shadowMesh, baseIndex, shadowMatrix)
     }
   }
 
@@ -211,6 +198,7 @@ export function createTileInstanceRenderer(options: TileInstanceRendererOptions)
   }
 
   function finish() {
+    building = false
     baseMesh!.count = instanceCount
     backCapMesh!.count = backCapCount
     atlasCapMesh!.count = atlasCapCount
@@ -218,20 +206,18 @@ export function createTileInstanceRenderer(options: TileInstanceRendererOptions)
     wildcardAtlasCapMesh!.count = wildcardAtlasCapCount
     laiziAtlasCapMesh!.count = laiziAtlasCapCount
     if (shadowMesh) shadowMesh.count = instanceCount
-    baseMesh!.instanceMatrix.needsUpdate = true
-    backCapMesh!.instanceMatrix.needsUpdate = true
-    atlasCapMesh!.instanceMatrix.needsUpdate = true
-    jokerAtlasCapMesh!.instanceMatrix.needsUpdate = true
-    wildcardAtlasCapMesh!.instanceMatrix.needsUpdate = true
-    laiziAtlasCapMesh!.instanceMatrix.needsUpdate = true
-    if (shadowMesh) shadowMesh.instanceMatrix.needsUpdate = true
-    if (atlasUvAttribute) atlasUvAttribute.needsUpdate = true
-    if (jokerAtlasUvAttribute) jokerAtlasUvAttribute.needsUpdate = true
-    if (wildcardAtlasUvAttribute) wildcardAtlasUvAttribute.needsUpdate = true
-    if (laiziAtlasUvAttribute) laiziAtlasUvAttribute.needsUpdate = true
+    for (const mesh of [baseMesh, backCapMesh, atlasCapMesh, jokerAtlasCapMesh, wildcardAtlasCapMesh, laiziAtlasCapMesh, shadowMesh]) {
+      if (!mesh?.count) continue
+      for (const attribute of [mesh.instanceMatrix, mesh.geometry.getAttribute('aUvOffset') as THREE.BufferAttribute | undefined]) {
+        if (!attribute) continue
+        attribute.clearUpdateRanges()
+        attribute.addUpdateRange(0, mesh.count * attribute.itemSize)
+        attribute.needsUpdate = true
+      }
+    }
   }
 
-  return { begin, canReuse, add, set, finish }
+  return { begin, add, set, finish }
 }
 
 export type TileInstanceRenderer = ReturnType<typeof createTileInstanceRenderer>

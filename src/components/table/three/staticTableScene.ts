@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
+import { mergeGroups, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { TILE_TYPES } from '../../../game/core/rules/tiles'
 import { windForSeat } from '../../../game/core/presentation/tableLayout'
 import type { TileType } from '../../../game/core/contracts/types'
@@ -808,6 +809,8 @@ function updateMachineTexture() {
   texture.needsUpdate = true
 }
 
+const staticMeshes: THREE.Mesh[] = []
+
 function addStaticMesh(geometry, material, x, y, z) {
   own(geometry)
   const item = new THREE.Mesh(geometry, material)
@@ -815,7 +818,18 @@ function addStaticMesh(geometry, material, x, y, z) {
   item.castShadow = theme.staticTableCastShadow !== false
   item.receiveShadow = true
   scene.add(item)
+  staticMeshes.push(item)
   return item
+}
+
+function tileGeometryFor(box: RoundedBoxGeometry, hasFace: boolean) {
+  // 合并同材质的侧面，同时保留法线、UV 接缝以及独立的牌背和牌面。
+  const indexed = mergeVertices(box, 1e-6)
+  box.dispose()
+  for (const group of indexed.groups) {
+    if (group.materialIndex !== 3 && !(hasFace && group.materialIndex === 2)) group.materialIndex = 0
+  }
+  return own(mergeGroups(indexed))
 }
 
 function addTable() {
@@ -860,11 +874,12 @@ function addTable() {
     ...theme.tile.back,
   })))
   scene.userData.highlightMaterial = own(new THREE.MeshStandardMaterial({ ...theme.highlight }))
+  scene.userData.discardHighlightGeometry = own(new RoundedBoxGeometry(.76, .045, 1.02, 2, .02))
   // 牌体几何由整桌共享，避免每次手牌、牌河更新时重复构建和销毁圆角网格。
   // 绿色牌背层略微内收，白色正面层形成完整外轮廓。
   const tileGeometry = theme.tileGeometry ?? { segments: 6, baseRadius: .07, capRadius: .072 }
-  scene.userData.tileBaseGeometry = own(new RoundedBoxGeometry(.68, .22, .94, tileGeometry.segments, tileGeometry.baseRadius))
-  scene.userData.tileCapGeometry = own(new RoundedBoxGeometry(.69, .34, .95, tileGeometry.segments, tileGeometry.capRadius))
+  scene.userData.tileBaseGeometry = tileGeometryFor(new RoundedBoxGeometry(.68, .22, .94, tileGeometry.segments, tileGeometry.baseRadius), false)
+  scene.userData.tileCapGeometry = tileGeometryFor(new RoundedBoxGeometry(.69, .34, .95, tileGeometry.segments, tileGeometry.capRadius), true)
   if (theme.tileAoIntensity) {
     ;[scene.userData.tileBaseGeometry, scene.userData.tileCapGeometry].forEach((geometry: THREE.BufferGeometry) => {
       const uv = geometry.getAttribute('uv')
@@ -1027,10 +1042,12 @@ function addTable() {
   machineMesh.castShadow = true
   machineMesh.receiveShadow = true
   scene.add(machineMesh)
+  staticMeshes.push(machineMesh)
 }
 
   return {
     addTable,
+    staticMeshes,
     updateMachineTexture,
     makeFaceMaterial,
     makeDimmedHorseTile,

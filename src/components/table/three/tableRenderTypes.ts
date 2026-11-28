@@ -7,6 +7,8 @@ import type { BloodFlowCue } from '../../../game/variants/lotus/bloodFlow/presen
 import type { KongWeatherCue } from '../../../game/variants/yaotong/kongPresentation'
 
 export interface TableProps {
+  /** 移动端实战牌桌在单张飞牌时保留上一帧，用于局部重绘。 */
+  retainDiscardFrame?: boolean
   /** Live first chicken discards, indexed by local seat and river slot. */
   sidewaysDiscards?: readonly (readonly number[])[]
   neutralPengOrientation?: boolean

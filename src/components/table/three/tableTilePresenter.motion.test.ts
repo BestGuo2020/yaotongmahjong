@@ -7,15 +7,16 @@ import type { GamePlayer, Meld, TableActionType, TileType } from '../../../game/
 import * as winEffect from '../../../game/core/presentation/winEffect'
 import { discardTileLayout } from '../../../game/core/presentation/tableLayout'
 
-function setup(meld?: Meld, action?: TableActionType) {
+function setup(meld?: Meld, action?: TableActionType, smoothDiscardMotion = false) {
   let now = 0
   vi.spyOn(performance, 'now').mockImplementation(() => now)
   const scene = new THREE.Scene()
   scene.userData.tileImages = {}
   scene.userData.highlightMaterial = new THREE.MeshBasicMaterial()
+  scene.userData.discardHighlightGeometry = new THREE.BoxGeometry()
   const rendered: { face: TileType | null; position: THREE.Vector3; rotation: THREE.Quaternion; scale: number }[] = []
   const instances = {
-    begin: () => { rendered.length = 0 }, finish: () => {}, canReuse: () => false,
+    begin: () => { rendered.length = 0 }, finish: () => {},
     add: (position: THREE.Vector3, _q: THREE.Quaternion, face: TileType | null, _opacity = 1, origin = position, scale = 1) => {
       const index = rendered.length
       rendered.push({ face, position: origin.clone(), rotation: _q.clone(), scale })
@@ -35,7 +36,7 @@ function setup(meld?: Meld, action?: TableActionType) {
     tableActionEvent: action ? { id: 1, type: action, actorIndex: 0, sourceIndex: 1, tile: 'm5', meldIndex: 0 } : null,
   } as unknown as ResolvedTableProps
   const dynamicGroups: THREE.Object3D[] = []
-  const presenter = createTableTilePresenter({ props, scene, dynamicGroups, ownDynamic: value => value,
+  const presenter = createTableTilePresenter({ props, scene, dynamicGroups, smoothDiscardMotion, ownDynamic: value => value,
     clearDynamicScene: () => { dynamicGroups.splice(0).forEach(g => g.removeFromParent()) },
     makeFaceTile: () => new THREE.Group(), tableScene: { makeDimmedHorseTile: () => new THREE.Group(),
       makeGoldGlow: () => new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial()), makeGoldVerticalGlow: () => new THREE.Sprite() },
@@ -47,6 +48,49 @@ function setup(meld?: Meld, action?: TableActionType) {
 }
 
 afterEach(() => vi.restoreAllMocks())
+
+it('本家从 108 张牌墙摸牌时只收起墙头，保留已补牌尾墩和牌河的位置', () => {
+  const s = setup()
+  s.props.wallTotal = 108
+  s.props.wallHeadDrawn = 102
+  s.props.wall = ['s1', 's2', 's3', 's4', 'p6']
+  s.props.players[3].discards = ['m9']
+  s.presenter.rebuild()
+  s.props.wall = s.props.wall.slice(1)
+  s.props.wallHeadDrawn++
+  expect(s.presenter.removeWallHead()).toBe(true)
+  expect(s.presenter.removeWallHead()).toBe(false)
+  expect(s.rendered.filter(tile => !tile.scale).map(tile => tile.face)).toEqual([null])
+  const displayed = () => s.rendered.filter(tile => tile.scale).map(tile => [tile.face, ...tile.position.toArray()])
+  const afterDraw = displayed()
+  s.presenter.rebuild()
+  expect(displayed()).toEqual(afterDraw)
+})
+
+it('手机飞牌从实际首帧开始，长帧和重建都不会跳过一大段轨迹', () => {
+  const s = setup(undefined, undefined, true)
+  s.props.players[3].discards = ['p4']
+  s.props.lastDiscard = { from: 3, tile: 'p4', id: 1 }
+  s.presenter.rebuild()
+  const tile = () => s.rendered.find(t => t.face === 'p4')!.position
+  const origin = tile().clone()
+  const point = new THREE.Vector3()
+  s.setNow(110)
+  s.presenter.animate(30, point)
+  expect(s.presenter.singleMovingDiscard()?.position).toEqual(origin)
+  s.setNow(290)
+  s.presenter.animate(280, point)
+  const afterStall = tile().clone()
+  expect(afterStall.distanceTo(origin)).toBeGreaterThan(0)
+  s.presenter.rebuild()
+  expect(tile()).toEqual(afterStall)
+  for (let time = 306; time < 700; time += 16) {
+    s.setNow(time)
+    s.presenter.animate(time, point)
+  }
+  expect(s.presenter.singleMovingDiscard()).toBeNull()
+  expect(afterStall.distanceTo(origin)).toBeLessThan(tile().distanceTo(origin) * .12)
+})
 
 describe('shared normal tile animations survive state refreshes', () => {
   it.each([0, 1, 2, 3])('座位%s的首鸡横放且预留宽度；被取走后不把标记自动转给下一张', seat => {

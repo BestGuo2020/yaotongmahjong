@@ -16,7 +16,7 @@ import {
   REDUCED_WIN_REVEAL_DURATION,
 } from '../../core/presentation/winEffect'
 import { createGame, makePlayer } from './engine'
-import { chooseAction } from './ai'
+import * as tableAi from './ai'
 import { YAOTONG_AI_DISCARD_MS, YAOTONG_AI_KONG_DISCARD_MS, YAOTONG_REACTION_MS, YAOTONG_EXTENDED_REACTION_MS } from './useYaotongGame'
 import { KONG_WEATHER_DURATION } from './kongPresentation'
 import { countsOf } from './tiles'
@@ -85,6 +85,32 @@ describe('原版节奏与幺筒实时对局的边界', () => {
     expect(state.players[1].river).toHaveLength(0)
     await vi.advanceTimersByTimeAsync(1)
     expect(state.players[1].river).toHaveLength(1)
+  })
+
+  it('空闲时预算 AI 动作，并按原定时刻出牌', async () => {
+    const decide = vi.spyOn(tableAi, 'chooseAction')
+    const requestIdle = vi.fn((callback: IdleRequestCallback) => {
+      return setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 10 }), 1)
+    })
+    const cancelIdle = vi.fn(clearTimeout)
+    vi.stubGlobal('requestIdleCallback', requestIdle)
+    vi.stubGlobal('cancelIdleCallback', cancelIdle)
+    try {
+      const port = setup(), state = fixture()
+      state.current = 1
+      state.players[1].hand.push(4)
+      port.local.state.value = state
+      await nextTick()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(decide).toHaveBeenCalledTimes(1)
+      expect(state.players[1].river).toHaveLength(0)
+      await vi.advanceTimersByTimeAsync(YAOTONG_AI_DISCARD_MS - 1)
+      expect(state.players[1].river).toHaveLength(1)
+      expect(decide).toHaveBeenCalledTimes(1)
+      expect(cancelIdle).toHaveBeenCalledWith(requestIdle.mock.results[0].value)
+    } finally {
+      decide.mockRestore()
+    }
   })
 
   it('碰牌留牌1000ms，AI碰后1000ms再出牌', async () => {
